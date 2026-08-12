@@ -3461,6 +3461,59 @@ input:valid:not(:placeholder-shown) {
 
 /* ══ FIM POLIMENTOS v9.3 ══════════════════════════════════════ */
 /* ══ END V9.2 CSS ═══════════════════════════════════════════════════════ */
+
+/* ══════════════════════════════════════════════════════════════════
+   PASSE DE LEGIBILIDADE PROFISSIONAL — v15
+   Eleva o tamanho mínimo de qualquer texto microscópico (inclusive
+   inline styles legados) e melhora contraste/espaçamento geral,
+   sem remover a identidade visual do sistema.
+   ══════════════════════════════════════════════════════════════════ */
+.ficha-section-title,
+.op-cat-item-nome,
+.op-item-tab,
+.op-cat-filt { letter-spacing:.05em; }
+
+/* corrige blocos de texto secundário que ficavam ilegíveis (6–11px) */
+[style*="font-size:.4rem"],[style*="font-size:.42rem"],[style*="font-size:.44rem"],
+[style*="font-size:.46rem"],[style*="font-size:.48rem"],[style*="font-size:.5rem"],
+[style*="font-size:.52rem"],[style*="font-size:.55rem"],[style*="font-size:.56rem"],
+[style*="font-size:.58rem"],[style*="font-size:.6rem"],[style*="font-size:.62rem"],
+[style*="font-size:.63rem"]{
+  font-size:.8rem !important;
+  line-height:1.6 !important;
+}
+[style*="font-size:.65rem"],[style*="font-size:.68rem"],[style*="font-size:.7rem"],
+[style*="font-size:.72rem"],[style*="font-size:.75rem"],[style*="font-size:.78rem"]{
+  font-size:.9rem !important;
+  line-height:1.65 !important;
+}
+[style*="opacity:.4"],[style*="opacity:.5"],[style*="opacity:.6"]{ opacity:.78 !important; }
+
+/* textos descritivos (origens, habilidades, itens, ilusymas) — mais espaço e contraste */
+.op-cat-item-desc,.op-cat-item-sub,.op-iy-empty,.hab-desc,.hab-efeito,
+.ficha-section, .op-cat-list, .op-item-modal, .op-modal { line-height:1.68; }
+.op-cat-item{ padding:14px 12px !important; }
+.op-cat-item-nome{ font-size:1rem !important; }
+.op-cat-item-desc{ font-size:.85rem !important; color:rgba(230,232,245,.86) !important; margin-top:4px; }
+
+/* cabeçalhos de seção da ficha — mais respiro */
+.ficha-section{ margin-bottom:22px; }
+.ficha-section-title{ font-size:1.05rem !important; margin-bottom:10px !important; }
+
+/* badges/chips de habilidade — legíveis sem perder o clima "terminal" */
+.hab-tipo-badge{ font-size:.72rem !important; padding:4px 9px !important; line-height:1.5 !important; }
+
+/* progressão de origem (NÍV. 1/3/5) inserida no catálogo de Origens */
+.origem-prog{
+  margin-top:10px; padding-top:10px; border-top:1px dashed rgba(255,255,255,.1);
+  display:flex; flex-direction:column; gap:6px;
+}
+.origem-prog-row{ font-size:.82rem; line-height:1.55; color:rgba(225,228,245,.88); }
+.origem-prog-lvl{
+  display:inline-block; font-family:'Share Tech Mono',monospace; font-size:.68rem;
+  color:#fff; background:rgba(210,40,40,.28); border:1px solid rgba(210,40,40,.45);
+  border-radius:4px; padding:1px 7px; margin-right:8px; letter-spacing:.04em;
+}
 </style>
 <script id="ymm-seed" type="application/json">{"users":[],"data":{"campanhas":[],"players":[],"customItems":[],"customOrigens":[],"customHabilidades":[]},"chat":{"chat":[],"media":[],"rolls":[]},"live":{}}</script>
 <script>
@@ -7174,6 +7227,25 @@ function renderOrigens() {
     {nome:'Universitário',emoji:'📚',desc:'Mente versátil com base sólida. O YMA encontra solo fértil no conhecimento — aprendem habilidades com velocidade extraordinária.'},
     {nome:'Usuário',emoji:'💉',desc:'Expostos diretamente ao YMA de forma não controlada. Corpo adaptou — absorvem e redistribuem YMA instintivamente.'},
     {nome:'Vendedor',emoji:'💼',desc:'Relações e recursos são seu poder. Com YMA, criam conexões em tempo real — sempre têm o contato e item certo.'},
+    // ── ORIGENS OFICIAIS ADICIONADAS (Livro de Introdução, Cap. 08) ──
+    {nome:'Artista',emoji:'🎨',desc:'Criatividade que sangra YMA. Cada obra é um portal — entre realidade e o que só eles conseguem ver.',
+      prog:['Cria ilusão visual inofensiva em área de 5m. Gasta 4 de Esforço.','Obra de arte que confunde percepção de 1 alvo por 2 rodadas. Gasta 6 de Esforço.','Manifesta criação YMA sólida e temporária (escudo, arma ou estrutura). Gasta 8 de Esforço.']},
+    {nome:'Músico',emoji:'🎙',desc:'O som como arma, escudo e cura. YMA ressoa nas frequências sonoras — vibra ossos e dissolve vontades.',
+      prog:['Melodia que acalma 1 NPC hostil sem rolagem. Gasta 3 de Esforço.','Onda sonora que derruba todos em 4m. DT 13 Resiliência. Gasta 5 de Esforço.','Composição YMA que cura 2d8 do grupo inteiro ou causa 2d8 em área. Gasta 8 de Esforço.']},
+    {nome:'Monge',emoji:'🧘',desc:'Equilíbrio entre corpo e YMA. Alcançaram quietude que permite canalizar o alien sem dor — só fluxo puro.',
+      prog:['Meditação de 10min restaura 1d8 de Sanidade. Gasta 2 de Esforço.','Golpe desarmado com YMA: 2d10 de dano + atordoa 1 rodada. Gasta 5 de Esforço.','Estado de transe: +1 em todos os atributos por 3 rodadas. Gasta 9 de Esforço.']},
+    {nome:'Sobrevivente',emoji:'🧊',desc:'Esteve no fundo. Corpo e mente passaram pelo impossível — o YMA encontrou solo fértil no trauma vivido.',
+      prog:['Ignora penalidade de até -5 de HP ou menos por 1 rodada. Passiva.','Ao chegar a 0 HP: rola 1d20. Em 10+, continua com 1 HP. 1x por sessão.','Por 2 rodadas, torna-se imune a qualquer dano. Depois: Exausto. Gasta 10 de Esforço.']},
+    {nome:'Ocultista',emoji:'🕯',desc:'Estudaram o YMA nos textos proibidos antes de saberem o que era. Rituais são seu segundo idioma.',
+      prog:['Lê marcas YMA em objetos: sabe quem o usou e quando. Gasta 3 de Esforço.','Ritual improvisado: efeito aleatório da tabela de caos, mas sempre favorável ao grupo. Gasta 6 de Esforço.','Suprime completamente a transformação alienígena de 1 alvo por 1 rodada. Gasta 8 de Esforço.']},
+    {nome:'Motorista',emoji:'🚗',desc:'Velocidade como forma de existência. YMA flui pelos reflexos — dentro de veículos, são quase sobre-humanos.',
+      prog:['Em veículo: ações de direção nunca falham automaticamente. +3 em manobras.','Rampa ou colisão intencional: 3d8 de dano no alvo. Gasta 5 de Esforço.','Burst de velocidade: veículo dobra a velocidade por 3 rodadas. Gasta 7 de Esforço.']},
+    {nome:'Nômade',emoji:'🌙',desc:'Sem raízes, sem amarras. O YMA os guia como bússola — sempre sabem onde estão e onde precisam estar.',
+      prog:['Nunca se perde. Encontra rota segura em qualquer ambiente em 1 ação.','Começa toda sessão com 1 item surpresa que "estava na mochila". Definido pelo mestre.','Teleporta para qualquer lugar visitado na sessão atual. 1x por sessão. Gasta 8 de Esforço.']},
+    {nome:'Ex-Soldado',emoji:'💀',desc:'Treinados para matar com eficiência. O YMA transformou instinto de sobrevivência em algo inumano.',
+      prog:['+2 de dano com armas de fogo. Sem penalidade em terreno inimigo.','Cobertura tática: recebe metade do dano de projéteis enquanto agachado. Passiva.','Execução: se o inimigo tiver menos de 25% de HP, dano x3 no próximo ataque. Gasta 7 de Esforço.']},
+    {nome:'Criador de Animais',emoji:'🐾',desc:'Comunicação YMA com fauna. Os animais reconhecem o fluxo — obedecem e protegem como extensão do ser.',
+      prog:['Animais selvagens não atacam espontaneamente. +4 em adestramento.','Invoca animal companheiro que luta por 3 rodadas, causando 2d6 de dano. Gasta 5 de Esforço.','Assume perspectiva sensorial de qualquer animal em 50m por 10 minutos. Passiva.']},
   ];
   var ORIGENS_EXTRA = (typeof YMA_ORIGENS_EXTRA !== 'undefined') ? YMA_ORIGENS_EXTRA : [];
   var ORIGENS = ORIGENS_BASE.concat(ORIGENS_EXTRA.map(function(o){
@@ -7200,7 +7272,12 @@ function renderOrigens() {
       +lockBadge
       +'</div>'
       +'<div style="font-size:.78rem;color:rgba(200,205,225,0.72);line-height:1.65;margin-bottom:10px">'+o.desc+'</div>'
-      +(habChips ? '<div style="display:flex;flex-wrap:wrap;gap:5px;padding-top:8px;border-top:1px solid rgba(255,255,255,.05)">'+habChips+'</div>' : '');
+      +(habChips ? '<div style="display:flex;flex-wrap:wrap;gap:5px;padding-top:8px;border-top:1px solid rgba(255,255,255,.05)">'+habChips+'</div>' : '')
+      +(o.prog ? '<div class="origem-prog">'
+          +'<div class="origem-prog-row"><span class="origem-prog-lvl">NÍV. 1</span>'+esc(o.prog[0])+'</div>'
+          +'<div class="origem-prog-row"><span class="origem-prog-lvl">NÍV. 3</span>'+esc(o.prog[1])+'</div>'
+          +'<div class="origem-prog-row"><span class="origem-prog-lvl">NÍV. 5</span>'+esc(o.prog[2])+'</div>'
+        +'</div>' : '');
     return div.outerHTML;
   }).join('');
 }
@@ -7406,12 +7483,6 @@ var HAB_NATIVAS = [
   {id:'hn_hack_3',nome:'Backdoor YMA',origem:'Hacker',tipo:'especial',desc:'Implanta vírus de YMA em sistemas e implantes.',efeito:'Backdoor permanente — DT 18 para detectar e remover.'},
   {id:'hn_hack_4',nome:'Crash Mental',origem:'Hacker',tipo:'ativa',desc:'Injeta código YMA no fluxo neural de implante.',efeito:'Alvo com implante: DT 17 ou Atordoado 2 rodadas. Alcance 20m.'},
   {id:'hn_hack_5',nome:'Omnisciência Digital',origem:'Hacker',tipo:'especial',desc:'Fundido à rede YMA, processa dados globais.',efeito:'1x/sessão: qualquer informação digital existente. Sem DT.'},
-  // ══ ARTISTA ══
-  {id:'hn_art_1',nome:'Manifestação Criativa',origem:'Artista',tipo:'ativa',desc:'Cria objetos físicos temporários com YMA.',efeito:'Manifesta objeto até 5kg por 10min. 1x/descanso curto.'},
-  {id:'hn_art_2',nome:'Ilusão de Massa',origem:'Artista',tipo:'especial',desc:'Ilusão YMA que afeta todos os sentidos.',efeito:'Cena ilusória em 15m. DT 16 Perspicácia. 3 rodadas.'},
-  {id:'hn_art_3',nome:'YMA Expressivo',origem:'Artista',tipo:'passiva',desc:'Emoções amplificam o YMA naturalmente.',efeito:'+2 IlusYmas de Suporte. Aliados próximos +1 em ataques quando em estado emocional.'},
-  {id:'hn_art_4',nome:'Escultura de Realidade',origem:'Artista',tipo:'especial',desc:'Remodela superfícies físicas com YMA.',efeito:'Altera até 5m³ de material inanimado permanentemente. Paredes, pisos, objetos.'},
-  {id:'hn_art_5',nome:'Obra-Prima Viva',origem:'Artista',tipo:'ativa',desc:'Cria construto YMA semi-autônomo.',efeito:'Construto com 3FOR/3AGI, 20HP, 2d8 de dano. Obedece comandos simples. Dura 1h.'},
   // ══ EX-MILITAR ══
   {id:'hn_mil_1',nome:'Disciplina de Campo',origem:'Ex-Militar',tipo:'passiva',desc:'Treinamento impede colapso sob pressão.',efeito:'Imune a Medo e Perturbação. +2 em testes sob pressão extrema.'},
   {id:'hn_mil_2',nome:'Fogo Supressivo',origem:'Ex-Militar',tipo:'ativa',desc:'Rajada suprime inimigos em cone.',efeito:'Cone 8m: inimigos precisam de ação extra para mover por 2 rodadas. 1x/combate.'},
@@ -7448,6 +7519,64 @@ var HAB_NATIVAS = [
   {id:'hn_anom_3',nome:'Caos Controlado',origem:'Anomalia',tipo:'especial',desc:'Abraça a imprevisibilidade como poder.',efeito:'1x/sessão: declara que algo caótico favorável acontece. Mestre interpreta.'},
   {id:'hn_anom_4',nome:'Mutação Permanente',origem:'Anomalia',tipo:'especial',desc:'YMA mutou o corpo de forma única e permanente.',efeito:'Ganha 1 mutação física permanente (mestre define) que concede vantagem situacional.'},
   {id:'hn_anom_5',nome:'Absorção de Poder',origem:'Anomalia',tipo:'ativa',desc:'Drena IlusYma ativa de inimigo.',efeito:'DT 14 RES. Cancela IlusYma ativa do alvo. Você recupera 1d8 HP por nível da IlusYma.'},
+
+  // ══════════════════════════════════════════════════════════
+  // ORIGENS OFICIAIS DO LIVRO — Capítulo 09 (Habilidades das Origens)
+  // ══════════════════════════════════════════════════════════
+  // ── ARTISTA ──
+  {id:'hn_arts_1',nome:'Olhar de Quem Vê Além',origem:'Artista',tipo:'passiva',desc:'Enxerga o mundo como composição — o que destoa salta aos olhos primeiro.',efeito:'+2 em Perspicácia para notar detalhes, pistas visuais ou objetos fora do lugar.'},
+  {id:'hn_arts_2',nome:'Rascunho-Isca',origem:'Artista',tipo:'ativa',desc:'Um esboço rápido o bastante para enganar até a realidade.',efeito:'Cria um duplicado ilusório de si mesmo em 5m. Ataques contra você têm 50% de chance de acertar o rascunho. 1x por combate.'},
+  {id:'hn_arts_3',nome:'Tela em Branco',origem:'Artista',tipo:'especial',desc:'Toda obra pode ser desfeita por quem a entende de verdade.',efeito:'Apaga uma marca, símbolo ou pequena alteração visual (inclusive resíduo YMA) de uma superfície tocada. 1x por cena.'},
+  {id:'hn_arts_4',nome:'Retrato Amaldiçoado',origem:'Artista',tipo:'especial',desc:'Capturar o rosto de alguém em traço é capturar um pouco do que resta dela.',efeito:'Com 10 minutos e o alvo à vista, desenha seu retrato: enquanto o retrato existir, o alvo sofre -2 em Presença. DT 16 Perspicácia para notar a causa.'},
+  {id:'hn_arts_5',nome:'Mural Vivo',origem:'Artista',tipo:'ativa',desc:'Uma parede pintada por um YMA nunca fica parada de verdade.',efeito:'Cria um mural de até 4m que dura até o fim da cena; aliados que o tocam antes de agir ganham vantagem na próxima rolagem. 1x por descanso curto.'},
+  // ── MÚSICO ──
+  {id:'hn_mus_1',nome:'Ouvido Absoluto',origem:'Músico',tipo:'passiva',desc:'Reconhece uma nota fora do lugar tão bem quanto uma mentira fora do tom.',efeito:'+2 em Perspicácia para detectar mentiras ou identificar sons e vozes já ouvidos antes.'},
+  {id:'hn_mus_2',nome:'Contraponto',origem:'Músico',tipo:'ativa',desc:'Uma melodia certa desfaz o que a melodia errada construiu.',efeito:'Cancela 1 efeito sonoro ou vocal em andamento (grito, comando, IlusYma auditiva). 1x por cena.'},
+  {id:'hn_mus_3',nome:'Balada de Ferro',origem:'Músico',tipo:'especial',desc:'Toda canção de guerra carrega um pouco de sangue no refrão.',efeito:'Alvo ao alcance da voz sofre 2d8 de dano YMA sônico. DT 15 Resiliência reduz pela metade.'},
+  {id:'hn_mus_4',nome:'Regência',origem:'Músico',tipo:'ativa',desc:'Ninguém erra o tempo quando o maestro está por perto.',efeito:'Até 3 aliados agem antes de qualquer inimigo na próxima rodada, independente de iniciativa. 1x por combate.'},
+  {id:'hn_mus_5',nome:'Silêncio',origem:'Músico',tipo:'especial',desc:'Tirar a música de alguém é tirar parte do que resta dela.',efeito:'Alvo não pode falar, cantar ou usar habilidades sonoras/verbais por 2 rodadas. DT 16 Presença.'},
+  // ── MONGE ──
+  {id:'hn_mon_1',nome:'Respiração Contínua',origem:'Monge',tipo:'passiva',desc:'O corpo em equilíbrio gasta menos do que o corpo em pânico.',efeito:'Recupera 1 ponto de Estamina extra ao final de cada rodada em que não atacou.'},
+  {id:'hn_mon_2',nome:'Palma Que Não Toca',origem:'Monge',tipo:'ativa',desc:'O golpe mais forte é o que o oponente sente antes de acontecer.',efeito:'Empurra um alvo 3m para trás sem causar dano, podendo derrubá-lo. DT 14 Resiliência para resistir.'},
+  {id:'hn_mon_3',nome:'Vazio Mental',origem:'Monge',tipo:'passiva',desc:'Uma mente vazia não tem onde ser presa.',efeito:'Vantagem em testes para resistir a manipulação mental, medo ou controle YMA.'},
+  {id:'hn_mon_4',nome:'Cem Golpes',origem:'Monge',tipo:'especial',desc:'Quando o monge para de contar, é porque já terminou.',efeito:'Realiza 3 ataques desarmados em sequência na mesma ação, 1d8 cada. 1x por combate.'},
+  {id:'hn_mon_5',nome:'Desapego',origem:'Monge',tipo:'especial',desc:'Só quem não se apega a nada consegue atravessar qualquer coisa ileso.',efeito:'Ignora completamente os efeitos de 1 condição (medo, veneno, atordoamento) ao ser afetado. 1x por descanso longo.'},
+  // ── SOBREVIVENTE ──
+  {id:'hn_sob_1',nome:'Já Vi Pior',origem:'Sobrevivente',tipo:'passiva',desc:'Depois do que passou, pouca coisa ainda assusta de verdade.',efeito:'Vantagem em testes para resistir a medo ou intimidação.'},
+  {id:'hn_sob_2',nome:'Improviso de Emergência',origem:'Sobrevivente',tipo:'ativa',desc:'Sobreviver é sempre uma questão de usar bem o que tem por perto.',efeito:'Transforma qualquer item do inventário em uma ferramenta improvisada útil à situação (arma, escudo, chave de fenda). 1x por cena.'},
+  {id:'hn_sob_3',nome:'Instinto de Fuga',origem:'Sobrevivente',tipo:'especial',desc:'O corpo lembra de correr antes de a mente decidir.',efeito:'Uma vez por combate, move-se em velocidade total como ação livre, sem provocar ataques de oportunidade.'},
+  {id:'hn_sob_4',nome:'Cicatriz que Ensina',origem:'Sobrevivente',tipo:'passiva',desc:'Cada ferimento é uma lição que o corpo não esquece mais.',efeito:'+2 de Vida máxima para cada vez que chegou a 0 HP nesta campanha (máximo +10).'},
+  {id:'hn_sob_5',nome:'Ninguém Fica pra Trás',origem:'Sobrevivente',tipo:'especial',desc:'Já foi carregado. Agora carrega os outros.',efeito:'Carrega ou arrasta um aliado caído sem penalidade de velocidade. Ao estabilizar um aliado a 0 HP, ele recupera 1d4 HP em vez de continuar em 0.'},
+  // ── OCULTISTA ──
+  {id:'hn_ocu_1',nome:'Biblioteca Proibida',origem:'Ocultista',tipo:'passiva',desc:'Já leu o suficiente sobre o YMA pra reconhecer os padrões antes de todo mundo.',efeito:'+3 em testes de Perspicácia ou Sabedoria relacionados a fenômenos, símbolos ou textos YMA.'},
+  {id:'hn_ocu_2',nome:'Círculo de Proteção',origem:'Ocultista',tipo:'ativa',desc:'Um ritual simples, desenhado às pressas, ainda assim funciona.',efeito:'Cria um círculo de 3m que impede a entrada de qualquer criatura YMA hostil por 3 rodadas. Requer 1 ação completa para desenhar.'},
+  {id:'hn_ocu_3',nome:'Pacto Menor',origem:'Ocultista',tipo:'especial',desc:'Todo ritualista aprende, cedo ou tarde, que poder sempre cobra um preço.',efeito:'Concede a um aliado +4 em um teste, mas o Ocultista sofre 1d6 de dano de Sanidade. 1x por cena.'},
+  {id:'hn_ocu_4',nome:'Evocação Breve',origem:'Ocultista',tipo:'especial',desc:'Palavras certas, na ordem certa, abrem uma fresta.',efeito:'Invoca uma presença YMA menor que causa 2d8 de dano a 1 alvo antes de desaparecer. DT 16 Resiliência reduz pela metade. 1x por combate.'},
+  {id:'hn_ocu_5',nome:'Olho que Vigia',origem:'Ocultista',tipo:'passiva',desc:'Uma vez que se aprende a olhar através do véu, é difícil parar de ver o que está do outro lado.',efeito:'Sempre percebe presenças e manifestações YMA invisíveis em até 10m, mesmo sem testar.'},
+  // ── MOTORISTA ──
+  {id:'hn_mot_1',nome:'Mãos no Volante',origem:'Motorista',tipo:'passiva',desc:'Dirigir é tão natural quanto respirar — talvez mais.',efeito:'Nunca sofre penalidade por dirigir em condições adversas (chuva, neblina, terreno ruim).'},
+  {id:'hn_mot_2',nome:'Conversão de Emergência',origem:'Motorista',tipo:'ativa',desc:'Todo veículo tem uma última reserva escondida em algum lugar.',efeito:'Repara 20% da integridade do veículo ou improvisa uma solução mecânica temporária. 1x por descanso curto.'},
+  {id:'hn_mot_3',nome:'Frenagem Perfeita',origem:'Motorista',tipo:'especial',desc:'Parar exatamente no momento certo também é uma forma de arte.',efeito:'Uma vez por combate, o veículo para instantaneamente sem derrapar, ignorando inércia — evita automaticamente uma colisão ou emboscada.'},
+  {id:'hn_mot_4',nome:'Perseguição',origem:'Motorista',tipo:'passiva',desc:'Ninguém escapa de quem nasceu atrás de um volante.',efeito:'+3 em testes de perícia para perseguir ou fugir de outro veículo.'},
+  {id:'hn_mot_5',nome:'Passageiro Blindado',origem:'Motorista',tipo:'especial',desc:'Quem está no banco de trás também merece chegar inteiro.',efeito:'Passageiros do seu veículo reduzem em 3 pontos qualquer dano sofrido enquanto estiverem dentro dele.'},
+  // ── NÔMADE ──
+  {id:'hn_nom_1',nome:'Bússola Interna',origem:'Nômade',tipo:'passiva',desc:'O caminho certo sempre parece um pouco mais claro pra quem nunca parou de andar.',efeito:'Nunca fica desorientado ou perdido, mesmo em ambientes YMA que alteram o espaço.'},
+  {id:'hn_nom_2',nome:'Contatos de Estrada',origem:'Nômade',tipo:'ativa',desc:'Depois de tantas cidades, sempre existe alguém que ainda deve um favor.',efeito:'Uma vez por sessão, conhece alguém no local atual que pode ajudar (abrigo, informação, transporte).'},
+  {id:'hn_nom_3',nome:'Passo Leve',origem:'Nômade',tipo:'passiva',desc:'Quem nunca ficou muito tempo em lugar nenhum aprende a não deixar rastro.',efeito:'+3 em testes para não deixar rastros ou evitar ser rastreado.'},
+  {id:'hn_nom_4',nome:'Atalho Impossível',origem:'Nômade',tipo:'especial',desc:'Às vezes o caminho mais curto entre dois pontos não devia existir.',efeito:'Encontra uma passagem que reduz uma viagem de horas para minutos. O mestre define detalhes e riscos. 1x por sessão.'},
+  {id:'hn_nom_5',nome:'Viajante Leve',origem:'Nômade',tipo:'passiva',desc:'Carrega só o essencial — mas o essencial, de algum jeito, é sempre o suficiente.',efeito:'Ganha 2 espaços extras de inventário. Nunca sofre penalidade por viajar longas distâncias a pé.'},
+  // ── EX-SOLDADO ──
+  {id:'hn_exs_1',nome:'Mira Treinada',origem:'Ex-Soldado',tipo:'passiva',desc:'Anos de treino não desaparecem só porque a guerra acabou.',efeito:'+2 em testes de ataque à distância contra alvos que ainda não agiram no combate.'},
+  {id:'hn_exs_2',nome:'Comando de Campo',origem:'Ex-Soldado',tipo:'ativa',desc:'Uma ordem clara, no momento certo, vale mais que qualquer arma.',efeito:'Um aliado à sua escolha ganha uma ação extra imediatamente. 1x por combate.'},
+  {id:'hn_exs_3',nome:'Reflexo de Combate',origem:'Ex-Soldado',tipo:'passiva',desc:'O corpo reage à emboscada antes de a mente perceber o perigo.',efeito:'Nunca fica Surpreendido no início de um combate. +2 em iniciativa.'},
+  {id:'hn_exs_4',nome:'Granada de Mão',origem:'Ex-Soldado',tipo:'especial',desc:'Nem todo problema se resolve com um tiro só.',efeito:'Causa 3d8 de dano em área de 4m. DT 15 Agilidade reduz pela metade. 1x por descanso longo.'},
+  {id:'hn_exs_5',nome:'Triagem sob Fogo',origem:'Ex-Soldado',tipo:'especial',desc:'Aprendeu a estabilizar um ferimento com balas ainda passando perto da cabeça.',efeito:'Estabiliza um aliado a 0 HP como ação rápida, mesmo em combate ativo. 1x por combate.'},
+  // ── CRIADOR DE ANIMAIS ──
+  {id:'hn_cda_1',nome:'Vínculo Animal',origem:'Criador de Animais',tipo:'passiva',desc:'Um animal de confiança nunca está tão longe quanto parece.',efeito:'Possui um animal companheiro fixo (definido na criação) que o segue e obedece comandos simples sem necessidade de teste.'},
+  {id:'hn_cda_2',nome:'Alerta da Matilha',origem:'Criador de Animais',tipo:'passiva',desc:'Os animais sempre sabem primeiro quando algo está errado.',efeito:'Nunca é surpreendido se houver um animal (doméstico ou selvagem) em até 20m — ele avisa antes.'},
+  {id:'hn_cda_3',nome:'Chamado Selvagem',origem:'Criador de Animais',tipo:'ativa',desc:'Não é bem um pedido — é mais um lembrete de que estão do mesmo lado.',efeito:'Convoca animais selvagens próximos para auxiliar, atrapalhar um inimigo ou causar uma distração. 1x por cena.'},
+  {id:'hn_cda_4',nome:'Fúria Primal',origem:'Criador de Animais',tipo:'especial',desc:'Por um instante, esquece que um dia teve outra forma de lutar.',efeito:'Luta com unhas e dentes: 2 ataques de 1d8 na mesma ação, ignorando armas. Dura 3 rodadas. 1x por combate.'},
+  {id:'hn_cda_5',nome:'Cura da Mata',origem:'Criador de Animais',tipo:'especial',desc:'A natureza sempre soube cuidar dos seus — agora ele também sabe.',efeito:'Com a ajuda de um animal próximo, cura 2d6 HP de um aliado. 1x por descanso curto.'},
 ];
 
 var _habFilter = 'todas';
@@ -8529,6 +8658,18 @@ function renderFichaView() {
       </div>
     </div>
 
+    <!-- HABILIDADES GERAIS (Cap. 12 — livres para qualquer origem) -->
+    <div class="ficha-section">
+      <div class="ficha-section-title" style="display:flex;align-items:center;justify-content:space-between">
+        <span>◆ Habilidades Gerais</span>
+        \${canEdit?\`<button onclick="opAbrirAddHabGeral('\${p.id}')" style="padding:3px 9px;background:rgba(210,40,40,.15);border:1px solid rgba(210,40,40,.4);border-radius:6px;color:var(--c-accent);font-family:'Share Tech Mono',monospace;font-size:.48rem;cursor:pointer;letter-spacing:.06em">+ HABILIDADE</button>\`:''}
+      </div>
+      <div style="font-family:'Share Tech Mono',monospace;font-size:.46rem;color:rgba(255,255,255,0.72);letter-spacing:.08em;margin-bottom:8px">// Livres para qualquer personagem, independente da origem</div>
+      <div id="op-habgerais-\${p.id}">
+        \${opRenderHabGerais(p, canEdit)}
+      </div>
+    </div>
+
     <!-- CATÁLOGO DE PODERES POR PATENTE -->
     <div class="ficha-section">
       <div class="ficha-section-title" style="display:flex;align-items:center;justify-content:space-between">
@@ -8560,7 +8701,7 @@ function renderFichaView() {
     <button class="btn btn-small btn-blue" onclick="adjustStat('${p.id}','estamina',5)">⚡ +5 Est.</button>
     <button class="btn btn-small" onclick="adjustStat('${p.id}','sanidade',-5)" style="border-color:rgba(80,80,255,.35);color:rgba(140,140,255,0.72)">🧠 -5 San</button>
     <button class="btn btn-small" onclick="adjustStat('${p.id}','sanidade',5)" style="border-color:rgba(80,80,255,.35);color:rgba(140,140,255,0.72)">🧠 +5 San</button>
-    <button class="btn btn-small" onclick="opRolarIlusYma('${p.id}')" style="border-color:rgba(180,0,255,.4);color:#cc44ff">✦ IlusYma</button>
+    <button class="btn btn-small" onclick="opRolarIlusYmaQuick('${p.id}')" style="border-color:rgba(180,0,255,.4);color:#cc44ff">✦ IlusYma</button>
     <button class="btn btn-small" onclick="opTesteQYMA('${p.id}')" style="border-color:rgba(0,200,200,.35);color:#44cccc">⬡ Teste de Qualidade YMA</button>
     <button class="btn btn-small" onclick="openNotepad('${p.id}')" style="border-color:rgba(255,200,60,.3);color:rgba(255,200,100,0.72)">📝 Notas</button>
     ${canEdit ? `<button class="btn btn-small btn-primary" onclick="openEditPlayer('${p.id}')">✏ Editar</button>` : ''}
@@ -16829,13 +16970,6 @@ var YMA_ORIGENS_EXTRA = [
     patente_min: null
   },
   {
-    nome: 'Artista', emoji: '🎨',
-    habs: 'Manifestação Criativa · Ilusão de Massa · YMA Expressivo',
-    desc: 'O YMA flui pela criatividade. Artistas transformam emoções em força real — sua arte é literalmente viva.',
-    skills: ['fal','sab'],
-    patente_min: null
-  },
-  {
     nome: 'Ex-Militar', emoji: '🎖',
     habs: 'Disciplina de Campo · Fogo Supressivo · Protocolo de Emergência',
     desc: 'Treinamento militar combinado com YMA cria combatentes quase invencíveis. Memorias de guerra ativam o YMA de forma brutal.',
@@ -17097,11 +17231,11 @@ function opAbrirAddIlusYma(pid){
   var catOpts=OP_IY_CATEGORIAS.map(function(c){return '<option value="'+c.id+'">'+c.icon+' '+c.nome+'</option>';}).join('');
   ov.innerHTML='<div class="op-modal op-item-modal">'+
     '<div class="op-modal-title">✦ Adicionar IlusYma'+
-      '<button class="op-modal-close" onclick="document.getElementById('_op_iy_modal').remove()">✕</button>'+
+      '<button class="op-modal-close" onclick="document.getElementById(\'_op_iy_modal\').remove()">✕</button>'+
     '</div>'+
     '<div class="op-item-modal-tabs">'+
-      '<button class="op-item-tab active" id="_iytab_cat" onclick="opSwitchIYTab('catalogo',''+pid+'')">📋 Do Catálogo</button>'+
-      '<button class="op-item-tab" id="_iytab_cus" onclick="opSwitchIYTab('custom',''+pid+'')">✏ Personalizada</button>'+
+      '<button class="op-item-tab active" id="_iytab_cat" onclick="opSwitchIYTab(\'catalogo\',\''+pid+'\')">📋 Do Catálogo</button>'+
+      '<button class="op-item-tab" id="_iytab_cus" onclick="opSwitchIYTab(\'custom\',\''+pid+'\')">✏ Personalizada</button>'+
     '</div>'+
     '<div id="_opiy_catalogo">'+_buildIYCatalogHTML(pid)+'</div>'+
     '<div id="_opiy_custom" style="display:none">'+
@@ -17118,7 +17252,7 @@ function opAbrirAddIlusYma(pid){
       '</div>'+
       '<label>Efeito / Descrição</label>'+
       '<textarea id="_iy_efeito" placeholder="Descreva o efeito, dano, condições especiais..."></textarea>'+
-      '<button class="op-modal-btn" onclick="opSalvarIY(''+pid+'')">✦ ADICIONAR</button>'+
+      '<button class="op-modal-btn" onclick="opSalvarIY(\''+pid+'\')">✦ ADICIONAR</button>'+
     '</div>'+
   '</div>';
   document.body.appendChild(ov);
@@ -17146,8 +17280,8 @@ function _buildIYCatalogHTML(pid) {
   // Filter button
   var activeFilter = window['_iycat_filter'] || 'disponivel';
   html += '<div style="display:flex;gap:5px;margin-bottom:10px;flex-wrap:wrap">'+
-    '<button class="op-cat-filt'+(activeFilter==='disponivel'?' active':'')+'" onclick="opSetIYFilter('disponivel',''+pid+'')">✅ Disponíveis</button>'+
-    '<button class="op-cat-filt'+(activeFilter==='todos'?' active':'')+'" onclick="opSetIYFilter('todos',''+pid+'')">📚 Todas</button>'+
+    '<button class="op-cat-filt'+(activeFilter==='disponivel'?' active':'')+'" onclick="opSetIYFilter(\'disponivel\',\''+pid+'\')">✅ Disponíveis</button>'+
+    '<button class="op-cat-filt'+(activeFilter==='todos'?' active':'')+'" onclick="opSetIYFilter(\'todos\',\''+pid+'\')">📚 Todas</button>'+
   '</div>';
 
   var listHTML = '';
@@ -17185,7 +17319,7 @@ function _buildIYCatalogHTML(pid) {
             '<div class="op-cat-item-desc">'+esc(iy.efeito)+'</div>'+
           '</div>'+
           (unlocked
-            ? '<button class="op-cat-add-btn" onclick="opAddCatalogIY(''+pid+'','+JSON.stringify(iy).replace(/'/g,"&#39;")+')" title="Adicionar à ficha">+</button>'
+            ? '<button class="op-cat-add-btn" onclick="opAddCatalogIY(\''+pid+'\','+JSON.stringify(iy).replace(/'/g,"&#39;")+')" title="Adicionar à ficha">+</button>'
             : '<div style="font-size:1rem;opacity:.2">🔒</div>'
           )+
         '</div>';
@@ -17245,6 +17379,124 @@ function opAddCatalogIY(pid, iy) {
   if(el) el.innerHTML = _buildIYCatalogHTML(pid);
 }
 
+// ══════════════════════════════════════════════════════════════════
+// HABILIDADES GERAIS — Catálogo oficial (Livro de Introdução, Cap. 12)
+// Livres para qualquer personagem, independente da origem escolhida.
+// ══════════════════════════════════════════════════════════════════
+var HAB_GERAIS_CATALOG = [
+  {nome:'Fujão',              custo:'4 Esforço', desc:'Ação extra de movimento após atacar corpo a corpo (sem armas ou com < metade da vida).'},
+  {nome:'Briga de Bar',       custo:'—',         desc:'Usa objetos ao redor (garrafas, cadeiras, mesas) como armas improvisadas.'},
+  {nome:'Mão Pesada',         custo:'—',         desc:'Suas armas brancas dão +2 de dano a cada ataque.'},
+  {nome:'Potencializador',    custo:'5 Esforço', desc:'+4 de deslocamento durante 3 rodadas.'},
+  {nome:'Mentiroso!',         custo:'5 Esforço', desc:'Sente quando alguém está mentindo. Contesta falas com rolagem de comunicação ou enganação.'},
+  {nome:'Mascarado',          custo:'5 Esforço', desc:'Diminui 3 traços de influência (disfarce aprimorado).'},
+  {nome:'Mecânico',           custo:'—',         desc:'Avalia dispositivos e reutiliza peças: peças de armas formam armas; peças de dispositivos formam equipamentos.'},
+  {nome:'Isca',               custo:'4 Esforço', desc:'Ganha 3 traços de influência através de disfarce extraordinário.'},
+  {nome:'Duplo Perigo',       custo:'—',         desc:'Pode utilizar armas em ambas as mãos.'},
+  {nome:'Domínio do Fogo',    custo:'3 Est.',    desc:'Faz cauterizações com sucesso e sem sequelas — causa apenas 1 de dano se tirar 1 no 1d2.'},
+  {nome:'Bicho do Mato',      custo:'—',         desc:'Realiza acrobacias em estruturas estreitas. Requer teste de fôlego.'},
+  {nome:'Chaveiro',           custo:'—',         desc:'Abrir fechaduras se tornou natural depois de anos de necessidade.'},
+  {nome:'Rambo',              custo:'½ Esforço', desc:'Gasta metade dos pontos de Esforço: dano de armas de FOGO x2 naquele combate. Só usável em combate.'},
+  {nome:'Berserker',          custo:'½ Esforço', desc:'Gasta metade dos pontos de Esforço: dano de armas CORPO A CORPO com lâmina x2 naquele combate. Só usável em combate.'},
+  {nome:'Instinto de Caça',   custo:'—',         desc:'Ao entrar em combate, rola Perspicácia sem gastar ação para identificar o inimigo mais perigoso e sua vulnerabilidade.'},
+  {nome:'Segundo Fôlego',     custo:'—',         desc:'Uma vez por combate, ao chegar a menos de 10 HP, recupera 1d10 de Estamina imediatamente. Passiva.'},
+  {nome:'Pele Grossa',        custo:'—',         desc:'Reduz 4 + 1d6 pontos de qualquer dano físico direto. Não funciona contra YMA puro ou explosivos. Passiva.'},
+  {nome:'Olhos nas Costas',   custo:'—',         desc:'Nunca é surpreendido. +2 em iniciativa. Se emboscado mesmo assim, nega o primeiro ataque automaticamente.'},
+  {nome:'Parasita',           custo:'—',         desc:'Ao derrotar um inimigo com a YMA ativada, absorve 1d2 pontos de Esforço do inimigo derrotado.'},
+  {nome:'Golpe Baixo',        custo:'—',         desc:'Quando ataca inimigo distraído, em diálogo ou de costas: +1d8 de dano extra.'},
+  {nome:'Tiro de Advertência',custo:'—',         desc:'Disparo que não causa dano — faz o alvo rolar DT 14 Presença ou paralisar de medo por 1 rodada.'},
+  {nome:'Improvisador',       custo:'—',         desc:'Qualquer objeto cotidiano usado como arma causa 1d6 de dano e pode aplicar condição — cegado, tropeçado ou atordoado. Decisão do mestre.'},
+  {nome:'Memória Muscular',   custo:'—',         desc:'Ao falhar em rolagem de combate, rola novamente com -2. Funciona 1x por rodada.'},
+  {nome:'Paranóia Funcional', custo:'—',         desc:'Sempre que o mestre mencionar um local novo, recebe 1 informação útil sobre ele como se já tivesse passado antes.'},
+  {nome:'Âncora Mental',      custo:'—',         desc:'+5 de Sanidade máxima. Resistência mental a efeitos de YMA aumentada em +3. Passiva.'},
+  {nome:'Sangue Frio',        custo:'—',         desc:'Em situações de alta pressão — combate, interrogatório, caos — rola qualquer teste de atributo +2 (até 1d4 vezes por sessão).'},
+];
+
+function opRenderHabGerais(p, canEdit) {
+  var hg = p.opHabGerais || [];
+  if (!hg.length) {
+    return '<div class="op-iy-empty">// Nenhuma habilidade geral aprendida ainda //<br><span style="font-size:.68rem;opacity:.7">Habilidades livres do Capítulo 12 — clique em + HABILIDADE.</span></div>';
+  }
+  return '<div style="display:flex;flex-wrap:wrap;gap:6px">' + hg.map(function(h, i) {
+    return '<span class="hab-tipo-badge hab-tipo-ativa" style="cursor:help;position:relative" title="' + esc(h.desc || '') + (h.custo && h.custo !== '—' ? ' (Custo: ' + esc(h.custo) + ')' : '') + '">'
+      + '◆ ' + esc(h.nome)
+      + (canEdit ? ' <span onclick="opRemoverHabGeral(\'' + p.id + '\',' + i + ')" style="cursor:pointer;opacity:.7;margin-left:4px">✕</span>' : '')
+      + '</span>';
+  }).join('') + '</div>';
+}
+
+function opAbrirAddHabGeral(pid) {
+  var ex = document.getElementById('_op_hg_modal'); if (ex) ex.remove();
+  var rows = HAB_GERAIS_CATALOG.map(function(h) {
+    var already = false;
+    var p = data.players.find(function(x){return x.id===pid;});
+    if (p && p.opHabGerais) already = p.opHabGerais.some(function(x){return x.nome===h.nome;});
+    return '<div class="op-cat-item">' +
+      '<div class="op-cat-item-info">' +
+        '<div class="op-cat-item-nome">◆ ' + esc(h.nome) + (already ? ' <span style="font-size:.62rem;color:rgba(80,220,120,0.85)">✓ aprendida</span>' : '') + '</div>' +
+        (h.custo && h.custo !== '—' ? '<div class="op-cat-item-sub"><span>Custo: ' + esc(h.custo) + '</span></div>' : '') +
+        '<div class="op-cat-item-desc">' + esc(h.desc) + '</div>' +
+      '</div>' +
+      (already ? '' : '<button class="op-cat-add-btn" onclick="opAddCatalogHabGeral(\'' + pid + '\',' + JSON.stringify(h).replace(/'/g,'&#39;') + ')">+</button>') +
+    '</div>';
+  }).join('');
+
+  var ov = document.createElement('div');
+  ov.className = 'op-modal-overlay'; ov.id = '_op_hg_modal';
+  ov.innerHTML = '<div class="op-modal op-item-modal">' +
+    '<div class="op-modal-title">◆ Habilidades Gerais' +
+      '<button class="op-modal-close" onclick="document.getElementById(\'_op_hg_modal\').remove()">✕</button>' +
+    '</div>' +
+    '<div style="font-family:\'Share Tech Mono\',monospace;font-size:.7rem;color:rgba(255,255,255,0.72);letter-spacing:.06em;margin-bottom:8px">// Livres para qualquer origem — Capítulo 12 do livro //</div>' +
+    '<div class="op-cat-list" style="max-height:420px">' + rows + '</div>' +
+    '<div style="margin-top:14px;border-top:1px solid rgba(255,255,255,.08);padding-top:12px">' +
+      '<label>Ou crie uma habilidade personalizada</label>' +
+      '<input type="text" id="_hg_nome" placeholder="Nome da habilidade...">' +
+      '<div class="op-modal-grid c2">' +
+        '<div><label>Custo (opcional)</label><input type="text" id="_hg_custo" placeholder="Ex: 5 Esforço"></div>' +
+        '<div></div>' +
+      '</div>' +
+      '<label>Efeito / Descrição</label>' +
+      '<textarea id="_hg_desc" placeholder="Descreva o efeito..."></textarea>' +
+      '<button class="op-modal-btn" onclick="opSalvarHabGeralCustom(\'' + pid + '\')">◆ ADICIONAR HABILIDADE</button>' +
+    '</div>' +
+  '</div>';
+  document.body.appendChild(ov);
+  ov.addEventListener('click', function(e){ if(e.target===ov) ov.remove(); });
+}
+
+function opAddCatalogHabGeral(pid, h) {
+  var p = data.players.find(function(x){return x.id===pid;}); if(!p) return;
+  if (!p.opHabGerais) p.opHabGerais = [];
+  if (p.opHabGerais.some(function(x){return x.nome===h.nome;})) { showToast('⚠ Você já possui esta habilidade!','warn'); return; }
+  p.opHabGerais.push({nome:h.nome, custo:h.custo||'—', desc:h.desc||''});
+  save(); renderFichaView();
+  showToast('◆ '+h.nome+' adicionada!','ok');
+  var ex = document.getElementById('_op_hg_modal'); if (ex) ex.remove();
+  opAbrirAddHabGeral(pid);
+}
+
+function opSalvarHabGeralCustom(pid) {
+  var p = data.players.find(function(x){return x.id===pid;}); if(!p) return;
+  var nome = (document.getElementById('_hg_nome').value||'').trim();
+  if (!nome) { showToast('⚠ Informe o nome','warn'); return; }
+  if (!p.opHabGerais) p.opHabGerais = [];
+  p.opHabGerais.push({
+    nome: nome,
+    custo: (document.getElementById('_hg_custo').value||'').trim() || '—',
+    desc: (document.getElementById('_hg_desc').value||'').trim()
+  });
+  save(); var ex=document.getElementById('_op_hg_modal'); if(ex) ex.remove();
+  renderFichaView();
+  showToast('◆ Habilidade adicionada!','ok');
+}
+
+function opRemoverHabGeral(pid, idx) {
+  var p = data.players.find(function(x){return x.id===pid;}); if(!p||!p.opHabGerais) return;
+  if (!confirm('Remover esta habilidade?')) return;
+  p.opHabGerais.splice(idx,1); save(); renderFichaView();
+}
+
 // ─── UPGRADE: opAbrirAddItem com filtro por patente ────────────────
 function opSetCatFilter(cat, pid) {
   window['_opCatFilter'] = cat;
@@ -17258,17 +17510,17 @@ function _buildCatalogHTML(pid) {
   var activeFilter = window['_itemFilter'] || 'disponivel';
   var catMap = {arma:'🗡 Armas',armadura:'🛡 Armaduras',municao:'🔫 Munição',yma:'✦ YMA',medico:'💊 Médico',geral:'🎒 Geral'};
   var catBtns = '<div class="op-cat-filter-row">'+
-    '<button class="op-cat-filt'+(activeCat==='todos'?' active':'')+'" onclick="opSetCatFilter('todos',''+pid+'')">Todos</button>';
+    '<button class="op-cat-filt'+(activeCat==='todos'?' active':'')+'" onclick="opSetCatFilter(\'todos\',\''+pid+'\')">Todos</button>';
   Object.keys(catMap).forEach(function(k){
-    catBtns+='<button class="op-cat-filt'+(activeCat===k?' active':'')+'" onclick="opSetCatFilter(''+k+'',''+pid+'')">'+catMap[k]+'</button>';
+    catBtns+='<button class="op-cat-filt'+(activeCat===k?' active':'')+'" onclick="opSetCatFilter(\''+k+'\',\''+pid+'\')">'+catMap[k]+'</button>';
   });
   catBtns+='</div>';
 
   // Filter by patente
   var allItems = (typeof YMA_ITEM_CATALOG !== 'undefined') ? YMA_ITEM_CATALOG : [];
   var filterBtns = '<div style="display:flex;gap:5px;margin-bottom:8px">'+
-    '<button class="op-cat-filt'+(activeFilter==='disponivel'?' active':'')+'" onclick="opSetItemFilter('disponivel',''+pid+'')">✅ Disponíveis</button>'+
-    '<button class="op-cat-filt'+(activeFilter==='todos'?' active':'')+'" onclick="opSetItemFilter('todos',''+pid+'')">📦 Todos</button>'+
+    '<button class="op-cat-filt'+(activeFilter==='disponivel'?' active':'')+'" onclick="opSetItemFilter(\'disponivel\',\''+pid+'\')">✅ Disponíveis</button>'+
+    '<button class="op-cat-filt'+(activeFilter==='todos'?' active':'')+'" onclick="opSetItemFilter(\'todos\',\''+pid+'\')">📦 Todos</button>'+
   '</div>';
 
   var items = allItems.filter(function(it){
@@ -17295,7 +17547,7 @@ function _buildCatalogHTML(pid) {
         (it.desc?'<div class="op-cat-item-desc">'+esc(it.desc)+'</div>':'')+
       '</div>'+
       (!locked
-        ? '<button class="op-cat-add-btn" onclick="opAddCatalogItem(''+pid+'','+JSON.stringify(it).replace(/'/g,"&#39;")+')">+</button>'
+        ? '<button class="op-cat-add-btn" onclick="opAddCatalogItem(\''+pid+'\','+JSON.stringify(it).replace(/'/g,"&#39;")+')">+</button>'
         : '<div style="font-size:1rem;opacity:.2">🔒</div>'
       )+
     '</div>';
@@ -17384,31 +17636,10 @@ function opRolarIlusYma(pid,idx){
   showToast((isCrit?'🌟':isFail?'☠':'✦')+' '+iy.nome+': '+total+(isCrit?' CRÍTICO!':isFail?' FALHA!':''),isCrit?'crit':isFail?'err':'ok');
 }
 
-function opAbrirAddIlusYma(pid){
-  var ex=document.getElementById('_op_iy_modal'); if(ex)ex.remove();
-  var ov=document.createElement('div');
-  ov.className='op-modal-overlay'; ov.id='_op_iy_modal';
-  var catOpts=OP_IY_CATEGORIAS.map(function(c){return '<option value="'+c.id+'">'+c.icon+' '+c.nome+'</option>';}).join('');
-  ov.innerHTML='<div class="op-modal">'
-    +'<div class="op-modal-title">✦ Nova IlusYma<button class="op-modal-close" onclick="document.getElementById(\'_op_iy_modal\').remove()">✕</button></div>'
-    +'<label>Nome da IlusYma</label>'
-    +'<input type="text" id="_iy_nome" placeholder="Ex: Pulso de YMA, Véu Invisível, Chama Pura...">'
-    +'<div class="op-modal-grid c2">'
-    +'<div><label>Tipo</label><select id="_iy_tipo"><option value="ativa">⚔ Ativa</option><option value="passiva">🛡 Passiva</option><option value="especial">✦ Especial</option></select></div>'
-    +'<div><label>Categoria</label><select id="_iy_cat">'+catOpts+'</select></div>'
-    +'</div>'
-    +'<div class="op-modal-grid c3">'
-    +'<div><label>Custo YMA</label><input type="text" id="_iy_custo" placeholder="ex: 2pts"></div>'
-    +'<div><label>Alcance</label><input type="text" id="_iy_alc" placeholder="ex: 9m"></div>'
-    +'<div><label>Duração</label><input type="text" id="_iy_dur" placeholder="ex: 1 rodada"></div>'
-    +'</div>'
-    +'<label>Efeito / Descrição</label>'
-    +'<textarea id="_iy_efeito" placeholder="Descreva o efeito, dano, condições especiais e como o YMA se manifesta visualmente..."></textarea>'
-    +'<button class="op-modal-btn" onclick="opSalvarIY(\''+pid+'\')">✦ ADICIONAR ILUSYMA</button>'
-    +'</div>';
-  document.body.appendChild(ov);
-  ov.addEventListener('click',function(e){if(e.target===ov)ov.remove();});
-}
+/* ─── CORREÇÃO v15: removida versão antiga/duplicada de opAbrirAddIlusYma
+   que sobrescrevia a versão com o catálogo oficial de IlusYmas (Cap. 10).
+   A definição válida (com aba "Do Catálogo") está mais acima, logo após
+   YMA_ILUSYMAS_CATALOGO. Esse bloco existia duplicado e travava a função. ─── */
 
 function opSalvarIY(pid){
   var p=data.players.find(function(x){return x.id===pid;}); if(!p)return;
