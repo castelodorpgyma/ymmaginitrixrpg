@@ -2634,7 +2634,7 @@ textarea{resize:vertical;min-height:72px;border-radius:var(--r-sm)}
 .hab-tipo-especial{background:rgba(200,140,0,.14);border:1px solid rgba(200,140,0,.3);color:rgba(255,200,80,0.9)}
 .hab-origem-tag{font-family:'Share Tech Mono',monospace;font-size:.48rem;color:var(--c-accent);letter-spacing:.06em;margin-bottom:6px}
 .hab-desc{font-size:.75rem;color:rgba(200,205,225,0.72);line-height:1.65}
-.hab-efeito{font-family:'Share Tech Mono',monospace;font-size:.56rem;color:rgba(100,220,180,0.72);margin-top:8px;padding:6px 10px;background:rgba(0,200,120,.06);border-left:2px solid rgba(0,200,120,.3);border-radius:0 4px 4px 0}
+.hab-efeito{font-family:'Share Tech Mono',monospace;font-size:.56rem;color:rgba(120,255,170,0.98);margin-top:8px;padding:6px 10px;background:rgba(40,255,140,.1);border-left:3px solid rgba(80,255,160,.75);border-radius:0 4px 4px 0}
 .hab-actions{position:absolute;top:10px;right:10px;display:flex;gap:4px}
 .hab-filter-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;align-items:center}
 .hab-filter-btn{font-family:'Share Tech Mono',monospace;font-size:.55rem;padding:5px 12px;border-radius:100px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:rgba(200,205,225,0.72);cursor:pointer;transition:all .15s;letter-spacing:.06em}
@@ -3514,6 +3514,127 @@ input:valid:not(:placeholder-shown) {
   color:#fff; background:rgba(210,40,40,.28); border:1px solid rgba(210,40,40,.45);
   border-radius:4px; padding:1px 7px; margin-right:8px; letter-spacing:.04em;
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   PASSE DE CONTRASTE / VIVACIDADE — v16
+   Eleva saturação e contraste de elementos-chave sem estourar a
+   paleta escura do sistema: badges, bordas de destaque, texto mudo.
+   ══════════════════════════════════════════════════════════════════ */
+.hab-tipo-ativa{background:rgba(220,30,30,.24) !important;border-color:rgba(255,70,70,.55) !important;color:rgba(255,150,150,1) !important}
+.hab-tipo-passiva{background:rgba(40,120,255,.22) !important;border-color:rgba(80,150,255,.55) !important;color:rgba(160,200,255,1) !important}
+.hab-tipo-especial{background:rgba(230,150,0,.22) !important;border-color:rgba(255,180,0,.55) !important;color:rgba(255,215,110,1) !important}
+.hab-nome{ color:#fff !important; }
+.hab-origem-tag{ color:rgba(255,150,150,.85) !important; }
+.call-perm-on{ background:rgba(0,220,110,.28) !important; border-color:rgba(0,255,130,.6) !important; color:#eaffef !important; }
+.call-perm-off{ background:rgba(220,30,30,.24) !important; border-color:rgba(255,70,70,.55) !important; color:#ffe3e3 !important; }
+
+/* ── botão "tela cheia" no card de habilidade ── */
+.hab-fs-btn{
+  background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.15); color:rgba(255,255,255,.85);
+  border-radius:6px; padding:3px 7px; font-size:.68rem; cursor:pointer; line-height:1; flex-shrink:0;
+  transition:background .15s,border-color .15s;
+}
+.hab-fs-btn:hover{ background:rgba(255,255,255,.14); border-color:rgba(255,255,255,.35); }
+
+/* ── modal de tela cheia da habilidade ── */
+.hab-fs-overlay{
+  position:fixed; inset:0; z-index:9990; background:rgba(2,3,5,.94); backdrop-filter:blur(6px);
+  display:flex; align-items:center; justify-content:center; padding:24px;
+  animation:habFsFade .18s ease;
+}
+@keyframes habFsFade{from{opacity:0}to{opacity:1}}
+.hab-fs-card{
+  width:100%; max-width:640px; max-height:88vh; overflow-y:auto;
+  background:linear-gradient(160deg,rgba(18,20,28,.98),rgba(8,9,13,.98));
+  border:1px solid rgba(255,255,255,.12); border-radius:18px; padding:28px 30px 32px;
+  box-shadow:0 20px 60px rgba(0,0,0,.6);
+}
+.hab-fs-close{
+  position:fixed; top:22px; right:26px; z-index:9991; width:40px; height:40px; border-radius:50%;
+  background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.2); color:#fff;
+  font-size:1.1rem; cursor:pointer; display:flex; align-items:center; justify-content:center;
+}
+.hab-fs-title{ font-family:'Bebas Neue',sans-serif; font-size:2rem; letter-spacing:.05em; color:#fff; margin-bottom:6px; }
+.hab-fs-origem{ font-family:'Share Tech Mono',monospace; font-size:.85rem; color:rgba(255,150,150,.85); letter-spacing:.08em; margin-bottom:16px; }
+.hab-fs-desc{ font-size:1.05rem; line-height:1.75; color:rgba(225,228,245,.92); margin-bottom:18px; }
+.hab-fs-efeito{
+  font-family:'Share Tech Mono',monospace; font-size:.95rem; line-height:1.7; color:rgba(130,255,175,1);
+  background:rgba(40,255,140,.1); border-left:4px solid rgba(80,255,160,.85); border-radius:0 8px 8px 0;
+  padding:14px 18px;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   CALL — JANELA FLUTUANTE, GRID ESTILO DISCORD, MUTE POR MESTRE
+   ══════════════════════════════════════════════════════════════════ */
+
+/* grid de participantes — tiles quadrados, como no Discord */
+.call-participants-area{ display:grid !important; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); align-content:start; }
+.call-participant{
+  width:auto !important; aspect-ratio:1/1; justify-content:center;
+  border-radius:14px !important; padding:10px !important; overflow:hidden;
+}
+.call-part-av-wrap{ width:72% !important; height:72% !important; max-width:120px; max-height:120px; }
+.call-part-av{ width:100% !important; height:100% !important; border-radius:14px !important; }
+.call-part-av img{ border-radius:14px !important; }
+.call-part-video{ border-radius:14px !important; transform:none !important; } /* câmera quadrada, sem espelhar a de outros */
+#call-part-local-vid.call-part-video{ transform:scaleX(-1) !important; } /* só espelha a SUA própria prévia */
+.call-part-name{ font-size:.72rem; }
+
+/* botão de mutar (visível só para quem tem permissão de controle da call) */
+.call-part-mute-btn{
+  position:absolute; top:6px; right:6px; z-index:5; width:26px; height:26px; border-radius:50%;
+  background:rgba(220,30,30,.55); border:1px solid rgba(255,255,255,.3); color:#fff; font-size:.75rem;
+  cursor:pointer; display:flex; align-items:center; justify-content:center; opacity:0; transition:opacity .15s;
+}
+.call-participant:hover .call-part-mute-btn{ opacity:1; }
+.call-part-mute-btn.is-muted{ background:rgba(255,60,60,.85); opacity:1; }
+.call-part-forcemuted-tag{
+  position:absolute; bottom:4px; left:4px; right:4px; text-align:center; z-index:5;
+  font-family:'Share Tech Mono',monospace; font-size:.5rem; letter-spacing:.05em; color:#ffdede;
+  background:rgba(200,20,20,.55); border-radius:5px; padding:2px 4px;
+}
+
+/* janela flutuante da call — arrastável, permite navegar o resto do site */
+.call-overlay.floating{
+  inset:auto !important; top:auto !important; left:auto !important;
+  right:16px; bottom:16px; width:340px; height:420px; max-width:calc(100vw - 24px); max-height:70vh;
+  border-radius:18px; border:1px solid rgba(0,255,120,.22); box-shadow:0 12px 45px rgba(0,0,0,.65);
+  transform:none !important; overflow:hidden;
+}
+.call-overlay.floating .call-header{ cursor:grab; padding:9px 12px; }
+.call-overlay.floating .call-header:active{ cursor:grabbing; }
+.call-overlay.floating .call-header-title{ font-size:.68rem; }
+.call-overlay.floating .call-participants-area{ grid-template-columns:repeat(auto-fill,minmax(76px,1fr)); gap:8px; padding:8px; }
+.call-overlay.floating .call-part-name,.call-overlay.floating .call-part-role{ font-size:.5rem; }
+.call-overlay.floating .call-screen-area video{ max-height:110px; }
+.call-overlay.floating .call-controls{ padding:8px; gap:5px; }
+.call-overlay.floating .call-ctrl-btn{ width:32px; height:32px; font-size:.75rem; }
+.call-overlay.floating .call-ctrl-label{ display:none; }
+.call-overlay.floating .call-ctrl-group:nth-child(4),
+.call-overlay.floating .call-ctrl-group:nth-child(5),
+.call-overlay.floating .call-ctrl-group:nth-child(6),
+.call-overlay.floating .call-ctrl-group:nth-child(7){ display:none; } /* esconde música/sons/reação/config no modo flutuante — mic, câmera, tela e SAIR continuam visíveis */
+.call-overlay.floating .call-panel{ display:none !important; }
+.call-fl-btn{
+  background:none; border:1px solid rgba(255,255,255,.16); color:rgba(255,255,255,.78);
+  border-radius:7px; width:30px; height:30px; font-size:.72rem; cursor:pointer; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center;
+}
+.call-fl-btn:hover{ background:rgba(255,255,255,.1); }
+
+/* aviso opt-in de transmissão de tela para quem NÃO está compartilhando */
+.call-screen-invite{
+  display:none; align-items:center; gap:10px; padding:10px 16px; margin:0;
+  background:rgba(0,180,255,.1); border-bottom:1px solid rgba(0,180,255,.25);
+  font-family:'Share Tech Mono',monospace; font-size:.68rem; color:rgba(180,225,255,.95);
+}
+.call-screen-invite.show{ display:flex; }
+.call-screen-invite-btn{
+  margin-left:auto; background:rgba(0,180,255,.22); border:1px solid rgba(0,180,255,.5); color:#eaf7ff;
+  border-radius:7px; padding:6px 12px; font-family:'Share Tech Mono',monospace; font-size:.66rem;
+  cursor:pointer; white-space:nowrap;
+}
+.call-screen-invite-dismiss{ background:none; border:none; color:rgba(255,255,255,.5); cursor:pointer; font-size:.9rem; padding:0 4px; }
 </style>
 <script id="ymm-seed" type="application/json">{"users":[],"data":{"campanhas":[],"players":[],"customItems":[],"customOrigens":[],"customHabilidades":[]},"chat":{"chat":[],"media":[],"rolls":[]},"live":{}}</script>
 <script>
@@ -5887,6 +6008,13 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     Use <b>Firefox</b> (funciona direto) ou abra via <b>Live Server</b> no VSCode. Ou habilite em: <code>chrome://flags/#unsafely-treat-insecure-origin-as-secure</code>
   </div>
 
+  <!-- Convite opt-in: ver ou não a transmissão de tela de outro participante -->
+  <div id="call-screen-invite" class="call-screen-invite">
+    <span>🖥 <strong id="call-screen-invite-name">Alguém</strong> está compartilhando a tela</span>
+    <button class="call-screen-invite-btn" onclick="callAcceptScreenPreview()">👁 Ver transmissão</button>
+    <button class="call-screen-invite-dismiss" onclick="callDismissScreenInvite()" title="Ignorar">✕</button>
+  </div>
+
   <div class="call-main">
     <!-- Screen share preview -->
     <div class="call-screen-area" id="call-screen-area">
@@ -7259,7 +7387,7 @@ function renderOrigens() {
     var habChips = habsOrigem.map(function(h){
       var tc = tipoBadge[h.tipo]||'hab-tipo-ativa';
       var ti = tipoIcon[h.tipo]||'⚔';
-      return '<span class="hab-tipo-badge '+tc+'" style="font-size:.44rem;cursor:help" title="'+esc(h.efeito||h.desc||'')+'">'+ti+' '+esc(h.nome)+'</span>';
+      return '<span class="hab-tipo-badge '+tc+'" style="font-size:.44rem;cursor:pointer" title="Clique para ver em tela cheia — '+esc(h.efeito||h.desc||'')+'" onclick="abrirHabFullscreen(\''+h.id+'\')">'+ti+' '+esc(h.nome)+'</span>';
     }).join('');
     var lockBadge = o.patente_min ? '<span style="font-size:.42rem;color:rgba(200,140,255,0.72);margin-left:6px">// Requer: '+o.patente_min+'</span>' : '';
     var div = document.createElement('div');
@@ -7632,6 +7760,7 @@ function renderHabilidades() {
       + editBtns
       + '<div class="hab-card-header">'
       + '<div class="hab-nome">'+esc(h.nome)+'</div>'
+      + '<button class="hab-fs-btn" title="Ver em tela cheia" data-hid="'+h.id+'" onclick="abrirHabFullscreen(this.dataset.hid)">⛶</button>'
       + '<span class="hab-tipo-badge '+(tipoBadge[h.tipo]||'hab-tipo-ativa')+'">'+(tipoLabel[h.tipo]||h.tipo.toUpperCase())+'</span>'
       + '</div>'
       + (h.origem ? '<div class="hab-origem-tag">// '+esc(h.origem)+' //</div>' : '<div class="hab-origem-tag">// GENÉRICA //</div>')
@@ -7640,6 +7769,45 @@ function renderHabilidades() {
       + (h._custom ? '<div style="position:absolute;bottom:8px;right:10px;font-size:.4rem;color:rgba(255,200,60,0.72)">CUSTOMIZADA</div>' : '')
       + '</div>';
   }).join('');
+}
+
+// ── Visualização em tela cheia de uma habilidade (legibilidade máxima) ──
+function abrirHabFullscreen(id) {
+  var pool = HAB_NATIVAS.concat(data.customHabilidades || []);
+  var h = pool.find(function(x){ return x.id === id; });
+  if (!h) return;
+
+  var tipoLabel = { ativa:'⚔ ATIVA', passiva:'🛡 PASSIVA', especial:'✦ ESPECIAL' };
+  var tipoBadge = { ativa:'hab-tipo-ativa', passiva:'hab-tipo-passiva', especial:'hab-tipo-especial' };
+
+  var ex = document.getElementById('_hab_fs_overlay'); if (ex) ex.remove();
+  var ov = document.createElement('div');
+  ov.className = 'hab-fs-overlay'; ov.id = '_hab_fs_overlay';
+  ov.innerHTML =
+    '<button class="hab-fs-close" onclick="fecharHabFullscreen()">✕</button>' +
+    '<div class="hab-fs-card">' +
+      '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:4px">' +
+        '<span class="hab-tipo-badge ' + (tipoBadge[h.tipo] || 'hab-tipo-ativa') + '" style="font-size:.8rem !important">' + (tipoLabel[h.tipo] || (h.tipo||'').toUpperCase()) + '</span>' +
+        (h._custom ? '<span style="font-family:\'Share Tech Mono\',monospace;font-size:.72rem;color:rgba(255,200,60,0.85)">CUSTOMIZADA</span>' : '') +
+      '</div>' +
+      '<div class="hab-fs-title">' + esc(h.nome) + '</div>' +
+      '<div class="hab-fs-origem">// ' + esc(h.origem || 'GENÉRICA') + ' //</div>' +
+      (h.desc ? '<div class="hab-fs-desc">' + esc(h.desc) + '</div>' : '') +
+      (h.efeito ? '<div class="hab-fs-efeito">' + esc(h.efeito) + '</div>' : '') +
+    '</div>';
+  document.body.appendChild(ov);
+  ov.addEventListener('click', function(e){ if (e.target === ov) fecharHabFullscreen(); });
+  document.addEventListener('keydown', _habFsEscListener);
+}
+
+function fecharHabFullscreen() {
+  var ov = document.getElementById('_hab_fs_overlay');
+  if (ov) ov.remove();
+  document.removeEventListener('keydown', _habFsEscListener);
+}
+
+function _habFsEscListener(e) {
+  if (e.key === 'Escape') fecharHabFullscreen();
 }
 
 function openNovaHab() {
@@ -8602,9 +8770,10 @@ function renderFichaView() {
           return '<div style="padding:8px 12px;background:rgba(210,40,40,.1);border:1px solid rgba(210,40,40,.25);border-radius:8px;margin-bottom:6px">'
             +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">'
             +'<span class="hab-tipo-badge '+( tipoBadge[h.tipo]||'hab-tipo-ativa')+'">'+(tipoIcon[h.tipo]||'⚔')+' '+(h.tipo||'ativa').toUpperCase()+'</span>'
-            +'<strong style="font-family:\'Bebas Neue\',sans-serif;font-size:.95rem;letter-spacing:.06em">'+esc(h.nome)+'</strong>'
+            +'<strong style="font-family:\'Bebas Neue\',sans-serif;font-size:.95rem;letter-spacing:.06em;flex:1">'+esc(h.nome)+'</strong>'
+            +'<button class="hab-fs-btn" title="Ver em tela cheia" onclick="abrirHabFullscreen(\''+h.id+'\')">⛶</button>'
             +'</div>'
-            +(h.efeito?'<div style="font-family:\'Share Tech Mono\',monospace;font-size:.55rem;color:rgba(100,220,180,0.72);line-height:1.6">'+esc(h.efeito)+'</div>':'')
+            +(h.efeito?'<div class="hab-efeito" style="margin-top:6px">'+esc(h.efeito)+'</div>':'')
             +'</div>';
         }).join('');
         return '<div>'
@@ -10673,7 +10842,8 @@ var callState = {
   callPermissions: [],
   micState: 'idle',   // idle | requesting | active | muted | denied
   camState: 'idle',   // idle | requesting | active | denied
-  screenState: 'idle' // idle | requesting | active
+  screenState: 'idle', // idle | requesting | active
+  forceMuted: false   // true quando o Mestre/permissão silenciou este usuário à força
 };
 
 // ── Verifica suporte real a mediaDevices ──
@@ -10949,6 +11119,11 @@ function _doRequestMic() {
 }
 
 function callToggleMic() {
+  // Se o Mestre te silenciou à força, você não pode reativar sozinho
+  if (callState.forceMuted) {
+    showToast('🔇 Você foi silenciado pelo Mestre e não pode reativar o microfone','warn');
+    return;
+  }
   // Se não tem stream: pede permissão
   if (!callState.micStream) { _doRequestMic(); return; }
   // Se tem stream: alterna mudo/ativo
@@ -11148,38 +11323,87 @@ function callSetMusicVol(el) {
   var audio=document.getElementById('call-local-audio'); if(audio) audio.volume=val/100;
 }
 
+// ── Minimiza a call para uma JANELA FLUTUANTE arrastável ──
+// (antes isso fechava a call inteira e só deixava uma bolinha; agora a call
+// continua visível — com participantes, mic/câmera/tela — em uma janelinha
+// no canto, e o resto do site fica livre para navegar por baixo dela.)
 function minimizeCallToFloat() {
-  closeCallOverlay();
   if (!callState.active) return;
-  var pip = document.getElementById('call-pip-bubble');
-  if (pip) pip.classList.add('show');
-  // Sincroniza timer do pip
-  if (!window._pipTimerInterval) {
-    window._pipTimerInterval = setInterval(function(){
-      var el = document.getElementById('call-pip-timer');
-      if (!el) return;
-      var m = Math.floor(callState.timerSecs/60), s = callState.timerSecs%60;
-      el.textContent = (m<10?'0':'')+m+':'+(s<10?'0':'')+s;
-    }, 1000);
-  }
-  showToast('📞 Call minimizada — toque no ícone verde para voltar','ok');
+  var cov = document.getElementById('call-overlay');
+  if (!cov) return;
+  ['music','settings','perm'].forEach(function(p){
+    var el = document.getElementById('call-panel-'+p); if(el) el.classList.remove('open');
+  });
+  cov.classList.add('floating');
+  cov.classList.add('open'); // permanece visível, só que agora pequena
+  showToast('📞 Call flutuante — navegue no site normalmente','ok');
 }
 
+// ── Expande a janela flutuante de volta para tela cheia ──
 function maximizeCallFromFloat() {
+  var cov = document.getElementById('call-overlay');
+  if (cov) cov.classList.remove('floating');
+  // Compat: bolinha antiga (se ainda estiver visível por algum motivo)
   var pip = document.getElementById('call-pip-bubble');
   if (pip) pip.classList.remove('show');
   clearInterval(window._pipTimerInterval); window._pipTimerInterval = null;
-  var _cov = document.getElementById('call-overlay');
-  if (_cov) _cov.classList.add('open');
+  if (cov) cov.classList.add('open');
 }
 
-// Hook: esconde pip quando call terminar — injeta depois do load para não conflitar com módulo Firebase
+// ── Arrastar a janela flutuante da call (mouse + touch) ──
+(function _dragFloatingCall() {
+  var cov, header, dragging = false, ox = 0, oy = 0;
+
+  function onDown(clientX, clientY) {
+    cov = document.getElementById('call-overlay');
+    if (!cov || !cov.classList.contains('floating')) return false;
+    var r = cov.getBoundingClientRect();
+    ox = clientX - r.left; oy = clientY - r.top;
+    cov.style.transition = 'none';
+    dragging = true;
+    return true;
+  }
+  function onMove(clientX, clientY) {
+    if (!dragging || !cov) return;
+    var w = cov.offsetWidth, h = cov.offsetHeight;
+    var x = Math.max(4, Math.min(window.innerWidth - w - 4, clientX - ox));
+    var y = Math.max(4, Math.min(window.innerHeight - h - 4, clientY - oy));
+    cov.style.right = 'auto'; cov.style.bottom = 'auto';
+    cov.style.left = x + 'px'; cov.style.top = y + 'px';
+  }
+  function onUp() {
+    if (dragging && cov) cov.style.transition = '';
+    dragging = false;
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    header = document.querySelector('#call-overlay .call-header');
+    if (!header) return;
+    header.addEventListener('mousedown', function(e) {
+      if (onDown(e.clientX, e.clientY)) e.preventDefault();
+    });
+    header.addEventListener('touchstart', function(e) {
+      var t = e.touches[0]; onDown(t.clientX, t.clientY);
+    }, {passive:true});
+  });
+  document.addEventListener('mousemove', function(e) { onMove(e.clientX, e.clientY); });
+  document.addEventListener('touchmove', function(e) {
+    if (!dragging) return;
+    var t = e.touches[0]; onMove(t.clientX, t.clientY);
+  }, {passive:true});
+  document.addEventListener('mouseup', onUp);
+  document.addEventListener('touchend', onUp);
+})();
+
+// Hook: esconde pip / desfaz modo flutuante quando call terminar — injeta depois do load para não conflitar com módulo Firebase
 window.addEventListener('load', function() {
   var _prevEndCall = window.endCall;
   window.endCall = function() {
     var pip = document.getElementById('call-pip-bubble');
     if (pip) pip.classList.remove('show');
     clearInterval(window._pipTimerInterval); window._pipTimerInterval = null;
+    var cov = document.getElementById('call-overlay');
+    if (cov) cov.classList.remove('floating');
     if (typeof _prevEndCall === 'function') _prevEndCall();
   };
 });
@@ -11256,7 +11480,7 @@ function renderCallParticipants() {
 
   // Mostrar usuário local
   var user = currentUser || {username: 'Você', role: 'player', avatar: null};
-  area.innerHTML = buildParticipantCard(user, true);
+  area.innerHTML = buildParticipantCard(user, true, window._myCallId || 'local', false);
 
   // Reanexa câmera imediatamente após rebuild
   if (savedCamStream && callState.camState === 'active') {
@@ -11270,17 +11494,20 @@ function renderCallParticipants() {
     var membersRef = window._ref(window.db, 'calls/main/members');
     window._onValue(membersRef, function(snap) {
       if (!snap.exists()) return;
-      var html = buildParticipantCard(user, true);
+      var isMestreLocal = currentUser && (currentUser.role === 'mestre' || currentUser.role === 'ambos');
+      var canModerate = isMestreLocal || (callState.callPermissions.indexOf(currentUser && currentUser.id) !== -1);
+      var html = buildParticipantCard(user, true, window._myCallId || 'local', false);
       snap.forEach(function(child) {
         var uid = child.key;
         var memberData = child.val();
-        if (uid !== _myCallId) {
+        if (uid !== window._myCallId) {
           html += buildParticipantCard({
             id: uid,
             username: memberData.username || 'Usuário',
             role: memberData.role || 'player',
-            avatar: null
-          }, false);
+            avatar: null,
+            forceMuted: !!memberData.forceMuted
+          }, false, uid, canModerate);
         }
       });
       area.innerHTML = html;
@@ -11290,27 +11517,51 @@ function renderCallParticipants() {
         var vid = document.getElementById('call-part-local-vid');
         if (vid) { vid.srcObject = callState.camStream; vid.style.display = 'block'; vid.play().catch(function(){}); }
       }
+      // Reanexa qualquer vídeo remoto de câmera já recebido antes deste rebuild
+      if (typeof window._reattachKnownRemoteVideos === 'function') window._reattachKnownRemoteVideos();
     }, { onlyOnce: true });
   }
 }
 
-function buildParticipantCard(user,isLocal) {
+function buildParticipantCard(user, isLocal, uid, canModerate) {
   var name=user.username||user.nome||'Usuário';
   var role=user.role==='mestre'?'🗡 MESTRE':'⚔ PLAYER';
-  var av=user.avatar?'<img src="'+user.avatar+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%">':(user.role==='mestre'?'🗡':'⚔');
+  var av=user.avatar?'<img src="'+user.avatar+'" style="width:100%;height:100%;object-fit:cover;border-radius:14px">':(user.role==='mestre'?'🗡':'⚔');
   var localId=isLocal?'id="call-part-local"':'';
-  var localVid=isLocal?'<video id="call-part-local-vid" class="call-part-video" autoplay playsinline muted style="display:none"></video>':'';
+  var vidId = isLocal ? 'call-part-local-vid' : 'call-remote-vid-'+uid;
+  var vidTag='<video id="'+vidId+'" class="call-part-video" autoplay playsinline '+(isLocal?'muted':'')+' style="display:none"></video>';
   var muteVis=(isLocal&&callState.micState!=='active')?'visible':'';
-  return '<div class="call-participant" '+localId+'>'
+  var muteBtn = (!isLocal && canModerate)
+    ? '<button class="call-part-mute-btn'+(user.forceMuted?' is-muted':'')+'" title="'+(user.forceMuted?'Reativar microfone':'Silenciar participante')+'" onclick="callForceMuteToggle(\''+uid+'\')">🔇</button>'
+    : '';
+  var forcedTag = (!isLocal && user.forceMuted) ? '<div class="call-part-forcemuted-tag">🔇 SILENCIADO PELO MESTRE</div>' : '';
+  return '<div class="call-participant" '+localId+' data-uid="'+uid+'">'
     +'<div class="call-part-av-wrap">'
     +'<div class="call-part-av">'+av+'</div>'
     +'<div class="speaking-ring"></div><div class="speaking-ring-2"></div>'
-    +localVid
+    +vidTag
     +'<div class="call-part-muted '+muteVis+'">🔇</div>'
+    +muteBtn
+    +forcedTag
     +'</div>'
-    +'<div class="call-part-name">'+(isLocal?'(Você) ':'')+name+'</div>'
+    +'<div class="call-part-name">'+(isLocal?'(Você) ':'')+esc(name)+'</div>'
     +'<div class="call-part-role">'+role+'</div>'
     +'</div>';
+}
+
+// ── Mestre/permissão: silenciar/reativar um participante à força (via Firebase) ──
+function callForceMuteToggle(uid) {
+  var isMestreLocal = currentUser && (currentUser.role === 'mestre' || currentUser.role === 'ambos');
+  var canModerate = isMestreLocal || (callState.callPermissions.indexOf(currentUser && currentUser.id) !== -1);
+  if (!canModerate) { showToast('⚠ Apenas o Mestre ou quem tem permissão pode silenciar participantes','warn'); return; }
+  if (!window._ref || !window._set || !window.db) return;
+  var fmRef = window._ref(window.db, 'calls/main/members/'+uid+'/forceMuted');
+  // Lê estado atual via a lista já renderizada (data-uid) para decidir o toggle
+  var card = document.querySelector('.call-participant[data-uid="'+uid+'"]');
+  var currentlyMuted = card && card.querySelector('.call-part-mute-btn.is-muted');
+  window._set(fmRef, !currentlyMuted);
+  showToast(currentlyMuted ? '🔊 Participante reativado' : '🔇 Participante silenciado','ok');
+  setTimeout(renderCallParticipants, 300);
 }
 
 // ── Permissões (mestre) ──
@@ -13386,6 +13637,14 @@ let _callRoomRef = null;
 let _callSignalUnsub = null;
 let _myCallId    = null;
 
+// ── Estado da transmissão de tela (pré-visualização opt-in para quem assiste) ──
+let _screenShareInfo   = { active:false, by:null, name:null, streamId:null };
+let _screenPreviewOk   = false;   // este viewer já aceitou ver a transmissão ATUAL?
+let _pendingScreenStream = null;  // stream de tela recebido mas ainda não exibido (aguardando opt-in)
+let _screenTrackId     = null;    // id da track de tela que EU estou enviando (p/ remover ao parar)
+let _screenShareUnsub  = null;
+let _ownMuteUnsub       = null;
+
 const RTC_CONFIG = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
@@ -13395,14 +13654,57 @@ const RTC_CONFIG = {
 
 function _initWebRTC(profile) {
   _myCallId = profile.id;
+  window._myCallId = profile.id;
+
+  // ── Observa transmissão de tela: quem NÃO está transmitindo recebe um convite opt-in ──
+  if (_screenShareUnsub) { try { _screenShareUnsub(); } catch(e){} }
+  _screenShareUnsub = onValue(ref(db, 'calls/main/screenShare'), function(snap) {
+    var v = snap.val() || { active:false };
+    _screenShareInfo = v;
+    if (v.active && v.by && v.by !== _myCallId) {
+      _screenPreviewOk = false;
+      _pendingScreenStream = null;
+      if (typeof window.showScreenInvite === 'function') window.showScreenInvite(v.name || 'Alguém');
+    } else {
+      if (typeof window.hideScreenInvite === 'function') window.hideScreenInvite();
+      if (!v.active) {
+        _pendingScreenStream = null;
+        _screenPreviewOk = false;
+        var area = document.getElementById('call-screen-area');
+        if (area) { area.classList.remove('active'); area.style.display = 'none'; }
+        var vid = document.getElementById('call-screen-video');
+        if (vid) { try { vid.srcObject = null; } catch(e){} }
+      }
+    }
+  });
+
+  // ── Observa se o Mestre/permissão me silenciou à força ──
+  if (_ownMuteUnsub) { try { _ownMuteUnsub(); } catch(e){} }
+  _ownMuteUnsub = onValue(ref(db, 'calls/main/members/' + _myCallId + '/forceMuted'), function(snap) {
+    var forced = !!snap.val();
+    callState.forceMuted = forced;
+    if (forced && callState.micState === 'active') {
+      if (callState.micStream) callState.micStream.getAudioTracks().forEach(function(t){ t.enabled = false; });
+      callState.micState = 'muted';
+      if (typeof window._syncMicBtn === 'function') window._syncMicBtn();
+      showToast('🔇 Você foi silenciado pelo Mestre', 'warn');
+    }
+    var btn = document.getElementById('ctrl-mic');
+    if (btn) btn.classList.toggle('force-muted', forced);
+  });
 }
 
 function _cleanupWebRTC() {
   Object.values(_peers).forEach(pc => { try { pc.close(); } catch(e){} });
   _peers = {};
   if (_callSignalUnsub) { try { _callSignalUnsub(); } catch(e){} _callSignalUnsub = null; }
+  if (_screenShareUnsub) { try { _screenShareUnsub(); } catch(e){} _screenShareUnsub = null; }
+  if (_ownMuteUnsub) { try { _ownMuteUnsub(); } catch(e){} _ownMuteUnsub = null; }
   _callRoomRef = null;
   _myCallId = null;
+  window._myCallId = null;
+  _pendingScreenStream = null; _screenPreviewOk = false; _screenTrackId = null;
+  if (typeof window.hideScreenInvite === 'function') window.hideScreenInvite();
 }
 
 // Chamado quando usuário clica "Entrar na Call"
@@ -13517,29 +13819,59 @@ function _sendSignal(roomId, targetUid, data) {
 // ── Áudio remoto dos participantes ──
 const _remoteAudioEls = {};
 
-// ── Criar elemento de vídeo remoto ──
+// ── Localiza (ou cria como fallback) o vídeo de câmera de um participante remoto ──
+// Preferência: o <video id="call-remote-vid-{uid}"> já existe DENTRO do card
+// desenhado por buildParticipantCard() — assim a câmera fica quadrada, encaixada
+// no grid estilo Discord, e não como um elemento solto flutuando na área.
 function _createRemoteVideoElement(uid) {
   var existing = document.getElementById('call-remote-vid-' + uid);
   if (existing) return existing;
-  
+
+  // Fallback: card ainda não foi renderizado (lista de membros ainda não chegou) —
+  // cria um vídeo temporário solto; será substituído no próximo render do card.
   var vid = document.createElement('video');
   vid.id = 'call-remote-vid-' + uid;
   vid.className = 'call-part-video';
   vid.autoplay = true;
   vid.playsinline = true;
-  vid.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:8px;background:#000';
-  
+  vid.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:14px;background:#000';
+
   var container = document.getElementById('call-participants-area');
-  if (container) {
-    container.appendChild(vid);
-  }
+  if (container) container.appendChild(vid);
   return vid;
 }
+
+// Reanexa vídeos de câmera já recebidos após um re-render do grid de participantes
+// (o card é recriado do zero, então o <video> antigo perde o srcObject)
+window._reattachKnownRemoteVideos = function() {
+  Object.keys(_remoteCamStreams || {}).forEach(function(uid) {
+    var vidEl = document.getElementById('call-remote-vid-' + uid);
+    var stream = _remoteCamStreams[uid];
+    if (vidEl && stream) {
+      vidEl.srcObject = stream; vidEl.style.display = 'block';
+      vidEl.play().catch(function(){});
+    }
+  });
+};
+const _remoteCamStreams = {}; // uid → MediaStream de câmera (para reanexar após re-render)
 
 function _attachRemoteStream(uid, stream) {
   if (!stream) return;
   console.log('[WebRTC] Anexando stream remoto para:', uid);
-  
+
+  // ── É a TRANSMISSÃO DE TELA de alguém? (identificado pelo streamId sincronizado via Firebase) ──
+  var isScreenShare = _screenShareInfo && _screenShareInfo.active &&
+    _screenShareInfo.by === uid && stream.id === _screenShareInfo.streamId;
+
+  if (isScreenShare) {
+    _pendingScreenStream = stream;
+    // Só exibe de fato se ESTE viewer já clicou em "Ver transmissão" (opt-in)
+    if (_screenPreviewOk && typeof window._attachPendingScreenShare === 'function') {
+      window._attachPendingScreenShare();
+    }
+    return; // não trata como câmera do participante
+  }
+
   // Áudio
   let el = _remoteAudioEls[uid];
   if (!el) {
@@ -13552,8 +13884,9 @@ function _attachRemoteStream(uid, stream) {
   }
   el.srcObject = stream;
   
-  // Vídeo (se houver track de vídeo no stream)
+  // Vídeo de câmera (se houver track de vídeo no stream)
   var hasVideo = stream.getVideoTracks().length > 0;
+  if (hasVideo) _remoteCamStreams[uid] = stream;
   var vidEl = document.getElementById('call-remote-vid-' + uid);
   if (!vidEl && hasVideo) {
     vidEl = _createRemoteVideoElement(uid);
@@ -13570,7 +13903,41 @@ function _attachRemoteStream(uid, stream) {
 function _removeRemoteStream(uid) {
   var el = _remoteAudioEls[uid];
   if (el) { el.srcObject = null; el.remove(); delete _remoteAudioEls[uid]; }
+  delete _remoteCamStreams[uid];
 }
+
+// ── Pré-visualização opt-in de transmissão de tela (quem NÃO está transmitindo) ──
+window._attachPendingScreenShare = function() {
+  if (!_pendingScreenStream) return;
+  var vid = document.getElementById('call-screen-video');
+  var area = document.getElementById('call-screen-area');
+  if (vid) { vid.srcObject = _pendingScreenStream; vid.style.display = 'block'; vid.play().catch(function(){}); }
+  if (area) { area.classList.add('active'); area.style.display = 'block'; }
+  var lbl = document.querySelector('#call-screen-area .call-screen-label');
+  if (lbl) lbl.textContent = '🖥 TRANSMISSÃO DE TELA — ' + (_screenShareInfo.name || 'participante');
+};
+
+window.showScreenInvite = function(name) {
+  var b = document.getElementById('call-screen-invite'); if (!b) return;
+  var nm = document.getElementById('call-screen-invite-name'); if (nm) nm.textContent = name;
+  b.classList.add('show');
+};
+
+window.hideScreenInvite = function() {
+  var b = document.getElementById('call-screen-invite'); if (b) b.classList.remove('show');
+};
+
+// Chamado pelo botão "👁 Ver transmissão" — o VIEWER decide se quer ver ou não.
+window.callAcceptScreenPreview = function() {
+  _screenPreviewOk = true;
+  window.hideScreenInvite();
+  window._attachPendingScreenShare();
+};
+
+window.callDismissScreenInvite = function() {
+  window.hideScreenInvite();
+};
+
 // ── Hook: quando mic/cam é ativado, adiciona trilha nos peers existentes ──
 window._rtcAddMediaTrack = function(stream) {
   if (!stream) return;
@@ -13646,57 +14013,60 @@ function _notifyMediaTransmission(gmName, mediaType) {
 
 
 
-// ── Screen sharing melhorado (versão unificada — sem dupla sobrescrita) ──
-// Nota: callToggleScreen já foi sobrescrita antes com lógica de WebRTC.
-// Este bloco apenas garante que ao parar o track via evento 'ended' (ex: o usuário fecha o painel do browser),
-// o estado é atualizado corretamente.
-(function _patchScreenShareEnded() {
-  var _ssOriginal = window.callToggleScreen;
+// ── Screen sharing: WebRTC + sinalização Firebase para pré-visualização opt-in ──
+// CORRIGIDO: a versão antiga substituía callToggleScreen() inteira e perdia a
+// prévia local do apresentador. Agora seguimos o mesmo padrão usado para mic/câmera:
+// chama a função ORIGINAL primeiro (que já cuida da prévia local e do botão),
+// e só então soma por cima a parte de rede (WebRTC) e o aviso aos outros participantes.
+(function _hookScreenShareWebRTC() {
+  var _origToggleScreen = window.callToggleScreen;
   window.callToggleScreen = async function() {
-    if (callState.screenState === 'active') {
-      // Parar stream existente
-      if (callState.screenStream) {
-        callState.screenStream.getTracks().forEach(t => t.stop());
-        callState.screenStream = null;
-      }
-      callState.screenState = 'inactive';
-      // Remover senders de vídeo dos peers (screen share)
-      Object.entries(_peers).forEach(([uid, pc]) => {
-        pc.getSenders().forEach(sender => {
-          if (sender.track && sender.track.kind === 'video') {
+    var wasActive = callState.screenState === 'active';
+    if (typeof _origToggleScreen === 'function') await _origToggleScreen();
+
+    if (wasActive) {
+      // Acabamos de PARAR de compartilhar
+      Object.values(_peers).forEach(function(pc) {
+        pc.getSenders().forEach(function(sender) {
+          if (sender.track && sender.track.kind === 'video' && sender.track.id === _screenTrackId) {
             try { pc.removeTrack(sender); } catch(e){}
           }
         });
       });
-      var btn = document.getElementById('call-screen-btn');
-      if (btn) { btn.classList.remove('active'); btn.title = 'Compartilhar Tela'; }
-      showToast('🛑 Screen share desativado', 'info');
-    } else {
-      try {
-        callState.screenStream = await navigator.mediaDevices.getDisplayMedia({
-          video: { cursor: 'always', frameRate: 30 },
-          audio: false
+      _screenTrackId = null;
+      if (_myCallId) set(ref(db, 'calls/main/screenShare'), { active: false, ts: Date.now() });
+    } else if (callState.screenState === 'active' && callState.screenStream) {
+      // Acabamos de COMEÇAR a compartilhar — a prévia local já foi mostrada pela função original
+      var track = callState.screenStream.getVideoTracks()[0];
+      _screenTrackId = track ? track.id : null;
+      window._rtcAddMediaTrack(callState.screenStream);
+      if (_myCallId) {
+        set(ref(db, 'calls/main/screenShare'), {
+          active: true,
+          by: _myCallId,
+          name: (currentUser && currentUser.username) || 'Alguém',
+          streamId: callState.screenStream.id,
+          ts: Date.now()
         });
-        callState.screenState = 'active';
-        // Hook: se usuário fechar via browser UI
-        callState.screenStream.getVideoTracks()[0].addEventListener('ended', function() {
-          callState.screenState = 'active'; // força reentrada no branch 'active'
-          window.callToggleScreen();
-        });
-        // Adicionar ao WebRTC
-        window._rtcAddMediaTrack(callState.screenStream);
-        var btn = document.getElementById('call-screen-btn');
-        if (btn) { btn.classList.add('active'); btn.title = 'Parar Screen Share'; }
-        showToast('🖥 Screen share ativado', 'ok');
-      } catch(e) {
-        callState.screenStream = null;
-        console.warn('[Screen Share] Erro:', e);
-        if (e.name !== 'NotAllowedError') showToast('⚠ Erro ao compartilhar tela', 'warn');
       }
     }
-    // Atualiza UI do botão de câmera / tela
-    var scBtn = document.getElementById('call-screen-btn');
-    if (scBtn) scBtn.classList.toggle('active', callState.screenState === 'active');
+  };
+
+  // Também cobre o caso do usuário parar via botão nativo do navegador
+  // ("Parar de compartilhar" na barra do Chrome), que chama _stopScreenStream()
+  // diretamente sem passar por callToggleScreen().
+  var _origStopScreenStream = window._stopScreenStream;
+  window._stopScreenStream = function() {
+    Object.values(_peers).forEach(function(pc) {
+      pc.getSenders().forEach(function(sender) {
+        if (sender.track && sender.track.kind === 'video' && sender.track.id === _screenTrackId) {
+          try { pc.removeTrack(sender); } catch(e){}
+        }
+      });
+    });
+    _screenTrackId = null;
+    if (_myCallId) set(ref(db, 'calls/main/screenShare'), { active: false, ts: Date.now() });
+    if (typeof _origStopScreenStream === 'function') _origStopScreenStream();
   };
 })();
 
@@ -16532,9 +16902,10 @@ function opRenderPoderesPorPatente(p, canEdit) {
         return '<div style="padding:8px 12px;background:rgba(210,40,40,.1);border:1px solid rgba(210,40,40,.25);border-radius:8px;margin-top:6px">'
           +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">'
           +'<span class="hab-tipo-badge '+(tipoBadge[h.tipo]||'hab-tipo-ativa')+'">'+(tipoIcon[h.tipo]||'⚔')+' '+(h.tipo||'ativa').toUpperCase()+'</span>'
-          +'<strong style="font-family:Bebas Neue,sans-serif;font-size:.95rem;letter-spacing:.06em">'+esc(h.nome)+'</strong>'
+          +'<strong style="font-family:Bebas Neue,sans-serif;font-size:.95rem;letter-spacing:.06em;flex:1">'+esc(h.nome)+'</strong>'
+          +'<button class="hab-fs-btn" title="Ver em tela cheia" onclick="abrirHabFullscreen(\''+h.id+'\')">⛶</button>'
           +'</div>'
-          +(h.efeito?'<div style="font-family:Share Tech Mono,monospace;font-size:.55rem;color:rgba(100,220,180,0.72);line-height:1.6">'+esc(h.efeito)+'</div>':'')
+          +(h.efeito?'<div class="hab-efeito" style="margin-top:6px">'+esc(h.efeito)+'</div>':'')
           +'</div>';
       }).join('');
       if(chosenCards) html += '<div style="margin-top:10px">'+chosenCards+'</div>';
