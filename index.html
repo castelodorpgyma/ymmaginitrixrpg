@@ -3736,6 +3736,42 @@ input:valid:not(:placeholder-shown) {
 .call-overlay.floating .call-screen-zoom-ctrls,
 .call-overlay.floating .call-screen-fs-btn{ display:none !important; }
 
+/* ══════════════════════════════════════
+   CALL — CHAT LATERAL ESTILO DISCORD
+══════════════════════════════════════ */
+.call-main.with-chat{ flex-direction:row !important; }
+.call-main.with-chat .call-screen-area,
+.call-main.with-chat .call-participants-area{ flex:1 1 auto; min-width:0; }
+.grp-callchat{ position:relative; }
+#ctrl-callchat.active{ background:rgba(0,200,100,.22); border-color:rgba(77,255,153,.6); box-shadow:0 0 18px rgba(77,255,153,.2); }
+.call-side-chat{
+  display:none; flex-direction:column; width:0; flex-shrink:0; overflow:hidden;
+  border-left:1px solid rgba(255,255,255,.09); background:rgba(4,2,10,.98);
+}
+.call-side-chat.open{ display:flex; width:min(360px,42vw); }
+.call-side-chat-hd{
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+  padding:13px 16px; background:rgba(0,0,0,.45); border-bottom:1px solid rgba(255,255,255,.07);
+  font-family:'Orbitron',sans-serif; font-size:.66rem; font-weight:700; letter-spacing:.1em;
+  color:rgba(220,230,255,0.85); flex-shrink:0;
+}
+.call-side-chat-close{ background:none; border:none; color:rgba(255,255,255,0.72); cursor:pointer; font-size:1rem; padding:2px 4px; transition:color .12s; line-height:1; }
+.call-side-chat-close:hover{ color:rgba(255,120,120,0.9); }
+.call-side-chat-body{ flex:1; min-height:0; display:flex; flex-direction:column; }
+.call-side-chat-body .chat-box.in-call-chat{
+  height:100% !important; width:100% !important; border-radius:0 !important;
+  border:none !important; box-shadow:none !important;
+}
+/* modo flutuante: sem espaço para chat lateral */
+.call-overlay.floating .grp-callchat{ display:none !important; }
+.call-overlay.floating .call-side-chat{ display:none !important; }
+/* mobile: chat vira um painel cheio sobre a call, tipo Discord mobile */
+@media (max-width:780px){
+  .call-side-chat.open{ position:absolute; inset:0; z-index:40; width:100%; }
+  .call-main.with-chat .call-screen-area,
+  .call-main.with-chat .call-participants-area{ display:none; }
+}
+
 @media(max-width:768px){
   .call-main.has-screen{ flex-direction:column !important; }
   .call-main.has-screen .call-screen-area{
@@ -6154,6 +6190,15 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     <div class="call-participants-area" id="call-participants-area">
       <!-- Populated by JS -->
     </div>
+
+    <!-- Chat lateral (estilo Discord) — reaproveita o chat geral do site -->
+    <div class="call-side-chat" id="call-side-chat">
+      <div class="call-side-chat-hd">
+        <span>💬 BATE-PAPO</span>
+        <button class="call-side-chat-close" onclick="closeCallSideChat()" title="Fechar chat">✕</button>
+      </div>
+      <div class="call-side-chat-body" id="call-side-chat-body"></div>
+    </div>
   </div>
 
   <!-- CONTROLS BAR -->
@@ -6185,6 +6230,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     <div class="call-ctrl-group">
       <button class="call-ctrl-btn" id="ctrl-settings" onclick="toggleCallPanel('settings')" title="Configurações">⚙</button>
       <span class="call-ctrl-label">CONFIG</span>
+    </div>
+    <div class="call-ctrl-group grp-callchat">
+      <button class="call-ctrl-btn" id="ctrl-callchat" onclick="toggleCallSideChat()" title="Bate-papo com todos na call">💬</button>
+      <span class="call-ctrl-label">CHAT</span>
     </div>
     <div class="call-ctrl-group">
       <button class="call-end-btn" onclick="endCall()" title="Encerrar call">📵</button>
@@ -11451,6 +11500,50 @@ function callSetMusicVol(el) {
   var audio=document.getElementById('call-local-audio'); if(audio) audio.volume=val/100;
 }
 
+// ── CHAT LATERAL DA CALL (estilo Discord) ──
+// Não duplica o sistema de chat: pega o mesmo painel usado no FAB flutuante
+// (#chat-box-overlay, com todas as abas/PVs/figurinhas/mídia já funcionando)
+// e o realoca para dentro da call. Ao fechar, devolve ao lugar de origem.
+var _callChatHomeParent = null;
+
+function toggleCallSideChat() {
+  var panel = document.getElementById('call-side-chat');
+  if (!panel) return;
+  if (panel.classList.contains('open')) closeCallSideChat();
+  else openCallSideChat();
+}
+
+function openCallSideChat() {
+  var panel = document.getElementById('call-side-chat');
+  var body  = document.getElementById('call-side-chat-body');
+  var box   = document.getElementById('chat-box-overlay');
+  var main  = document.getElementById('call-main');
+  var cov   = document.getElementById('call-overlay');
+  if (!panel || !body || !box || !cov || cov.classList.contains('floating')) return;
+  if (!_callChatHomeParent) _callChatHomeParent = box.parentNode; // guarda o lar original (#chat-overlay)
+  body.appendChild(box);
+  box.classList.add('in-call-chat');
+  panel.classList.add('open');
+  if (main) main.classList.add('with-chat');
+  var mainOv = document.getElementById('chat-overlay'); if (mainOv) mainOv.classList.remove('open');
+  var btn = document.getElementById('ctrl-callchat'); if (btn) btn.classList.add('active');
+  renderChatFeedOv(); renderChatTabsOv();
+  var badge = document.getElementById('fab-unread'); if (badge) badge.textContent = '';
+  var inp = document.getElementById('chat-inp-ov'); if (inp) setTimeout(function(){ inp.focus(); }, 80);
+}
+
+function closeCallSideChat() {
+  var panel = document.getElementById('call-side-chat');
+  var box   = document.getElementById('chat-box-overlay');
+  var main  = document.getElementById('call-main');
+  if (!panel || !box) return;
+  if (_callChatHomeParent) _callChatHomeParent.appendChild(box);
+  box.classList.remove('in-call-chat');
+  panel.classList.remove('open');
+  if (main) main.classList.remove('with-chat');
+  var btn = document.getElementById('ctrl-callchat'); if (btn) btn.classList.remove('active');
+}
+
 // ── Minimiza a call para uma JANELA FLUTUANTE arrastável ──
 // (antes isso fechava a call inteira e só deixava uma bolinha; agora a call
 // continua visível — com participantes, mic/câmera/tela — em uma janelinha
@@ -11462,6 +11555,7 @@ function minimizeCallToFloat() {
   ['music','settings','perm'].forEach(function(p){
     var el = document.getElementById('call-panel-'+p); if(el) el.classList.remove('open');
   });
+  closeCallSideChat(); // não cabe chat lateral na janelinha flutuante
   cov.classList.add('floating');
   cov.classList.add('open'); // permanece visível, só que agora pequena
   showToast('📞 Call flutuante — navegue no site normalmente','ok');
@@ -11532,6 +11626,7 @@ window.addEventListener('load', function() {
     clearInterval(window._pipTimerInterval); window._pipTimerInterval = null;
     var cov = document.getElementById('call-overlay');
     if (cov) cov.classList.remove('floating');
+    closeCallSideChat();
     if (typeof _prevEndCall === 'function') _prevEndCall();
   };
 });
