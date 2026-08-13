@@ -6328,6 +6328,23 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
       <span class="call-panel-title">// CONFIGURAÇÕES DE ÁUDIO</span>
       <button class="call-panel-close" onclick="toggleCallPanel('settings')">✕</button>
     </div>
+    <!-- Ícone customizado da call (imagem ou GIF) -->
+    <div class="call-setting-row" style="align-items:flex-start">
+      <div style="flex:1">
+        <div class="call-setting-lbl">Ícone na Call</div>
+        <div class="call-setting-sub">Imagem ou GIF do seu personagem, mostrado no seu card durante a call (substitui o avatar da ficha)</div>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
+          <div id="call-avatar-preview" onclick="document.getElementById('call-avatar-input').click()" style="width:52px;height:52px;border-radius:14px;border:1.5px dashed rgba(255,255,255,.22);display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;background:rgba(255,255,255,.03);flex-shrink:0">
+            <span style="font-size:.5rem;opacity:.5">+ img</span>
+          </div>
+          <div style="flex:1;display:flex;flex-direction:column;gap:6px">
+            <input type="file" id="call-avatar-input" accept="image/*" style="display:none" onchange="callSetCustomAvatarFile(event)">
+            <button class="call-music-btn" onclick="document.getElementById('call-avatar-input').click()" style="width:100%">📁 Enviar imagem/GIF</button>
+            <button class="call-music-btn" onclick="callClearCustomAvatar()" style="width:100%;opacity:.7;background:rgba(242,63,66,.1);border-color:rgba(242,63,66,.28);color:#ff9fa1">✕ Remover</button>
+          </div>
+        </div>
+      </div>
+    </div>
     <!-- Supressão de ruído -->
     <div class="call-setting-row">
       <div style="flex:1">
@@ -11751,6 +11768,56 @@ function toggleCallPanel(name) {
     var el=document.getElementById('call-panel-'+p); if(!el) return;
     if(p===name) el.classList.toggle('open'); else el.classList.remove('open');
   });
+  if (name === 'settings') _callRefreshAvatarPreview();
+}
+
+// ── Ícone customizado (imagem/GIF) do participante na call ──
+// Guardado localmente por conta (localStorage) e, quando em call, sincronizado
+// via Firebase (calls/main/members/<uid>/customAvatar) para os outros verem.
+function _callAvatarStorageKey() {
+  var uid = (typeof currentUser !== 'undefined' && currentUser) ? (currentUser.id||currentUser.username||'anon') : 'anon';
+  return 'ymm_call_avatar_' + uid;
+}
+window.callGetCustomAvatar = function() {
+  try { return localStorage.getItem(_callAvatarStorageKey()) || null; } catch(e) { return null; }
+};
+function _callRefreshAvatarPreview() {
+  var prev = document.getElementById('call-avatar-preview');
+  if (!prev) return;
+  var av = window.callGetCustomAvatar();
+  prev.innerHTML = av
+    ? '<img src="'+av+'" style="width:100%;height:100%;object-fit:cover">'
+    : '<span style="font-size:.5rem;opacity:.5">+ img</span>';
+}
+function _callSyncCustomAvatarToRoom(dataUrl) {
+  try {
+    if (window._ref && window._set && window.db && window._myCallId && callState && callState.active) {
+      window._set(window._ref(window.db, 'calls/main/members/'+window._myCallId+'/customAvatar'), dataUrl || null);
+    }
+  } catch(e) { /* offline ou fora da call — tudo bem, fica só local */ }
+}
+function callSetCustomAvatarFile(ev) {
+  var file = ev.target.files && ev.target.files[0];
+  if (!file) return;
+  if (file.size > 1.5*1024*1024) { showToast('⚠ Imagem/GIF muito grande (máx 1.5MB)','warn'); ev.target.value=''; return; }
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var dataUrl = e.target.result;
+    try { localStorage.setItem(_callAvatarStorageKey(), dataUrl); }
+    catch(err) { showToast('⚠ Não foi possível salvar (armazenamento local cheio)','warn'); return; }
+    _callRefreshAvatarPreview();
+    _callSyncCustomAvatarToRoom(dataUrl);
+    if (typeof renderCallParticipants === 'function') renderCallParticipants();
+    showToast('🖼 Ícone da call atualizado','ok');
+  };
+  reader.readAsDataURL(file);
+}
+function callClearCustomAvatar() {
+  try { localStorage.removeItem(_callAvatarStorageKey()); } catch(e){}
+  _callRefreshAvatarPreview();
+  _callSyncCustomAvatarToRoom(null);
+  if (typeof renderCallParticipants === 'function') renderCallParticipants();
+  showToast('🗑 Ícone removido — voltando ao avatar da ficha/padrão','ok');
 }
 
 // ═══════════════════════════════════════
@@ -11790,7 +11857,7 @@ function renderCallParticipants() {
             id: uid,
             username: memberData.username || 'Usuário',
             role: memberData.role || 'player',
-            avatar: null,
+            avatar: memberData.customAvatar || null,
             forceMuted: !!memberData.forceMuted
           }, false, uid, canModerate);
         }
@@ -11816,12 +11883,18 @@ function buildParticipantCard(user, isLocal, uid, canModerate) {
   // customizado (imagem ou GIF), nome do personagem e status vitais na call.
   var linkedChar = null;
   try {
+    var uUsername = (user.username||'').toLowerCase();
+    var uId = (user.id||uid||'');
     linkedChar = (data && data.players || []).find(function(x){
-      return x.player === (user.username||'') || x.player === uid || x.player === (user.id||'');
+      if (!x) return false;
+      if (x.player && uUsername && x.player.toLowerCase() === uUsername) return true;
+      if (x.player && x.player === uId) return true;
+      return false;
     }) || null;
   } catch(e){}
 
-  var charAvatar = (linkedChar && linkedChar.avatar) ? linkedChar.avatar : (user.avatar||null);
+  var customCallAvatar = isLocal ? (window.callGetCustomAvatar ? window.callGetCustomAvatar() : null) : (user.avatar||null);
+  var charAvatar = customCallAvatar || (linkedChar && linkedChar.avatar) || (user.avatar||null);
   var av = charAvatar
     ? '<img src="'+charAvatar+'" style="width:100%;height:100%;object-fit:cover;border-radius:14px">'
     : (user.role==='mestre'?'🗡':'⚔');
@@ -14031,7 +14104,9 @@ window._joinCallRoom = async function(roomId) {
 
   // Anuncia presença na call
   const mySlotRef = ref(db, 'calls/' + roomId + '/members/' + _myCallId);
-  await set(mySlotRef, { uid: _myCallId, username: currentUser.username, role: currentUser.role, joinedAt: Date.now() });
+  var _savedCallAvatar = null;
+  try { _savedCallAvatar = window.callGetCustomAvatar ? window.callGetCustomAvatar() : null; } catch(e){}
+  await set(mySlotRef, { uid: _myCallId, username: currentUser.username, role: currentUser.role, joinedAt: Date.now(), customAvatar: _savedCallAvatar || null });
   onDisconnect(mySlotRef).remove();
 
   // Escuta sinalização
