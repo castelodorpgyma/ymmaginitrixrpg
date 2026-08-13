@@ -3567,18 +3567,27 @@ input:valid:not(:placeholder-shown) {
    CALL — JANELA FLUTUANTE, GRID ESTILO DISCORD, MUTE POR MESTRE
    ══════════════════════════════════════════════════════════════════ */
 
-/* grid de participantes — tiles quadrados, como no Discord */
-.call-participants-area{ display:grid !important; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); align-content:start; }
-.call-participant{
-  width:auto !important; aspect-ratio:1/1; justify-content:center;
-  border-radius:14px !important; padding:10px !important; overflow:hidden;
+/* grid de participantes — tiles quadrados, como no Discord.
+   auto-fit (em vez de auto-fill) faz as colunas vazias colapsarem e os
+   tiles existentes se centralizarem/expandirem, em vez de ficarem
+   pequenos e presos no canto quando há poucos participantes na call. */
+.call-participants-area{
+  display:grid !important;
+  grid-template-columns:repeat(auto-fit,minmax(190px,260px));
+  justify-content:center;
+  align-content:center;
+  gap:22px;
 }
-.call-part-av-wrap{ width:72% !important; height:72% !important; max-width:120px; max-height:120px; }
-.call-part-av{ width:100% !important; height:100% !important; border-radius:14px !important; }
-.call-part-av img{ border-radius:14px !important; }
-.call-part-video{ border-radius:14px !important; transform:none !important; } /* câmera quadrada, sem espelhar a de outros */
+.call-participant{
+  width:100% !important; max-width:260px; aspect-ratio:1/1; justify-content:center;
+  border-radius:16px !important; padding:16px !important; overflow:hidden;
+}
+.call-part-av-wrap{ width:74% !important; height:74% !important; max-width:170px; max-height:170px; }
+.call-part-av{ width:100% !important; height:100% !important; border-radius:16px !important; font-size:2.4rem; }
+.call-part-av img{ border-radius:16px !important; }
+.call-part-video{ border-radius:16px !important; transform:none !important; } /* câmera quadrada, sem espelhar a de outros */
 #call-part-local-vid.call-part-video{ transform:scaleX(-1) !important; } /* só espelha a SUA própria prévia */
-.call-part-name{ font-size:.72rem; }
+.call-part-name{ font-size:.8rem; }
 
 /* botão de mutar (visível só para quem tem permissão de controle da call) */
 .call-part-mute-btn{
