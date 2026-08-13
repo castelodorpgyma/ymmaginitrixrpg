@@ -2542,7 +2542,7 @@ textarea{resize:vertical;min-height:72px;border-radius:var(--r-sm)}
 .call-live-dot{width:8px;height:8px;border-radius:50%;background:#4dff99;box-shadow:0 0 12px rgba(77,255,153,.9);animation:callDotPulse 1.5s infinite}
 .call-timer{font-family:'Share Tech Mono',monospace;font-size:.62rem;color:rgba(100,255,180,0.72);letter-spacing:.1em;margin-left:4px}
 .call-main{flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative;z-index:1}
-.call-participants-area{flex:1;overflow-y:auto;overflow-x:hidden;padding:16px;display:flex;flex-wrap:wrap;gap:16px;align-content:center;justify-content:center;min-height:100px}
+.call-participants-area{flex:1;overflow-y:auto;overflow-x:hidden;scrollbar-gutter:stable;padding:16px;display:flex;flex-wrap:wrap;gap:16px;align-content:center;justify-content:center;min-height:100px;transition:padding .22s cubic-bezier(.22,1,.36,1)}
 .call-participants-area::-webkit-scrollbar{width:3px}
 .call-participants-area::-webkit-scrollbar-thumb{background:rgba(0,200,100,.2);border-radius:2px}
 .call-participant{width:150px;display:flex;flex-direction:column;align-items:center;gap:8px;padding:18px 12px 14px;background:rgba(0,16,9,.85);border:1.5px solid rgba(0,255,120,.1);border-radius:16px;position:relative;transition:border-color .2s,box-shadow .2s;backdrop-filter:blur(6px)}
@@ -2562,6 +2562,33 @@ textarea{resize:vertical;min-height:72px;border-radius:var(--r-sm)}
 .call-part-role{font-family:'Share Tech Mono',monospace;font-size:.44rem;letter-spacing:.1em;padding:2px 7px;border-radius:100px;background:rgba(0,200,100,.1);border:1px solid rgba(0,200,100,.2);color:rgba(100,255,180,0.72)}
 .call-part-muted{position:absolute;top:-4px;right:-4px;width:20px;height:20px;border-radius:50%;background:rgba(220,40,40,.9);border:2px solid rgba(4,10,6,.9);display:flex;align-items:center;justify-content:center;font-size:.55rem;z-index:4;display:none}
 .call-part-muted.visible{display:flex}
+.call-part-charname{color:rgba(140,255,190,.65);font-weight:600}
+.call-part-stats{width:100%;max-width:128px;display:flex;flex-direction:column;gap:3px;margin-top:2px}
+.cps-row{display:flex;align-items:center;gap:5px}
+.cps-ic{font-size:.5rem;flex-shrink:0;width:11px;text-align:center;filter:grayscale(.15)}
+.cps-track{flex:1;height:4px;border-radius:3px;background:rgba(255,255,255,.09);overflow:hidden}
+.cps-fill{height:100%;border-radius:3px;transition:width .25s ease}
+.cps-fill.cps-vida{background:linear-gradient(90deg,#8b0000,#ff4444)}
+.cps-fill.cps-san{background:linear-gradient(90deg,#0030aa,#4488ff)}
+.cps-fill.cps-est{background:linear-gradient(90deg,#806000,#ffd700)}
+/* ── Selo de dado girando no canto do avatar quando alguém rola ── */
+.call-part-dice{
+  position:absolute; top:-6px; left:-6px; z-index:5;
+  display:flex; align-items:center; gap:3px;
+  padding:2px 7px 2px 4px; border-radius:100px;
+  background:rgba(6,14,10,.94); border:1.5px solid rgba(77,255,153,.55);
+  box-shadow:0 0 14px rgba(77,255,153,.25);
+  font-family:'Share Tech Mono',monospace; font-size:.62rem; font-weight:700; color:#eaffef;
+  opacity:0; transform:scale(.4) translateY(4px); pointer-events:none;
+  transition:opacity .18s ease, transform .18s cubic-bezier(.34,1.56,.64,1);
+}
+.call-part-dice.show{ opacity:1; transform:scale(1) translateY(0); animation:cpdPop .5s cubic-bezier(.34,1.56,.64,1); }
+.call-part-dice.crit{ border-color:rgba(245,200,66,.85); box-shadow:0 0 16px rgba(245,200,66,.4); color:#ffe9a8; }
+.call-part-dice.fail{ border-color:rgba(255,80,80,.8); box-shadow:0 0 16px rgba(255,80,80,.35); color:#ffc4c4; }
+.call-part-dice .cpd-die{ font-size:.78rem; display:inline-block; animation:cpdSpin 1.4s cubic-bezier(.3,.9,.4,1) 1; }
+.call-part-dice.show .cpd-die{ animation:cpdSpin 1.4s cubic-bezier(.3,.9,.4,1) 1; }
+@keyframes cpdSpin{ 0%{transform:rotate(0)} 70%{transform:rotate(620deg)} 100%{transform:rotate(600deg)} }
+@keyframes cpdPop{ 0%{transform:scale(.4) translateY(4px)} 55%{transform:scale(1.18) translateY(-2px)} 100%{transform:scale(1) translateY(0)} }
 .call-screen-area{flex-shrink:0;background:#000;border-top:1px solid rgba(0,255,120,.1);display:none;position:relative;overflow:hidden;border-bottom:1px solid rgba(0,255,120,.06)}
 .call-screen-area.active{display:block}
 .call-screen-area video{width:100%;max-height:240px;min-height:120px;object-fit:contain;display:block;background:#000}
@@ -2619,7 +2646,15 @@ textarea{resize:vertical;min-height:72px;border-radius:var(--r-sm)}
 .call-perm-off{background:rgba(200,40,40,.1);border-color:rgba(200,40,40,.28);color:rgba(255,120,120,0.8)}
 .call-card-banner{display:flex;align-items:center;gap:12px;padding:12px 14px;background:rgba(0,200,100,.06);border:1px solid rgba(0,200,100,.14);border-radius:10px;margin-bottom:12px}
 .call-card-info{flex:1;font-family:'Share Tech Mono',monospace;font-size:.6rem;color:rgba(100,255,180,0.72);line-height:1.8}
-.call-perm-notice{font-family:'Share Tech Mono',monospace;font-size:.56rem;color:rgba(255,160,80,0.72);padding:10px;background:rgba(255,160,80,.06);border:1px solid rgba(255,160,80,.15);border-radius:8px;text-align:center}
+.call-hdr-min-btn{
+  display:flex; align-items:center; gap:6px; background:rgba(255,255,255,.05);
+  border:1px solid rgba(255,255,255,.12); color:rgba(220,230,225,0.82);
+  border-radius:8px; padding:6px 12px; font-family:'Share Tech Mono',monospace;
+  font-size:.6rem; letter-spacing:.06em; cursor:pointer; transition:all .16s;
+}
+.call-hdr-min-btn:hover{ background:rgba(0,200,100,.16); border-color:rgba(0,200,100,.4); color:rgba(150,255,200,0.95); }
+.call-hdr-min-btn .chb-ic{ font-size:.85rem; line-height:1; font-weight:700; }
+.call-overlay.floating .call-hdr-min-btn{ display:none; }
 
 /* ══════════════════════════════════════
    HABILIDADES SYSTEM
@@ -3741,14 +3776,15 @@ input:valid:not(:placeholder-shown) {
 ══════════════════════════════════════ */
 .call-main.with-chat{ flex-direction:row !important; }
 .call-main.with-chat .call-screen-area,
-.call-main.with-chat .call-participants-area{ flex:1 1 auto; min-width:0; }
-.grp-callchat{ position:relative; }
-#ctrl-callchat.active{ background:rgba(0,200,100,.22); border-color:rgba(77,255,153,.6); box-shadow:0 0 18px rgba(77,255,153,.2); }
+.call-main.with-chat .call-participants-area{ flex:1 1 0% !important; min-width:0; width:auto !important; }
 .call-side-chat{
   display:none; flex-direction:column; width:0; flex-shrink:0; overflow:hidden;
   border-left:1px solid rgba(255,255,255,.09); background:rgba(4,2,10,.98);
+  transition:width .22s cubic-bezier(.22,1,.36,1);
 }
 .call-side-chat.open{ display:flex; width:min(360px,42vw); }
+.grp-callchat{ position:relative; }
+#ctrl-callchat.active{ background:rgba(0,200,100,.22); border-color:rgba(77,255,153,.6); box-shadow:0 0 18px rgba(77,255,153,.2); }
 .call-side-chat-hd{
   display:flex; align-items:center; justify-content:space-between; gap:8px;
   padding:13px 16px; background:rgba(0,0,0,.45); border-bottom:1px solid rgba(255,255,255,.07);
@@ -3757,7 +3793,7 @@ input:valid:not(:placeholder-shown) {
 }
 .call-side-chat-close{ background:none; border:none; color:rgba(255,255,255,0.72); cursor:pointer; font-size:1rem; padding:2px 4px; transition:color .12s; line-height:1; }
 .call-side-chat-close:hover{ color:rgba(255,120,120,0.9); }
-.call-side-chat-body{ flex:1; min-height:0; display:flex; flex-direction:column; }
+.call-side-chat-body{ flex:1; min-height:0; display:flex; flex-direction:column; scrollbar-gutter:stable; }
 .call-side-chat-body .chat-box.in-call-chat{
   height:100% !important; width:100% !important; border-radius:0 !important;
   border:none !important; box-shadow:none !important;
@@ -6153,10 +6189,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
       CALL EM ANDAMENTO
       <span class="call-timer" id="call-timer">00:00</span>
     </div>
-    <div style="display:flex;gap:8px;align-items:center">
+    <div class="call-header-controls" style="display:flex;gap:8px;align-items:center">
       <!-- Permissões (só mestre vê) -->
       <button class="call-ctrl-btn" id="call-perm-btn" style="width:34px;height:34px;font-size:.75rem;display:none" onclick="toggleCallPanel('perm')" title="Permissões">🔑</button>
-      <button style="background:none;border:1px solid rgba(255,255,255,.12);color:rgba(255,255,255,0.72);border-radius:8px;padding:5px 12px;font-family:'Share Tech Mono',monospace;font-size:.6rem;cursor:pointer;transition:all .14s" onclick="minimizeCallToFloat()">⬇ MINIMIZAR</button>
+      <button class="call-hdr-min-btn" id="call-min-btn" onclick="minimizeCallToFloat()" title="Minimizar call (continua ativa em janela flutuante)">
+        <span class="chb-ic">—</span><span class="chb-txt">MINIMIZAR</span>
+      </button>
     </div>
   </div>
   <!-- Banner aviso file:// -->
@@ -10202,6 +10240,30 @@ function pushRoll(entry) {
   saveLive();
   renderRollFeed();
   showDiceOverlay(entry);
+  showCallDiceBadge(entry);
+}
+
+// ── Exibe um dado girando + resultado no canto do avatar de quem rolou,
+//    diretamente na call (se estiver ativa e o participante estiver visível) ──
+function showCallDiceBadge(entry) {
+  try {
+    var cov = document.getElementById('call-overlay');
+    if (!cov || !cov.classList.contains('open') || !callState || !callState.active) return;
+    var sender = (entry && entry.sender) || '';
+    if (!sender) return;
+    var sel = 'data-sender="'+sender.replace(/"/g,'\\"')+'"';
+    var selChar = 'data-char="'+sender.replace(/"/g,'\\"')+'"';
+    var card = document.querySelector('.call-participant['+sel+']') || document.querySelector('.call-participant['+selChar+']');
+    if (!card) return;
+    var badge = card.querySelector('.call-part-dice');
+    if (!badge) return;
+    var val = entry.total !== undefined ? entry.total : (entry.result !== undefined ? entry.result : '?');
+    var cls = entry.isCrit ? ' crit' : entry.isFail ? ' fail' : '';
+    badge.innerHTML = '<span class="cpd-die">🎲</span><span class="cpd-val">'+val+'</span>';
+    badge.className = 'call-part-dice show'+cls;
+    clearTimeout(badge._hideTimer);
+    badge._hideTimer = setTimeout(function(){ badge.classList.remove('show'); }, 2800);
+  } catch(e){ /* nunca deixa o dado quebrar o fluxo de rolagem */ }
 }
 
 function renderRollFeed() {
@@ -11749,7 +11811,22 @@ function renderCallParticipants() {
 function buildParticipantCard(user, isLocal, uid, canModerate) {
   var name=user.username||user.nome||'Usuário';
   var role=user.role==='mestre'?'🗡 MESTRE':'⚔ PLAYER';
-  var av=user.avatar?'<img src="'+user.avatar+'" style="width:100%;height:100%;object-fit:cover;border-radius:14px">':(user.role==='mestre'?'🗡':'⚔');
+
+  // Ficha de personagem vinculada a esta conta — usada para exibir avatar
+  // customizado (imagem ou GIF), nome do personagem e status vitais na call.
+  var linkedChar = null;
+  try {
+    linkedChar = (data && data.players || []).find(function(x){
+      return x.player === (user.username||'') || x.player === uid || x.player === (user.id||'');
+    }) || null;
+  } catch(e){}
+
+  var charAvatar = (linkedChar && linkedChar.avatar) ? linkedChar.avatar : (user.avatar||null);
+  var av = charAvatar
+    ? '<img src="'+charAvatar+'" style="width:100%;height:100%;object-fit:cover;border-radius:14px">'
+    : (user.role==='mestre'?'🗡':'⚔');
+  var charName = (linkedChar && linkedChar.nome) ? linkedChar.nome : '';
+
   var localId=isLocal?'id="call-part-local"':'';
   var vidId = isLocal ? 'call-part-local-vid' : 'call-remote-vid-'+uid;
   var vidTag='<video id="'+vidId+'" class="call-part-video" autoplay playsinline '+(isLocal?'muted':'')+' style="display:none"></video>';
@@ -11758,17 +11835,33 @@ function buildParticipantCard(user, isLocal, uid, canModerate) {
     ? '<button class="call-part-mute-btn'+(user.forceMuted?' is-muted':'')+'" title="'+(user.forceMuted?'Reativar microfone':'Silenciar participante')+'" onclick="callForceMuteToggle(\''+uid+'\')">🔇</button>'
     : '';
   var forcedTag = (!isLocal && user.forceMuted) ? '<div class="call-part-forcemuted-tag">🔇 SILENCIADO PELO MESTRE</div>' : '';
-  return '<div class="call-participant" '+localId+' data-uid="'+uid+'">'
+
+  // Barras vitais (Vida / Sanidade / Estamina) do personagem, se houver ficha vinculada
+  var statsHtml = '';
+  if (linkedChar) {
+    var vP = linkedChar.vidaMax>0 ? Math.max(0,Math.min(100, Math.round((linkedChar.vida||0)/linkedChar.vidaMax*100))) : 0;
+    var sP = linkedChar.sanidadeMax>0 ? Math.max(0,Math.min(100, Math.round((linkedChar.sanidade||0)/linkedChar.sanidadeMax*100))) : 0;
+    var eP = linkedChar.estaminaMax>0 ? Math.max(0,Math.min(100, Math.round((linkedChar.estamina||0)/linkedChar.estaminaMax*100))) : 0;
+    statsHtml = '<div class="call-part-stats" title="Vida '+(linkedChar.vida||0)+'/'+(linkedChar.vidaMax||0)+' · Sanidade '+(linkedChar.sanidade||0)+'/'+(linkedChar.sanidadeMax||0)+' · Estamina '+(linkedChar.estamina||0)+'/'+(linkedChar.estaminaMax||0)+'">'
+      + '<div class="cps-row"><span class="cps-ic">❤</span><div class="cps-track"><div class="cps-fill cps-vida" style="width:'+vP+'%"></div></div></div>'
+      + '<div class="cps-row"><span class="cps-ic">🧠</span><div class="cps-track"><div class="cps-fill cps-san" style="width:'+sP+'%"></div></div></div>'
+      + '<div class="cps-row"><span class="cps-ic">⚡</span><div class="cps-track"><div class="cps-fill cps-est" style="width:'+eP+'%"></div></div></div>'
+      + '</div>';
+  }
+
+  return '<div class="call-participant" '+localId+' data-uid="'+uid+'" data-sender="'+esc(name)+'"'+(charName?' data-char="'+esc(charName)+'"':'')+'>'
     +'<div class="call-part-av-wrap">'
     +'<div class="call-part-av">'+av+'</div>'
     +'<div class="speaking-ring"></div><div class="speaking-ring-2"></div>'
     +vidTag
     +'<div class="call-part-muted '+muteVis+'">🔇</div>'
+    +'<div class="call-part-dice" id="call-dice-'+uid+'"></div>'
     +muteBtn
     +forcedTag
     +'</div>'
-    +'<div class="call-part-name">'+(isLocal?'(Você) ':'')+esc(name)+'</div>'
+    +'<div class="call-part-name">'+(isLocal?'(Você) ':'')+esc(name)+(charName?' <span class="call-part-charname">— '+esc(charName)+'</span>':'')+'</div>'
     +'<div class="call-part-role">'+role+'</div>'
+    +statsHtml
     +'</div>';
 }
 
