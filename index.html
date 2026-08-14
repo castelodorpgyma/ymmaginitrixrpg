@@ -2537,11 +2537,20 @@ textarea{resize:vertical;min-height:72px;border-radius:var(--r-sm)}
 .call-overlay{position:fixed;inset:0;z-index:9500;background:radial-gradient(ellipse 120% 80% at 50% -10%,rgba(46,46,46,.97) 0%,rgba(28,28,28,.99) 100%);display:flex;flex-direction:column;transform:translateY(100%);transition:transform .38s cubic-bezier(.22,1,.36,1);overflow:hidden}
 .call-overlay.open{transform:translateY(0)}
 .call-overlay::before{content:'';position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(0,0,0,.06) 0,rgba(0,0,0,.06) 1px,transparent 1px,transparent 5px);z-index:0}
-.call-header{display:flex;align-items:center;justify-content:space-between;padding:13px 18px;background:rgba(0,0,0,.45);border-bottom:1px solid rgba(87,242,135,.07);flex-shrink:0;position:relative;z-index:2}
-.call-header-title{font-family:'Orbitron',sans-serif;font-size:.78rem;font-weight:700;color:#f2f3f5;letter-spacing:.14em;display:flex;align-items:center;gap:10px}
-.call-live-dot{width:8px;height:8px;border-radius:50%;background:#57f287;box-shadow:0 0 12px rgba(87,242,135,.9);animation:callDotPulse 1.5s infinite}
-.call-timer{font-family:'Share Tech Mono',monospace;font-size:.62rem;color:#949ba4;letter-spacing:.1em;margin-left:4px}
-.call-main{flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative;z-index:1}
+.call-header{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 18px;background:rgba(0,0,0,.45);border-bottom:1px solid rgba(87,242,135,.07);flex-shrink:0;position:relative;z-index:2}
+.call-header-title{font-family:'Orbitron',sans-serif;font-size:.78rem;font-weight:700;color:#f2f3f5;letter-spacing:.14em;display:flex;align-items:center;gap:10px;min-width:0;flex:1 1 auto;overflow:hidden}
+.call-header-title .chdr-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.call-live-dot{width:8px;height:8px;border-radius:50%;background:#57f287;box-shadow:0 0 12px rgba(87,242,135,.9);animation:callDotPulse 1.5s infinite;flex-shrink:0}
+.call-timer{font-family:'Share Tech Mono',monospace;font-size:.62rem;color:#949ba4;letter-spacing:.1em;margin-left:4px;flex-shrink:0}
+.call-header-controls{display:flex;gap:8px;align-items:center;flex-shrink:0}
+/* telas estreitas: título trunca e o botão de minimizar vira só ícone — nunca fica escondido/cortado */
+@media(max-width:420px){
+  .call-header{padding:11px 12px}
+  .call-header-title{font-size:.66rem;gap:6px}
+  .call-hdr-min-btn{padding:6px 9px}
+  .call-hdr-min-btn .chb-txt{display:none}
+}
+.call-main{flex:1;display:flex;flex-direction:row;overflow:hidden;position:relative;z-index:1}
 .call-participants-area{flex:1;overflow-y:auto;overflow-x:hidden;scrollbar-gutter:stable;padding:16px;display:flex;flex-wrap:wrap;gap:16px;align-content:center;justify-content:center;min-height:100px;transition:padding .22s cubic-bezier(.22,1,.36,1)}
 .call-participants-area::-webkit-scrollbar{width:3px}
 .call-participants-area::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:2px}
@@ -2590,7 +2599,7 @@ textarea{resize:vertical;min-height:72px;border-radius:var(--r-sm)}
 @keyframes cpdSpin{ 0%{transform:rotate(0)} 70%{transform:rotate(620deg)} 100%{transform:rotate(600deg)} }
 @keyframes cpdPop{ 0%{transform:scale(.4) translateY(4px)} 55%{transform:scale(1.18) translateY(-2px)} 100%{transform:scale(1) translateY(0)} }
 .call-screen-area{flex-shrink:0;background:#000;border-top:1px solid rgba(87,242,135,.1);display:none;position:relative;overflow:hidden;border-bottom:1px solid rgba(87,242,135,.06)}
-.call-screen-area.active{display:block}
+.call-screen-area.active{display:flex;align-items:center;justify-content:center}
 .call-screen-area video{width:100%;max-height:240px;min-height:120px;object-fit:contain;display:block;background:#000}
 .call-screen-label{position:absolute;top:7px;left:10px;font-family:'Share Tech Mono',monospace;font-size:.48rem;color:rgba(87,242,135,0.72);letter-spacing:.1em;background:rgba(0,0,0,.65);padding:2px 8px;border-radius:4px}
 .call-controls{display:flex;align-items:flex-end;justify-content:center;gap:10px;padding:14px 16px 16px;background:rgba(0,0,0,.6);border-top:1px solid rgba(87,242,135,.07);flex-shrink:0;flex-wrap:wrap;position:relative;z-index:2}
@@ -2604,7 +2613,7 @@ textarea{resize:vertical;min-height:72px;border-radius:var(--r-sm)}
 .call-end-btn{width:54px;height:54px;border-radius:50%;background:linear-gradient(135deg,rgba(242,63,66,.75),rgba(200,50,53,.65));border:1px solid rgba(242,63,66,.4);color:#fff;font-size:1.3rem;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px rgba(242,63,66,.4);transition:all .18s;-webkit-tap-highlight-color:transparent}
 .call-end-btn:hover{background:linear-gradient(135deg,rgba(242,63,66,.9),rgba(242,63,66,.8));box-shadow:0 4px 28px rgba(242,63,66,.6);transform:scale(1.1)}
 /* PANELS */
-.call-panel{position:absolute;bottom:90px;left:50%;transform:translateX(-50%);width:min(370px,calc(100vw - 24px));background:rgba(36,36,36,.97);border:1px solid rgba(87,242,135,.13);border-radius:16px;padding:16px;box-shadow:0 -8px 40px rgba(0,0,0,.85);z-index:10;display:none}
+.call-panel{position:absolute;bottom:90px;left:50%;transform:translateX(-50%);width:min(370px,calc(100vw - 24px));max-height:min(560px,calc(100vh - 130px));overflow-y:auto;scrollbar-gutter:stable;background:rgba(36,36,36,.97);border:1px solid rgba(87,242,135,.13);border-radius:16px;padding:16px;box-shadow:0 -8px 40px rgba(0,0,0,.85);z-index:10;display:none}
 .call-panel.open{display:block;animation:panelUp .22s cubic-bezier(.22,1,.36,1)}
 @keyframes panelUp{from{opacity:0;transform:translateX(-50%) translateY(14px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
 .call-panel-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
@@ -2619,6 +2628,15 @@ textarea{resize:vertical;min-height:72px;border-radius:var(--r-sm)}
 .call-music-btn{padding:8px 12px;background:rgba(35,165,90,.14);border:1px solid rgba(35,165,90,.3);border-radius:8px;color:rgba(87,242,135,0.9);font-family:'Share Tech Mono',monospace;font-size:.6rem;cursor:pointer;transition:all .14s;white-space:nowrap}
 .call-music-btn:hover{background:rgba(35,165,90,.26)}
 .call-music-sep{text-align:center;font-family:'Share Tech Mono',monospace;font-size:.5rem;color:rgba(255,255,255,0.72);margin:10px 0;letter-spacing:.12em}
+/* status (Vida/Sanidade/Estamina) customizados no painel da call */
+.call-char-stat-row{display:flex;align-items:center;gap:6px;margin-bottom:7px}
+.call-char-stat-ic{font-size:.85rem;width:18px;text-align:center;flex-shrink:0}
+.call-char-stat-inp{width:42px;text-align:center;font-family:'Share Tech Mono',monospace;font-size:.62rem;padding:5px 2px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:6px;color:#f2f3f5;outline:none;transition:border-color .14s}
+.call-char-stat-inp:focus{border-color:rgba(87,242,135,.32)}
+.call-char-stat-sep{color:rgba(255,255,255,.4);font-size:.62rem;flex-shrink:0}
+.call-char-step-btn{width:24px;height:24px;border-radius:6px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.05);color:#f2f3f5;font-size:.7rem;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .12s}
+.call-char-step-btn:hover{background:rgba(87,242,135,.16);border-color:rgba(87,242,135,.4);color:#57f287}
+.call-char-stat-lbl{font-family:'Share Tech Mono',monospace;font-size:.56rem;color:rgba(220,230,225,.82);flex:1;min-width:0}
 .call-vol-row{display:flex;align-items:center;gap:10px;margin-top:10px}
 .call-vol-lbl{font-family:'Share Tech Mono',monospace;font-size:.5rem;color:rgba(255,255,255,0.72);white-space:nowrap}
 .call-range{flex:1;-webkit-appearance:none;height:4px;border-radius:2px;cursor:pointer;outline:none}
@@ -3602,6 +3620,15 @@ input:valid:not(:placeholder-shown) {
    CALL — JANELA FLUTUANTE, GRID ESTILO DISCORD, MUTE POR MESTRE
    ══════════════════════════════════════════════════════════════════ */
 
+/* Zona de vídeo = tela compartilhada (quando houver) + grid de participantes.
+   Fica sempre ao lado do chat lateral e NUNCA troca de column↔row conforme
+   o chat abre/fecha — só a LARGURA dela muda, suavemente. É isso que
+   elimina o bug de "puxar"/deslocar o grid de membros ao abrir o chat. */
+.call-video-zone{
+  flex:1 1 0%; min-width:0; display:flex; flex-direction:column;
+  overflow:hidden; position:relative;
+}
+
 /* grid de participantes — tiles quadrados, como no Discord.
    auto-fit (em vez de auto-fill) faz as colunas vazias colapsarem e os
    tiles existentes se centralizarem/expandirem, em vez de ficarem
@@ -3681,15 +3708,17 @@ input:valid:not(:placeholder-shown) {
 .call-screen-invite-dismiss{ background:none; border:none; color:rgba(255,255,255,.5); cursor:pointer; font-size:.9rem; padding:0 4px; }
 
 /* ══════════════════════════════════════════════════════════════════
-   CALL — TRANSMISSÃO EM DESTAQUE (ESTILO DISCORD) + ZOOM POR REGIÃO
+   CALL — TRANSMISSÃO EM DESTAQUE, ESTILO "FOCUS VIEW" DO DISCORD.
+   Pesquisado na documentação oficial: quando alguém compartilha a tela,
+   ela vira a maior área ("largest screen") e todo mundo mais aparece
+   pequeno embaixo ("smaller screens at the bottom") — nem gigante, nem
+   minúsculo, com zoom e botão de tela cheia por cima.
    ══════════════════════════════════════════════════════════════════ */
-.call-main.has-screen{ flex-direction:row !important; }
-
 .call-main.has-screen .call-screen-area{
-  flex:1 1 auto !important; width:auto !important;
-  max-height:none !important; height:100% !important;
-  border-top:none; border-bottom:none;
-  border-right:1px solid rgba(87,242,135,.1);
+  flex:1 1 auto !important; width:100% !important;
+  max-height:none !important; height:auto !important;
+  border-right:none; border-top:none;
+  border-bottom:1px solid rgba(87,242,135,.1);
   display:flex !important; align-items:center; justify-content:center;
   background:#000;
 }
@@ -3705,28 +3734,32 @@ input:valid:not(:placeholder-shown) {
 .call-main.has-screen .call-screen-area video.is-zoomed{ cursor:grab; }
 .call-main.has-screen .call-screen-area video.is-zoomed.is-panning{ cursor:grabbing; transition:none; }
 
+/* fileira de participantes pequenos, abaixo da transmissão — não gigante,
+   não minúscula: avatar de 52px + nome, com rolagem horizontal se a call
+   tiver muita gente. */
 .call-main.has-screen .call-participants-area{
-  display:flex !important; flex-direction:column !important;
-  flex:0 0 208px; width:208px; max-width:208px;
-  overflow-y:auto; overflow-x:hidden;
-  padding:12px; gap:9px;
-  align-content:flex-start; justify-content:flex-start;
+  display:flex !important; flex-direction:row !important;
+  flex:0 0 auto; width:100%; max-width:100%; height:104px;
+  overflow-x:auto; overflow-y:hidden;
+  padding:10px 16px; gap:12px;
+  align-content:center; justify-content:flex-start; align-items:center;
   background:rgba(0,0,0,.28);
-  border-left:1px solid rgba(87,242,135,.06);
+  border-left:none; border-top:1px solid rgba(87,242,135,.06);
 }
 .call-main.has-screen .call-participant{
-  width:100% !important; max-width:100% !important; aspect-ratio:auto !important;
-  flex-direction:row !important; justify-content:flex-start !important;
-  padding:8px 10px !important; gap:10px !important; border-radius:12px !important;
+  width:auto !important; max-width:none !important; aspect-ratio:auto !important;
+  flex-direction:column !important; flex-shrink:0; justify-content:flex-start !important;
+  padding:6px 8px !important; gap:5px !important; border-radius:12px !important;
 }
 .call-main.has-screen .call-part-av-wrap{
-  width:42px !important; height:42px !important; max-width:42px !important; max-height:42px !important; flex-shrink:0;
+  width:52px !important; height:52px !important; max-width:52px !important; max-height:52px !important; flex-shrink:0;
 }
-.call-main.has-screen .call-part-av{ border-radius:50% !important; font-size:1.05rem; }
+.call-main.has-screen .call-part-av{ border-radius:50% !important; font-size:1.1rem; }
 .call-main.has-screen .call-part-av img{ border-radius:50% !important; }
 .call-main.has-screen .call-part-video{ border-radius:50% !important; }
-.call-main.has-screen .call-part-name{ font-size:.64rem; text-align:left; max-width:118px; }
+.call-main.has-screen .call-part-name{ font-size:.56rem; text-align:center; max-width:72px; }
 .call-main.has-screen .call-part-role{ display:none; }
+.call-main.has-screen .call-part-stats{ display:none; } /* barras de vida/sanidade/estamina continuam no grid normal — não cabem na fileira mini */
 
 /* botão de tela cheia sobre a transmissão */
 .call-screen-fs-btn{
@@ -3758,25 +3791,20 @@ input:valid:not(:placeholder-shown) {
   text-align:center; letter-spacing:.04em; white-space:nowrap;
 }
 
-/* janela flutuante: mantém tudo compacto, sem zoom (não faz sentido em miniatura) */
-.call-overlay.floating .call-main.has-screen{ flex-direction:column !important; }
-.call-overlay.floating .call-main.has-screen .call-screen-area{
-  flex:0 0 auto !important; height:auto !important; max-height:140px !important;
-  border-right:none; border-bottom:1px solid rgba(87,242,135,.1);
-}
-.call-overlay.floating .call-main.has-screen .call-screen-area video{ cursor:default; }
-.call-overlay.floating .call-main.has-screen .call-participants-area{
-  flex-direction:row !important; width:100% !important; max-width:100% !important; height:auto !important;
-}
+/* janela flutuante: fileira de participantes ainda mais compacta, sem zoom/tela cheia (não faz sentido em miniatura) */
+.call-overlay.floating .call-main.has-screen .call-participants-area{ height:56px; padding:5px 8px; gap:6px; }
+.call-overlay.floating .call-main.has-screen .call-part-av-wrap{ width:34px !important; height:34px !important; max-width:34px !important; max-height:34px !important; }
+.call-overlay.floating .call-main.has-screen .call-part-name{ display:none; }
 .call-overlay.floating .call-screen-zoom-ctrls,
 .call-overlay.floating .call-screen-fs-btn{ display:none !important; }
 
 /* ══════════════════════════════════════
    CALL — CHAT LATERAL ESTILO DISCORD
+   Abrir/fechar o chat só anima a LARGURA da .call-side-chat; a
+   .call-video-zone (flex:1 lá em cima) encolhe/cresce sozinha pra
+   preencher o espaço que sobra — nunca reestrutura column↔row, então o
+   grid de participantes não "pula"/desloca mais quando o chat abre.
 ══════════════════════════════════════ */
-.call-main.with-chat{ flex-direction:row !important; }
-.call-main.with-chat .call-screen-area,
-.call-main.with-chat .call-participants-area{ flex:1 1 0% !important; min-width:0; width:auto !important; }
 .call-side-chat{
   display:none; flex-direction:column; width:0; flex-shrink:0; overflow:hidden;
   border-left:1px solid rgba(255,255,255,.09); background:rgba(30,31,34,.98);
@@ -3804,27 +3832,13 @@ input:valid:not(:placeholder-shown) {
 /* mobile: chat vira um painel cheio sobre a call, tipo Discord mobile */
 @media (max-width:780px){
   .call-side-chat.open{ position:absolute; inset:0; z-index:40; width:100%; }
-  .call-main.with-chat .call-screen-area,
-  .call-main.with-chat .call-participants-area{ display:none; }
+  .call-main.with-chat .call-video-zone{ display:none; }
 }
 
 @media(max-width:768px){
-  .call-main.has-screen{ flex-direction:column !important; }
-  .call-main.has-screen .call-screen-area{
-    flex:0 0 auto !important; height:auto !important; max-height:40vh !important;
-    border-right:none; border-bottom:1px solid rgba(87,242,135,.1);
-  }
-  .call-main.has-screen .call-participants-area{
-    flex-direction:row !important; width:100% !important; max-width:100% !important;
-    flex:0 0 auto; height:82px; overflow-x:auto; overflow-y:hidden;
-    border-left:none; border-top:1px solid rgba(87,242,135,.06);
-  }
-  .call-main.has-screen .call-participant{
-    flex-direction:column !important; width:66px !important; flex-shrink:0;
-    padding:6px !important; text-align:center;
-  }
-  .call-main.has-screen .call-part-av-wrap{ width:36px !important; height:36px !important; }
-  .call-main.has-screen .call-part-name{ font-size:.48rem; max-width:60px; }
+  .call-main.has-screen .call-participants-area{ height:88px; padding:8px 12px; }
+  .call-main.has-screen .call-part-av-wrap{ width:44px !important; height:44px !important; max-width:44px !important; max-height:44px !important; }
+  .call-main.has-screen .call-part-name{ font-size:.5rem; max-width:60px; }
   .call-screen-zoom-ctrls{ bottom:8px; right:8px; }
   .call-screen-zoom-btn{ width:26px; height:26px; }
 }
@@ -6186,10 +6200,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   <div class="call-header">
     <div class="call-header-title">
       <span class="call-live-dot"></span>
-      CALL EM ANDAMENTO
+      <span class="chdr-label">CALL EM ANDAMENTO</span>
       <span class="call-timer" id="call-timer">00:00</span>
     </div>
-    <div class="call-header-controls" style="display:flex;gap:8px;align-items:center">
+    <div class="call-header-controls">
       <!-- Permissões (só mestre vê) -->
       <button class="call-ctrl-btn" id="call-perm-btn" style="width:34px;height:34px;font-size:.75rem;display:none" onclick="toggleCallPanel('perm')" title="Permissões">🔑</button>
       <button class="call-hdr-min-btn" id="call-min-btn" onclick="minimizeCallToFloat()" title="Minimizar call (continua ativa em janela flutuante)">
@@ -6211,22 +6225,24 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   </div>
 
   <div class="call-main" id="call-main">
-    <!-- Screen share preview -->
-    <div class="call-screen-area" id="call-screen-area">
-      <video id="call-screen-video" autoplay="" playsinline="" muted=""></video>
-      <div class="call-screen-label">🖥 TRANSMISSÃO DE TELA</div>
-      <button class="call-screen-fs-btn" id="call-screen-fs-btn" onclick="callToggleScreenFullscreen()" title="Tela cheia">⛶</button>
-      <div class="call-screen-zoom-ctrls" id="call-screen-zoom-ctrls">
-        <button class="call-screen-zoom-btn" onclick="callScreenZoomStep(1)" title="Mais zoom">➕</button>
-        <span class="call-screen-zoom-lvl" id="call-screen-zoom-lvl">100%</span>
-        <button class="call-screen-zoom-btn" onclick="callScreenZoomStep(-1)" title="Menos zoom">➖</button>
-        <button class="call-screen-zoom-btn" onclick="callScreenZoomReset()" title="Restaurar">⟲</button>
+    <div class="call-video-zone" id="call-video-zone">
+      <!-- Screen share preview -->
+      <div class="call-screen-area" id="call-screen-area">
+        <video id="call-screen-video" autoplay="" playsinline="" muted=""></video>
+        <div class="call-screen-label">🖥 TRANSMISSÃO DE TELA</div>
+        <button class="call-screen-fs-btn" id="call-screen-fs-btn" onclick="callToggleScreenFullscreen()" title="Tela cheia">⛶</button>
+        <div class="call-screen-zoom-ctrls" id="call-screen-zoom-ctrls">
+          <button class="call-screen-zoom-btn" onclick="callScreenZoomStep(1)" title="Mais zoom">➕</button>
+          <span class="call-screen-zoom-lvl" id="call-screen-zoom-lvl">100%</span>
+          <button class="call-screen-zoom-btn" onclick="callScreenZoomStep(-1)" title="Menos zoom">➖</button>
+          <button class="call-screen-zoom-btn" onclick="callScreenZoomReset()" title="Restaurar">⟲</button>
+        </div>
       </div>
-    </div>
 
-    <!-- Participants -->
-    <div class="call-participants-area" id="call-participants-area">
-      <!-- Populated by JS -->
+      <!-- Participants -->
+      <div class="call-participants-area" id="call-participants-area">
+        <!-- Populated by JS -->
+      </div>
     </div>
 
     <!-- Chat lateral (estilo Discord) — reaproveita o chat geral do site -->
@@ -6325,7 +6341,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   <!-- PANEL: CONFIGURAÇÕES -->
   <div class="call-panel" id="call-panel-settings">
     <div class="call-panel-hd">
-      <span class="call-panel-title">// CONFIGURAÇÕES DE ÁUDIO</span>
+      <span class="call-panel-title">// CONFIGURAÇÕES DA CALL</span>
       <button class="call-panel-close" onclick="toggleCallPanel('settings')">✕</button>
     </div>
     <!-- Ícone customizado da call (imagem ou GIF) -->
@@ -6342,6 +6358,48 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
             <button class="call-music-btn" onclick="document.getElementById('call-avatar-input').click()" style="width:100%">📁 Enviar imagem/GIF</button>
             <button class="call-music-btn" onclick="callClearCustomAvatar()" style="width:100%;opacity:.7;background:rgba(242,63,66,.1);border-color:rgba(242,63,66,.28);color:#ff9fa1">✕ Remover</button>
           </div>
+        </div>
+      </div>
+    </div>
+    <div class="call-music-sep">— PERSONAGEM NA CALL —</div>
+    <!-- Nome + status (Vida/Sanidade/Estamina) customizados: usados quando
+         não há ficha vinculada à conta, ou pra sobrepor os valores da ficha
+         rapidamente direto da call, sem abrir a ficha completa. -->
+    <div class="call-setting-row" style="align-items:flex-start">
+      <div style="flex:1">
+        <div class="call-setting-lbl">Nome do Personagem</div>
+        <div class="call-setting-sub">Aparece no seu card durante a call (substitui o nome da ficha, se houver)</div>
+        <input type="text" id="call-char-nome-inp" class="call-music-inp" style="margin-top:8px" placeholder="Ex: Kaelen Duskwalker" maxlength="40">
+        <div class="call-char-stat-row">
+          <span class="call-char-stat-ic">❤</span>
+          <span class="call-char-stat-lbl">Vida</span>
+          <button class="call-char-step-btn" onclick="callStepCharStat('vida',-1)" title="-1">−</button>
+          <input type="number" id="call-char-vida-cur" class="call-char-stat-inp" min="0" placeholder="0">
+          <span class="call-char-stat-sep">/</span>
+          <input type="number" id="call-char-vida-max" class="call-char-stat-inp" min="0" placeholder="máx">
+          <button class="call-char-step-btn" onclick="callStepCharStat('vida',1)" title="+1">+</button>
+        </div>
+        <div class="call-char-stat-row">
+          <span class="call-char-stat-ic">🧠</span>
+          <span class="call-char-stat-lbl">Sanidade</span>
+          <button class="call-char-step-btn" onclick="callStepCharStat('sanidade',-1)" title="-1">−</button>
+          <input type="number" id="call-char-sanidade-cur" class="call-char-stat-inp" min="0" placeholder="0">
+          <span class="call-char-stat-sep">/</span>
+          <input type="number" id="call-char-sanidade-max" class="call-char-stat-inp" min="0" placeholder="máx">
+          <button class="call-char-step-btn" onclick="callStepCharStat('sanidade',1)" title="+1">+</button>
+        </div>
+        <div class="call-char-stat-row" style="margin-bottom:10px">
+          <span class="call-char-stat-ic">⚡</span>
+          <span class="call-char-stat-lbl">Estamina</span>
+          <button class="call-char-step-btn" onclick="callStepCharStat('estamina',-1)" title="-1">−</button>
+          <input type="number" id="call-char-estamina-cur" class="call-char-stat-inp" min="0" placeholder="0">
+          <span class="call-char-stat-sep">/</span>
+          <input type="number" id="call-char-estamina-max" class="call-char-stat-inp" min="0" placeholder="máx">
+          <button class="call-char-step-btn" onclick="callStepCharStat('estamina',1)" title="+1">+</button>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="call-music-btn" onclick="callSaveCustomChar()" style="flex:1">💾 Salvar</button>
+          <button class="call-music-btn" onclick="callClearCustomChar()" style="flex:1;opacity:.7;background:rgba(242,63,66,.1);border-color:rgba(242,63,66,.28);color:#ff9fa1">✕ Remover</button>
         </div>
       </div>
     </div>
@@ -9639,14 +9697,16 @@ function addDiceLog(label, result, sides) {
   if(ph && log.children.length<=1) log.innerHTML='';
   log.insertBefore(entry, log.firstChild);
   while(log.children.length>20) log.removeChild(log.lastChild);
-  // show in overlay
-  showDiceOverlay({
+  // show in overlay + no card do participante na call (dado girando no canto do ícone)
+  var rollEntry = {
     expr: label, total: result,
     isCrit: isCrit, isFail: isFail,
     sender: currentUser ? currentUser.username : 'Mestre',
     avatar: currentUser ? currentUser.avatar : null,
     time: time
-  });
+  };
+  showDiceOverlay(rollEntry);
+  showCallDiceBadge(rollEntry);
 }
 
 function rollCombat() {
@@ -9655,15 +9715,43 @@ function rollCombat() {
   var d20 = Math.floor(Math.random()*20)+1;
   var total = d20 + bonus;
   var box = document.getElementById('combat-result-box');
-  var desc = {
-    'attack-unarmed': `1d20(${d20}) + bônus(${bonus}) = <strong style="color:var(--c-accent);font-size:1.1rem">${total}</strong><br>Dano: ${rollMulti(2,8)} (2d8)`,
-    'attack-armed': `1d20(${d20}) + bônus(${bonus}) = <strong style="color:var(--c-accent);font-size:1.1rem">${total}</strong><br>Dano: consulte arma equipada`,
-    'block': `Bloqueio: <strong style="color:#60a0ff;font-size:1.1rem">${total}</strong><br>Bloqueia metade do golpe${total%2===1?`<br>→ arredonda para ${total-1}`:''} `,
-    'dodge': `Esquiva: <strong style="color:#60ff99;font-size:1.1rem">${total}</strong><br>${total>=12?'✅ Esquiva efetuada — nega dano':'❌ Falha — recebe dano inteiro'}`,
-    'counter': `Contra-Ataque: <strong style="color:#ff9040;font-size:1.1rem">${total}</strong><br>Inimigo precisa tirar menor que ${total} para você atacar sem dano`,
-    'transform': `Transformação — 1d20: <strong style="color:#cc66ff;font-size:1.1rem">${d20}</strong><br>${d20>=10?'✅ Transformação efetuada! Rolar Roleta do Destino':'❌ Falha na transformação'}`
+  var actionLabels = {
+    'attack-unarmed': 'Ataque Desarmado', 'attack-armed': 'Ataque Armado', 'block': 'Bloqueio',
+    'dodge': 'Esquiva', 'counter': 'Contra-Ataque', 'transform': 'Transformação'
   };
-  box.innerHTML = `<div style="font-family:'Share Tech Mono',monospace;font-size:.75rem;line-height:1.8">${desc[action]||'—'}</div>`;
+  // CORRIGIDO: antes 'desc' era um objeto literal e o JS avaliava TODOS os
+  // ramos de uma vez (inclusive rolando 2d8 de dano à toa em ações que nem
+  // usavam esse valor) — agora só calcula o que a ação escolhida precisa.
+  var html;
+  if (action === 'attack-unarmed') {
+    var dano = rollMulti(2,8); // 2d8 — já dispara seu próprio log/overlay/badge de dado
+    html = `1d20(${d20}) + bônus(${bonus}) = <strong style="color:var(--c-accent);font-size:1.1rem">${total}</strong><br>Dano: ${dano} (2d8)`;
+  } else if (action === 'attack-armed') {
+    html = `1d20(${d20}) + bônus(${bonus}) = <strong style="color:var(--c-accent);font-size:1.1rem">${total}</strong><br>Dano: consulte arma equipada`;
+  } else if (action === 'block') {
+    html = `Bloqueio: <strong style="color:#60a0ff;font-size:1.1rem">${total}</strong><br>Bloqueia metade do golpe${total%2===1?`<br>→ arredonda para ${total-1}`:''} `;
+  } else if (action === 'dodge') {
+    html = `Esquiva: <strong style="color:#60ff99;font-size:1.1rem">${total}</strong><br>${total>=12?'✅ Esquiva efetuada — nega dano':'❌ Falha — recebe dano inteiro'}`;
+  } else if (action === 'counter') {
+    html = `Contra-Ataque: <strong style="color:#ff9040;font-size:1.1rem">${total}</strong><br>Inimigo precisa tirar menor que ${total} para você atacar sem dano`;
+  } else if (action === 'transform') {
+    html = `Transformação — 1d20: <strong style="color:#cc66ff;font-size:1.1rem">${d20}</strong><br>${d20>=10?'✅ Transformação efetuada! Rolar Roleta do Destino':'❌ Falha na transformação'}`;
+  } else {
+    html = '—';
+  }
+  box.innerHTML = `<div style="font-family:'Share Tech Mono',monospace;font-size:.75rem;line-height:1.8">${html}</div>`;
+
+  // Rolagem principal (d20+bônus da ação) também aparece girando no ícone
+  // do participante na call — igual às outras formas de rolar dado.
+  var isCrit = d20===20, isFail = d20===1;
+  var mainEntry = {
+    expr: actionLabels[action] || 'Combate', total: total,
+    isCrit: isCrit, isFail: isFail,
+    sender: currentUser ? currentUser.username : 'Mestre',
+    avatar: currentUser ? currentUser.avatar : null,
+    time: new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})
+  };
+  showCallDiceBadge(mainEntry);
 }
 
 function rollMoney() {
@@ -11768,7 +11856,7 @@ function toggleCallPanel(name) {
     var el=document.getElementById('call-panel-'+p); if(!el) return;
     if(p===name) el.classList.toggle('open'); else el.classList.remove('open');
   });
-  if (name === 'settings') _callRefreshAvatarPreview();
+  if (name === 'settings') { _callRefreshAvatarPreview(); _callRefreshCharPreview(); }
 }
 
 // ── Ícone customizado (imagem/GIF) do participante na call ──
@@ -11820,6 +11908,76 @@ function callClearCustomAvatar() {
   showToast('🗑 Ícone removido — voltando ao avatar da ficha/padrão','ok');
 }
 
+// ── Nome + status (Vida/Sanidade/Estamina) customizados do participante na
+// call — pra quando não há ficha vinculada à conta, ou pra sobrepor os
+// valores da ficha rapidamente sem precisar abrir a ficha completa. Mesmo
+// padrão do ícone: local (localStorage) + sincronizado via Firebase
+// (calls/main/members/<uid>/customChar) pros outros verem.
+function _callCharStorageKey() {
+  var uid = (typeof currentUser !== 'undefined' && currentUser) ? (currentUser.id||currentUser.username||'anon') : 'anon';
+  return 'ymm_call_char_' + uid;
+}
+window.callGetCustomChar = function() {
+  try {
+    var raw = localStorage.getItem(_callCharStorageKey());
+    return raw ? JSON.parse(raw) : null;
+  } catch(e) { return null; }
+};
+function _callSyncCustomCharToRoom(charObj) {
+  try {
+    if (window._ref && window._set && window.db && window._myCallId && callState && callState.active) {
+      window._set(window._ref(window.db, 'calls/main/members/'+window._myCallId+'/customChar'), charObj || null);
+    }
+  } catch(e) { /* offline ou fora da call — tudo bem, fica só local */ }
+}
+function _callRefreshCharPreview() {
+  var c = window.callGetCustomChar() || {};
+  var nomeEl = document.getElementById('call-char-nome-inp');
+  if (nomeEl) nomeEl.value = c.nome || '';
+  ['vida','sanidade','estamina'].forEach(function(k){
+    var cur = document.getElementById('call-char-'+k+'-cur');
+    var max = document.getElementById('call-char-'+k+'-max');
+    if (cur) cur.value = (c[k]!=null) ? c[k] : '';
+    if (max) max.value = (c[k+'Max']!=null) ? c[k+'Max'] : '';
+  });
+}
+function callSaveCustomChar(silent) {
+  var nome = (document.getElementById('call-char-nome-inp')||{}).value || '';
+  var charObj = { nome: nome.trim() };
+  ['vida','sanidade','estamina'].forEach(function(k){
+    var cur = +((document.getElementById('call-char-'+k+'-cur')||{}).value || 0);
+    var max = +((document.getElementById('call-char-'+k+'-max')||{}).value || 0);
+    charObj[k] = Math.max(0, cur);
+    charObj[k+'Max'] = Math.max(0, max);
+  });
+  // nada preenchido (nem nome nem status) → não salva um objeto vazio à toa
+  var hasContent = charObj.nome || charObj.vidaMax || charObj.sanidadeMax || charObj.estaminaMax;
+  if (!hasContent) { callClearCustomChar(); return; }
+  try { localStorage.setItem(_callCharStorageKey(), JSON.stringify(charObj)); }
+  catch(err) { showToast('⚠ Não foi possível salvar (armazenamento local cheio)','warn'); return; }
+  _callSyncCustomCharToRoom(charObj);
+  if (typeof renderCallParticipants === 'function') renderCallParticipants();
+  if (!silent) showToast('✅ Personagem da call atualizado','ok');
+}
+function callClearCustomChar() {
+  try { localStorage.removeItem(_callCharStorageKey()); } catch(e){}
+  _callRefreshCharPreview();
+  _callSyncCustomCharToRoom(null);
+  if (typeof renderCallParticipants === 'function') renderCallParticipants();
+  showToast('🗑 Personagem customizado removido — voltando à ficha vinculada (se houver)','ok');
+}
+// Botões −/+ ao lado de cada status: ajustam e já salvam/sincronizam na hora
+// (sem precisar clicar em Salvar toda vez — útil durante a sessão).
+window.callStepCharStat = function(stat, delta) {
+  var cur = document.getElementById('call-char-'+stat+'-cur');
+  if (!cur) return;
+  var max = +((document.getElementById('call-char-'+stat+'-max')||{}).value || 0);
+  var v = Math.max(0, (+cur.value||0) + delta);
+  if (max > 0) v = Math.min(v, max);
+  cur.value = v;
+  callSaveCustomChar(true);
+};
+
 // ═══════════════════════════════════════
 //  PARTICIPANTES
 // ═══════════════════════════════════════
@@ -11858,6 +12016,7 @@ function renderCallParticipants() {
             username: memberData.username || 'Usuário',
             role: memberData.role || 'player',
             avatar: memberData.customAvatar || null,
+            customChar: memberData.customChar || null,
             forceMuted: !!memberData.forceMuted
           }, false, uid, canModerate);
         }
@@ -11898,7 +12057,18 @@ function buildParticipantCard(user, isLocal, uid, canModerate) {
   var av = charAvatar
     ? '<img src="'+charAvatar+'" style="width:100%;height:100%;object-fit:cover;border-radius:14px">'
     : (user.role==='mestre'?'🗡':'⚔');
-  var charName = (linkedChar && linkedChar.nome) ? linkedChar.nome : '';
+
+  // Nome/status customizados na call (painel ⚙ Configurações) têm prioridade
+  // sobre a ficha vinculada — permite jogar sem depender de uma ficha
+  // completa, ou só sobrepor um status específico (ex: só a Vida) mantendo
+  // o resto vindo da ficha.
+  var customChar = isLocal ? (window.callGetCustomChar ? window.callGetCustomChar() : null) : (user.customChar || null);
+  var charName = (customChar && customChar.nome) ? customChar.nome : ((linkedChar && linkedChar.nome) ? linkedChar.nome : '');
+  function _vital(stat) {
+    if (customChar && customChar[stat+'Max']) return { cur: customChar[stat]||0, max: customChar[stat+'Max']||0 };
+    if (linkedChar && linkedChar[stat+'Max']) return { cur: linkedChar[stat]||0, max: linkedChar[stat+'Max']||0 };
+    return null;
+  }
 
   var localId=isLocal?'id="call-part-local"':'';
   var vidId = isLocal ? 'call-part-local-vid' : 'call-remote-vid-'+uid;
@@ -11909,13 +12079,15 @@ function buildParticipantCard(user, isLocal, uid, canModerate) {
     : '';
   var forcedTag = (!isLocal && user.forceMuted) ? '<div class="call-part-forcemuted-tag">🔇 SILENCIADO PELO MESTRE</div>' : '';
 
-  // Barras vitais (Vida / Sanidade / Estamina) do personagem, se houver ficha vinculada
+  // Barras vitais (Vida / Sanidade / Estamina) — da customização da call e/ou da ficha vinculada
   var statsHtml = '';
-  if (linkedChar) {
-    var vP = linkedChar.vidaMax>0 ? Math.max(0,Math.min(100, Math.round((linkedChar.vida||0)/linkedChar.vidaMax*100))) : 0;
-    var sP = linkedChar.sanidadeMax>0 ? Math.max(0,Math.min(100, Math.round((linkedChar.sanidade||0)/linkedChar.sanidadeMax*100))) : 0;
-    var eP = linkedChar.estaminaMax>0 ? Math.max(0,Math.min(100, Math.round((linkedChar.estamina||0)/linkedChar.estaminaMax*100))) : 0;
-    statsHtml = '<div class="call-part-stats" title="Vida '+(linkedChar.vida||0)+'/'+(linkedChar.vidaMax||0)+' · Sanidade '+(linkedChar.sanidade||0)+'/'+(linkedChar.sanidadeMax||0)+' · Estamina '+(linkedChar.estamina||0)+'/'+(linkedChar.estaminaMax||0)+'">'
+  var vVida = _vital('vida'), vSan = _vital('sanidade'), vEst = _vital('estamina');
+  if (vVida || vSan || vEst) {
+    vVida = vVida || {cur:0,max:0}; vSan = vSan || {cur:0,max:0}; vEst = vEst || {cur:0,max:0};
+    var vP = vVida.max>0 ? Math.max(0,Math.min(100, Math.round(vVida.cur/vVida.max*100))) : 0;
+    var sP = vSan.max>0 ? Math.max(0,Math.min(100, Math.round(vSan.cur/vSan.max*100))) : 0;
+    var eP = vEst.max>0 ? Math.max(0,Math.min(100, Math.round(vEst.cur/vEst.max*100))) : 0;
+    statsHtml = '<div class="call-part-stats" title="Vida '+vVida.cur+'/'+vVida.max+' · Sanidade '+vSan.cur+'/'+vSan.max+' · Estamina '+vEst.cur+'/'+vEst.max+'">'
       + '<div class="cps-row"><span class="cps-ic">❤</span><div class="cps-track"><div class="cps-fill cps-vida" style="width:'+vP+'%"></div></div></div>'
       + '<div class="cps-row"><span class="cps-ic">🧠</span><div class="cps-track"><div class="cps-fill cps-san" style="width:'+sP+'%"></div></div></div>'
       + '<div class="cps-row"><span class="cps-ic">⚡</span><div class="cps-track"><div class="cps-fill cps-est" style="width:'+eP+'%"></div></div></div>'
@@ -14104,9 +14276,10 @@ window._joinCallRoom = async function(roomId) {
 
   // Anuncia presença na call
   const mySlotRef = ref(db, 'calls/' + roomId + '/members/' + _myCallId);
-  var _savedCallAvatar = null;
+  var _savedCallAvatar = null, _savedCallChar = null;
   try { _savedCallAvatar = window.callGetCustomAvatar ? window.callGetCustomAvatar() : null; } catch(e){}
-  await set(mySlotRef, { uid: _myCallId, username: currentUser.username, role: currentUser.role, joinedAt: Date.now(), customAvatar: _savedCallAvatar || null });
+  try { _savedCallChar = window.callGetCustomChar ? window.callGetCustomChar() : null; } catch(e){}
+  await set(mySlotRef, { uid: _myCallId, username: currentUser.username, role: currentUser.role, joinedAt: Date.now(), customAvatar: _savedCallAvatar || null, customChar: _savedCallChar || null });
   onDisconnect(mySlotRef).remove();
 
   // Escuta sinalização
