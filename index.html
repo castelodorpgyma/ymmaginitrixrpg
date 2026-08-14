@@ -2665,13 +2665,13 @@ textarea{resize:vertical;min-height:72px;border-radius:var(--r-sm)}
 .call-card-banner{display:flex;align-items:center;gap:12px;padding:12px 14px;background:rgba(35,165,90,.06);border:1px solid rgba(35,165,90,.14);border-radius:10px;margin-bottom:12px}
 .call-card-info{flex:1;font-family:'Share Tech Mono',monospace;font-size:.6rem;color:rgba(87,242,135,0.72);line-height:1.8}
 .call-hdr-min-btn{
-  display:flex; align-items:center; gap:6px; background:rgba(255,255,255,.05);
-  border:1px solid rgba(255,255,255,.12); color:rgba(220,230,225,0.82);
-  border-radius:8px; padding:6px 12px; font-family:'Share Tech Mono',monospace;
-  font-size:.6rem; letter-spacing:.06em; cursor:pointer; transition:all .16s;
+  display:flex; align-items:center; gap:6px; background:rgba(87,242,135,.14);
+  border:1.5px solid rgba(87,242,135,.4); color:rgba(200,255,220,0.95);
+  border-radius:8px; padding:7px 13px; font-family:'Share Tech Mono',monospace;
+  font-weight:700; font-size:.6rem; letter-spacing:.06em; cursor:pointer; transition:all .16s;
 }
-.call-hdr-min-btn:hover{ background:rgba(35,165,90,.16); border-color:rgba(35,165,90,.4); color:rgba(87,242,135,0.95); }
-.call-hdr-min-btn .chb-ic{ font-size:.85rem; line-height:1; font-weight:700; }
+.call-hdr-min-btn:hover{ background:rgba(87,242,135,.26); border-color:rgba(87,242,135,.7); color:#eaffef; box-shadow:0 0 12px rgba(87,242,135,.25); }
+.call-hdr-min-btn .chb-ic{ font-size:1rem; line-height:1; font-weight:900; }
 .call-overlay.floating .call-hdr-min-btn{ display:none; }
 
 /* ══════════════════════════════════════
@@ -11716,9 +11716,8 @@ function closeCallSideChat() {
 // continua visível — com participantes, mic/câmera/tela — em uma janelinha
 // no canto, e o resto do site fica livre para navegar por baixo dela.)
 function minimizeCallToFloat() {
-  if (!callState.active) return;
   var cov = document.getElementById('call-overlay');
-  if (!cov) return;
+  if (!cov || !cov.classList.contains('open')) return; // nada pra minimizar — call nem está aberta
   ['music','settings','perm'].forEach(function(p){
     var el = document.getElementById('call-panel-'+p); if(el) el.classList.remove('open');
   });
