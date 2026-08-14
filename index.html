@@ -4268,6 +4268,11 @@ input[type=number]{-moz-appearance:textfield;}
   box-shadow:0 8px 32px rgba(0,0,0,.6),0 0 0 1px rgba(210,40,40,.06);
 }
 #user-bar.visible{display:flex;animation:userBarIn .3s cubic-bezier(.22,1,.36,1);}
+/* Enquanto a call está em TELA CHEIA, a barra de usuário fica escondida —
+   antes ela tinha z-index maior que o da call e ficava por cima do cabeçalho,
+   cobrindo o botão de minimizar (parecia que ele não existia). Em modo
+   flutuante (minimizado) ela volta, porque aí dá pra navegar o site normal. */
+#user-bar.call-hidden{ display:none !important; }
 @keyframes userBarIn{from{opacity:0;transform:translateY(-10px) scale(.94)}to{opacity:1;transform:none}}
 .ub-av{
   width:36px;height:36px;border-radius:50%;overflow:hidden;
@@ -11336,11 +11341,13 @@ function openCallOverlay() {
   var warn = document.getElementById('call-file-warn');
   if (warn) warn.style.display = (location.protocol === 'file:') ? 'block' : 'none';
   var _cov=document.getElementById('call-overlay'); if(_cov) _cov.classList.add('open');
+  var _ub=document.getElementById('user-bar'); if(_ub) _ub.classList.add('call-hidden');
   if (!callState.active) _startCall();
 }
 
 function closeCallOverlay() {
   document.getElementById('call-overlay').classList.remove('open');
+  var _ub=document.getElementById('user-bar'); if(_ub) _ub.classList.remove('call-hidden');
   ['music','settings','perm'].forEach(function(p){
     var el = document.getElementById('call-panel-'+p); if(el) el.classList.remove('open');
   });
@@ -11724,6 +11731,7 @@ function minimizeCallToFloat() {
   closeCallSideChat(); // não cabe chat lateral na janelinha flutuante
   cov.classList.add('floating');
   cov.classList.add('open'); // permanece visível, só que agora pequena
+  var _ub=document.getElementById('user-bar'); if(_ub) _ub.classList.remove('call-hidden'); // volta a aparecer — dá pra navegar o site normal
   showToast('📞 Call flutuante — navegue no site normalmente','ok');
 }
 
@@ -11731,6 +11739,7 @@ function minimizeCallToFloat() {
 function maximizeCallFromFloat() {
   var cov = document.getElementById('call-overlay');
   if (cov) cov.classList.remove('floating');
+  var _ub=document.getElementById('user-bar'); if(_ub) _ub.classList.add('call-hidden');
   // Compat: bolinha antiga (se ainda estiver visível por algum motivo)
   var pip = document.getElementById('call-pip-bubble');
   if (pip) pip.classList.remove('show');
