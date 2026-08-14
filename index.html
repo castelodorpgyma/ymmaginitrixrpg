@@ -11340,7 +11340,11 @@ function openCallOverlay() {
   // Mostrar banner se file://
   var warn = document.getElementById('call-file-warn');
   if (warn) warn.style.display = (location.protocol === 'file:') ? 'block' : 'none';
-  var _cov=document.getElementById('call-overlay'); if(_cov) _cov.classList.add('open');
+  var _cov=document.getElementById('call-overlay');
+  if(_cov){
+    _cov.classList.remove('floating'); // se estava minimizada (flutuante), volta pra tela cheia
+    _cov.classList.add('open');
+  }
   var _ub=document.getElementById('user-bar'); if(_ub) _ub.classList.add('call-hidden');
   if (!callState.active) _startCall();
 }
