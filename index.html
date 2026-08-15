@@ -2569,6 +2569,13 @@ textarea{resize:vertical;min-height:72px;border-radius:var(--r-sm)}
 .call-part-av-wrap{position:relative;width:80px;height:80px;flex-shrink:0}
 .call-part-av{width:80px;height:80px;border-radius:50%;background:radial-gradient(circle at 30% 30%,rgba(52,52,52,.9),rgba(28,28,28,.95));border:2.5px solid rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;font-size:2rem;overflow:hidden;position:relative;z-index:1;transition:border-color .2s,box-shadow .2s}
 .call-part-av img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+/* Avatar animado (GIF): mostra sempre uma versão CONGELADA (parada), e só toca
+   a animação de verdade enquanto a pessoa está falando no microfone — igual Discord. */
+.cp-av-static,.cp-av-live{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:inherit;transition:opacity .15s}
+.cp-av-static{opacity:1;z-index:1}
+.cp-av-live{opacity:0;z-index:2}
+.call-participant.is-speaking .cp-av-static{opacity:0}
+.call-participant.is-speaking .cp-av-live{opacity:1}
 .call-participant.is-speaking .call-part-av{border-color:rgba(87,242,135,.8);box-shadow:0 0 18px rgba(87,242,135,.35)}
 .call-part-video{position:absolute;inset:0;border-radius:50%;object-fit:cover;width:100%;height:100%;z-index:2;transform:scaleX(-1)}/* espelho para câmera frontal */
 .speaking-ring{position:absolute;inset:-5px;border-radius:50%;border:2.5px solid rgba(87,242,135,.0);pointer-events:none;transition:border-color .12s}
@@ -2612,16 +2619,90 @@ textarea{resize:vertical;min-height:72px;border-radius:var(--r-sm)}
 .call-screen-area.active{display:flex;align-items:center;justify-content:center}
 .call-screen-area video{width:100%;max-height:240px;min-height:120px;object-fit:contain;display:block;background:#000}
 .call-screen-label{position:absolute;top:7px;left:10px;font-family:'Share Tech Mono',monospace;font-size:.48rem;color:rgba(87,242,135,0.72);letter-spacing:.1em;background:rgba(0,0,0,.65);padding:2px 8px;border-radius:4px}
-.call-controls{display:flex;align-items:flex-end;justify-content:center;gap:10px;padding:14px 16px 16px;background:rgba(0,0,0,.6);border-top:1px solid rgba(87,242,135,.07);flex-shrink:0;flex-wrap:wrap;position:relative;z-index:2}
+/* ── Controle de volume da transmissão de tela (individual por quem assiste — não afeta o que os outros ouvem) ── */
+.call-screen-vol-ctrl{
+  display:none; position:absolute; bottom:10px; left:10px; z-index:6;
+  align-items:center; gap:7px; background:rgba(0,0,0,.65); border-radius:100px; padding:5px 12px 5px 5px;
+  backdrop-filter:blur(4px);
+}
+.call-screen-vol-ctrl.show{ display:flex; }
+.csv-btn{
+  width:26px;height:26px;border-radius:50%;border:none;background:rgba(255,255,255,.1);color:#fff;
+  display:flex;align-items:center;justify-content:center;font-size:.72rem;cursor:pointer;flex-shrink:0;transition:background .12s;
+}
+.csv-btn:hover{ background:rgba(255,255,255,.2); }
+.csv-btn.muted{ color:#f23f42; }
+#csv-vol-slider{ width:80px; accent-color:#3ba55d; cursor:pointer; }
+.call-controls{display:flex;align-items:center;justify-content:center;gap:8px;padding:12px 16px;background:#1e1f22;border-top:1px solid rgba(255,255,255,.06);flex-shrink:0;flex-wrap:wrap;position:relative;z-index:2}
 .call-ctrl-group{display:flex;flex-direction:column;align-items:center;gap:3px}
-.call-ctrl-btn{width:46px;height:46px;border-radius:50%;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.06);color:#f2f3f5;display:flex;align-items:center;justify-content:center;font-size:1.1rem;cursor:pointer;transition:all .16s;-webkit-tap-highlight-color:transparent}
-.call-ctrl-btn:hover{background:rgba(255,255,255,.13);border-color:rgba(255,255,255,.22);box-shadow:0 0 14px rgba(0,0,0,.3);transform:scale(1.07)}
-.call-ctrl-btn.active{background:rgba(35,165,90,.22);border-color:rgba(87,242,135,.6);box-shadow:0 0 18px rgba(87,242,135,.2);color:#57f287}
-.call-ctrl-btn.off{border-color:rgba(242,63,66,.45);background:rgba(242,63,66,.15);color:rgba(255,127,130,0.88)}
-.call-ctrl-btn.off:hover{background:rgba(242,63,66,.28)}
-.call-ctrl-label{font-family:'Share Tech Mono',monospace;font-size:.42rem;color:rgba(255,255,255,0.72);letter-spacing:.05em;text-align:center}
-.call-end-btn{width:54px;height:54px;border-radius:50%;background:linear-gradient(135deg,rgba(242,63,66,.75),rgba(200,50,53,.65));border:1px solid rgba(242,63,66,.4);color:#fff;font-size:1.3rem;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px rgba(242,63,66,.4);transition:all .18s;-webkit-tap-highlight-color:transparent}
-.call-end-btn:hover{background:linear-gradient(135deg,rgba(242,63,66,.9),rgba(242,63,66,.8));box-shadow:0 4px 28px rgba(242,63,66,.6);transform:scale(1.1)}
+.call-ctrl-btn{width:44px;height:44px;border-radius:50%;border:none;background:#2b2d31;color:#f2f3f5;display:flex;align-items:center;justify-content:center;font-size:1.05rem;cursor:pointer;transition:all .12s;-webkit-tap-highlight-color:transparent}
+.call-ctrl-btn:hover{background:#35373c;transform:none}
+.call-ctrl-btn.active{background:#2b2d31;color:#f2f3f5}
+.call-ctrl-btn.off{background:#f23f42;color:#fff}
+.call-ctrl-btn.off:hover{background:#d7373a}
+.call-ctrl-label{display:none}
+.call-end-btn{width:44px;height:44px;border-radius:50%;background:#da373c;border:none;color:#fff;font-size:1.15rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .12s;-webkit-tap-highlight-color:transparent}
+.call-end-btn:hover{background:#a12d2f}
+/* ── Estilo minimalista Discord: pílulas agrupadas com chevron ── */
+.call-ctrl-pill{display:flex;align-items:center;background:#2b2d31;border-radius:22px;overflow:hidden;transition:background .12s}
+.call-ctrl-pill:hover{background:#35373c}
+.call-ctrl-pill .call-ctrl-btn{background:transparent}
+.call-ctrl-pill .call-ctrl-btn:hover{background:transparent}
+.call-ctrl-pill.active{background:#3ba55522}
+.call-ctrl-pill.off{background:#da373c}
+.call-ctrl-pill.off .call-ctrl-btn.off{background:transparent}
+.call-ctrl-chevron{
+  width:22px;height:44px;display:flex;align-items:center;justify-content:center;
+  background:transparent;border:none;color:rgba(255,255,255,.6);cursor:pointer;
+  font-size:.6rem;border-left:1px solid rgba(0,0,0,.25);transition:color .12s;
+}
+.call-ctrl-chevron:hover{color:#fff}
+.call-more-wrap{position:relative}
+.call-more-menu{
+  display:none;position:absolute;bottom:56px;left:50%;transform:translateX(-50%);
+  background:#2b2d31;border-radius:10px;padding:6px;min-width:190px;
+  box-shadow:0 8px 24px rgba(0,0,0,.5);z-index:20;
+}
+.call-more-menu.open{display:block;animation:panelUp .16s ease}
+.call-more-menu-item{
+  display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:6px;cursor:pointer;
+  font-family:'Rajdhani',sans-serif;font-size:.82rem;font-weight:600;color:#dbdee1;transition:background .1s;
+}
+.call-more-menu-item:hover{background:#3a3c41}
+.call-more-menu-item .cmi-ic{width:20px;text-align:center;font-size:.95rem}
+/* ── Barra flutuante "Voz Conectada" (estilo Discord, controla a call de qualquer tela) ── */
+.call-voice-status{
+  display:none; position:fixed; left:12px; bottom:12px; width:228px; z-index:240;
+  background:#232428; border-radius:8px; overflow:hidden; box-shadow:0 6px 24px rgba(0,0,0,.5);
+  font-family:'Rajdhani',sans-serif;
+}
+.call-voice-status.show{ display:block; }
+.cvs-top{ padding:9px 10px 7px; }
+.cvs-conn{ display:flex; align-items:center; gap:6px; font-size:.7rem; font-weight:700; color:#3ba55d; letter-spacing:.02em; }
+.cvs-conn-dot{ width:7px;height:7px;border-radius:50%;background:#3ba55d;flex-shrink:0; box-shadow:0 0 6px rgba(59,165,93,.7); animation:cvsPulse 1.8s ease-in-out infinite; }
+@keyframes cvsPulse{0%,100%{opacity:1}50%{opacity:.4}}
+.cvs-channel{ font-size:.66rem; color:rgba(255,255,255,.5); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.cvs-maximize,.cvs-close{
+  position:absolute; top:8px; background:rgba(0,0,0,.3); border:none; color:#fff; width:20px;height:20px;
+  border-radius:5px; cursor:pointer; font-size:.6rem; display:flex; align-items:center; justify-content:center;
+}
+.cvs-maximize{ right:32px; } .cvs-close{ right:6px; }
+.cvs-maximize:hover,.cvs-close:hover{ background:rgba(255,255,255,.15); }
+.cvs-bottom{
+  display:flex; align-items:center; gap:8px; padding:6px 8px; background:#1e1f22;
+}
+.cvs-avatar{ width:32px;height:32px;border-radius:50%;overflow:hidden;flex-shrink:0;background:#5865f2;display:flex;align-items:center;justify-content:center;font-size:.9rem; position:relative; }
+.cvs-avatar img{ width:100%;height:100%;object-fit:cover; }
+.cvs-user{ flex:1; min-width:0; }
+.cvs-uname{ font-size:.76rem; font-weight:700; color:#f2f3f5; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.cvs-ustatus{ font-size:.62rem; color:rgba(255,255,255,.5); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.cvs-btn{
+  width:28px;height:28px;border-radius:6px;border:none;background:transparent;color:rgba(255,255,255,.75);
+  display:flex;align-items:center;justify-content:center;font-size:.82rem;cursor:pointer;flex-shrink:0;transition:background .12s;
+}
+.cvs-btn:hover{ background:rgba(255,255,255,.08); color:#fff; }
+.cvs-btn.off{ color:#f23f42; }
+@media(max-width:768px){ .call-voice-status{ display:none!important; } }
 /* PANELS */
 .call-panel{position:absolute;bottom:90px;left:50%;transform:translateX(-50%);width:min(370px,calc(100vw - 24px));max-height:min(560px,calc(100vh - 130px));overflow-y:auto;scrollbar-gutter:stable;background:rgba(36,36,36,.97);border:1px solid rgba(87,242,135,.13);border-radius:16px;padding:16px;box-shadow:0 -8px 40px rgba(0,0,0,.85);z-index:10;display:none}
 .call-panel.open{display:block;animation:panelUp .22s cubic-bezier(.22,1,.36,1)}
@@ -3652,14 +3733,31 @@ input:valid:not(:placeholder-shown) {
 }
 .call-participant{
   width:100% !important; max-width:260px; aspect-ratio:1/1; justify-content:center;
-  border-radius:16px !important; padding:16px !important; overflow:hidden;
+  border-radius:16px !important; padding:0 !important; overflow:hidden;
+  border-width:3px;
 }
-.call-part-av-wrap{ width:74% !important; height:74% !important; max-width:170px; max-height:170px; }
+.call-part-av-wrap{ width:100% !important; height:100% !important; max-width:none !important; max-height:none !important; border-radius:16px; }
 .call-part-av{ width:100% !important; height:100% !important; border-radius:16px !important; font-size:2.4rem; }
 .call-part-av img{ border-radius:16px !important; }
 .call-part-video{ border-radius:16px !important; transform:none !important; } /* câmera quadrada, sem espelhar a de outros */
 #call-part-local-vid.call-part-video{ transform:scaleX(-1) !important; } /* só espelha a SUA própria prévia */
-.call-part-name{ font-size:.8rem; }
+/* nome + cargo viram um "selo" sobreposto no canto, como no Discord — não ocupam espaço no card */
+.call-part-name{
+  position:absolute; left:9px; bottom:9px; z-index:6; max-width:calc(100% - 60px);
+  background:rgba(0,0,0,.65); padding:4px 10px; border-radius:6px; font-size:.72rem;
+  backdrop-filter:blur(3px); text-align:left;
+}
+.call-part-role{
+  position:absolute; left:9px; bottom:38px; z-index:6;
+  background:rgba(0,0,0,.6);
+}
+/* HUD de vida/sanidade/estamina vira uma faixa sobreposta no topo do card */
+.call-part-stats{
+  position:absolute; top:9px; left:9px; right:9px; z-index:6; max-width:none;
+  background:rgba(0,0,0,.5); border-radius:6px; padding:5px 8px; backdrop-filter:blur(3px);
+}
+/* evita a tag "silenciado pelo mestre" colidir com o selo de nome no rodapé */
+.call-part-forcemuted-tag{ bottom:auto !important; top:44px !important; }
 
 /* botão de mutar (visível só para quem tem permissão de controle da call) */
 .call-part-mute-btn{
@@ -3674,6 +3772,12 @@ input:valid:not(:placeholder-shown) {
   font-family:'Share Tech Mono',monospace; font-size:.5rem; letter-spacing:.05em; color:#ff7f82;
   background:rgba(242,63,66,.55); border-radius:5px; padding:2px 4px;
 }
+/* badge "mudo" (canto do avatar) — reposicionado pra caber dentro do card cheio, sem clipar */
+.call-part-muted{ top:8px !important; right:8px !important; }
+/* destaque de "falando" — igual ao Discord: anel verde forte em volta do CARD INTEIRO */
+.call-participant.is-speaking{ border-color:#3ba55d; box-shadow:0 0 0 1px #3ba55d, 0 0 18px rgba(59,165,93,.35); }
+/* os anéis circulares antigos não fazem sentido no tile retangular cheio — desativados aqui */
+.speaking-ring,.speaking-ring-2{ display:none; }
 
 /* janela flutuante da call — arrastável, permite navegar o resto do site */
 .call-overlay.floating{
@@ -3688,9 +3792,9 @@ input:valid:not(:placeholder-shown) {
 .call-overlay.floating .call-participants-area{ grid-template-columns:repeat(auto-fill,minmax(76px,1fr)); gap:8px; padding:8px; }
 .call-overlay.floating .call-part-name,.call-overlay.floating .call-part-role{ font-size:.5rem; }
 .call-overlay.floating .call-screen-area video{ max-height:110px; }
-.call-overlay.floating .call-controls{ padding:8px; gap:5px; }
-.call-overlay.floating .call-ctrl-btn{ width:32px; height:32px; font-size:.75rem; }
-.call-overlay.floating .call-ctrl-label{ display:none; }
+.call-overlay.floating .call-controls{ padding:6px; gap:4px; }
+.call-overlay.floating .call-ctrl-btn{ width:30px; height:30px; font-size:.7rem; }
+.call-overlay.floating .call-ctrl-chevron{ display:none; }
 .call-overlay.floating .call-ctrl-group:nth-child(4),
 .call-overlay.floating .call-ctrl-group:nth-child(5),
 .call-overlay.floating .call-ctrl-group:nth-child(6),
@@ -3749,7 +3853,7 @@ input:valid:not(:placeholder-shown) {
    tiver muita gente. */
 .call-main.has-screen .call-participants-area{
   display:flex !important; flex-direction:row !important;
-  flex:0 0 auto; width:100%; max-width:100%; height:104px;
+  flex:0 0 auto; width:100%; max-width:100%; height:128px;
   overflow-x:auto; overflow-y:hidden;
   padding:10px 16px; gap:12px;
   align-content:center; justify-content:flex-start; align-items:center;
@@ -3759,15 +3863,16 @@ input:valid:not(:placeholder-shown) {
 .call-main.has-screen .call-participant{
   width:auto !important; max-width:none !important; aspect-ratio:auto !important;
   flex-direction:column !important; flex-shrink:0; justify-content:flex-start !important;
-  padding:6px 8px !important; gap:5px !important; border-radius:12px !important;
+  padding:0 !important; gap:0 !important; border-radius:10px !important;
+  overflow:hidden;
 }
 .call-main.has-screen .call-part-av-wrap{
-  width:52px !important; height:52px !important; max-width:52px !important; max-height:52px !important; flex-shrink:0;
+  width:128px !important; height:80px !important; max-width:128px !important; max-height:80px !important; flex-shrink:0;
 }
-.call-main.has-screen .call-part-av{ border-radius:50% !important; font-size:1.1rem; }
-.call-main.has-screen .call-part-av img{ border-radius:50% !important; }
-.call-main.has-screen .call-part-video{ border-radius:50% !important; }
-.call-main.has-screen .call-part-name{ font-size:.56rem; text-align:center; max-width:72px; }
+.call-main.has-screen .call-part-av{ border-radius:10px !important; font-size:1.6rem; }
+.call-main.has-screen .call-part-av img{ border-radius:10px !important; }
+.call-main.has-screen .call-part-video{ border-radius:10px !important; }
+.call-main.has-screen .call-part-name{ font-size:.62rem; text-align:left; max-width:112px; }
 .call-main.has-screen .call-part-role{ display:none; }
 .call-main.has-screen .call-part-stats{ display:none; } /* barras de vida/sanidade/estamina continuam no grid normal — não cabem na fileira mini */
 
@@ -3802,8 +3907,9 @@ input:valid:not(:placeholder-shown) {
 }
 
 /* janela flutuante: fileira de participantes ainda mais compacta, sem zoom/tela cheia (não faz sentido em miniatura) */
-.call-overlay.floating .call-main.has-screen .call-participants-area{ height:56px; padding:5px 8px; gap:6px; }
-.call-overlay.floating .call-main.has-screen .call-part-av-wrap{ width:34px !important; height:34px !important; max-width:34px !important; max-height:34px !important; }
+.call-overlay.floating .call-main.has-screen .call-participants-area{ height:64px; padding:5px 8px; gap:6px; }
+.call-overlay.floating .call-main.has-screen .call-part-av-wrap{ width:64px !important; height:40px !important; max-width:64px !important; max-height:40px !important; }
+.call-overlay.floating .call-main.has-screen .call-part-av{ border-radius:6px !important; }
 .call-overlay.floating .call-main.has-screen .call-part-name{ display:none; }
 .call-overlay.floating .call-screen-zoom-ctrls,
 .call-overlay.floating .call-screen-fs-btn{ display:none !important; }
@@ -6257,6 +6363,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
       <div class="call-screen-area" id="call-screen-area">
         <video id="call-screen-video" autoplay="" playsinline="" muted=""></video>
         <div class="call-screen-label">🖥 TRANSMISSÃO DE TELA</div>
+        <div class="call-screen-vol-ctrl" id="call-screen-vol-ctrl">
+          <button class="csv-btn" id="csv-mute-btn" onclick="toggleScreenAudioMute()" title="Mutar/ativar áudio da transmissão">🔇</button>
+          <input type="range" id="csv-vol-slider" min="0" max="100" value="80" oninput="setScreenVolume(this.value)" title="Volume da transmissão">
+        </div>
         <button class="call-screen-fs-btn" id="call-screen-fs-btn" onclick="callToggleScreenFullscreen()" title="Tela cheia">⛶</button>
         <div class="call-screen-zoom-ctrls" id="call-screen-zoom-ctrls">
           <button class="call-screen-zoom-btn" onclick="callScreenZoomStep(1)" title="Mais zoom">➕</button>
@@ -6285,41 +6395,55 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 
   <!-- CONTROLS BAR -->
   <div class="call-controls" id="call-controls">
-    <div class="call-ctrl-group">
+    <div class="call-ctrl-pill active" id="pill-mic">
       <button class="call-ctrl-btn active" id="ctrl-mic" onclick="callToggleMic()" title="Microfone">🎙</button>
-      <span class="call-ctrl-label">MIC</span>
+      <button class="call-ctrl-chevron" onclick="toggleCallPanel('settings')" title="Configurações de áudio">▾</button>
     </div>
-    <div class="call-ctrl-group">
+    <div class="call-ctrl-pill" id="pill-cam">
       <button class="call-ctrl-btn" id="ctrl-cam" onclick="callToggleCam()" title="Câmera">📷</button>
-      <span class="call-ctrl-label">CAM</span>
+      <button class="call-ctrl-chevron" onclick="toggleCallPanel('settings')" title="Configurações de vídeo">▾</button>
     </div>
-    <div class="call-ctrl-group">
-      <button class="call-ctrl-btn" id="ctrl-screen" onclick="callToggleScreen()" title="Compartilhar tela" id="call-screen-btn">🖥</button>
-      <span class="call-ctrl-label">TELA</span>
+    <button class="call-ctrl-btn" id="ctrl-deafen" onclick="callToggleDeafen()" title="Ensurdecer (silenciar todo mundo pra você)">🎧</button>
+    <div class="call-ctrl-pill" id="pill-screen">
+      <button class="call-ctrl-btn" id="ctrl-screen" onclick="callToggleScreen()" title="Compartilhar tela">🖥</button>
+      <button class="call-ctrl-chevron" onclick="toggleScreenShareMenu()" title="Opções de compartilhamento">▾</button>
     </div>
-    <div class="call-ctrl-group">
-      <button class="call-ctrl-btn" id="ctrl-music" onclick="toggleCallPanel('music')" title="Áudio ambiente">🎵</button>
-      <span class="call-ctrl-label">MÚSICA</span>
+    <div class="call-more-wrap">
+      <div class="call-more-menu" id="screen-share-menu">
+        <div class="call-more-menu-item" onclick="toggleScreenShareMenu();callStartScreenShare(false)"><span class="cmi-ic">🖥</span> Compartilhar sem áudio</div>
+        <div class="call-more-menu-item" onclick="toggleScreenShareMenu();callStartScreenShare(true)"><span class="cmi-ic">🔊</span> Compartilhar com áudio do sistema</div>
+      </div>
     </div>
-    <div class="call-ctrl-group">
-      <button class="call-ctrl-btn" onclick="toggleSoundboard()" title="Soundboard de ambientação">🥁</button>
-      <span class="call-ctrl-label">SONS</span>
+    <div class="call-more-wrap">
+      <button class="call-ctrl-btn" id="ctrl-more" onclick="toggleCallMoreMenu()" title="Mais opções">⋯</button>
+      <div class="call-more-menu" id="call-more-menu">
+        <div class="call-more-menu-item" onclick="toggleCallMoreMenu();toggleCallPanel('music')"><span class="cmi-ic">🎵</span> Áudio ambiente</div>
+        <div class="call-more-menu-item" onclick="toggleCallMoreMenu();toggleSoundboard()"><span class="cmi-ic">🥁</span> Soundboard</div>
+        <div class="call-more-menu-item" onclick="toggleCallMoreMenu();toggleCallReactions()"><span class="cmi-ic">😄</span> Reações</div>
+        <div class="call-more-menu-item" onclick="toggleCallMoreMenu();toggleCallSideChat()"><span class="cmi-ic">💬</span> Bate-papo</div>
+        <div class="call-more-menu-item" onclick="toggleCallMoreMenu();toggleCallPanel('settings')"><span class="cmi-ic">⚙</span> Configurações</div>
+      </div>
     </div>
-    <div class="call-ctrl-group">
-      <button class="call-ctrl-btn" onclick="toggleCallReactions()" title="Reações com emoji">😄</button>
-      <span class="call-ctrl-label">REAÇÃO</span>
+    <button class="call-end-btn" onclick="endCall()" title="Encerrar call">📵</button>
+  </div>
+
+  <!-- Barra flutuante "Voz Conectada" — controla a call de qualquer tela do app -->
+  <div class="call-voice-status" id="call-voice-status">
+    <div class="cvs-top">
+      <div class="cvs-conn"><span class="cvs-conn-dot"></span> Voz conectada</div>
+      <div class="cvs-channel" id="cvs-channel">Sessão</div>
+      <button class="cvs-maximize" onclick="openCallOverlay()" title="Abrir call">⛶</button>
+      <button class="cvs-close" onclick="minimizeCallToFloat()" title="Ocultar (call continua ativa)">✕</button>
     </div>
-    <div class="call-ctrl-group">
-      <button class="call-ctrl-btn" id="ctrl-settings" onclick="toggleCallPanel('settings')" title="Configurações">⚙</button>
-      <span class="call-ctrl-label">CONFIG</span>
-    </div>
-    <div class="call-ctrl-group grp-callchat">
-      <button class="call-ctrl-btn" id="ctrl-callchat" onclick="toggleCallSideChat()" title="Bate-papo com todos na call">💬</button>
-      <span class="call-ctrl-label">CHAT</span>
-    </div>
-    <div class="call-ctrl-group">
-      <button class="call-end-btn" onclick="endCall()" title="Encerrar call">📵</button>
-      <span class="call-ctrl-label" style="color:rgba(255,120,120,0.72)">SAIR</span>
+    <div class="cvs-bottom">
+      <div class="cvs-avatar" id="cvs-avatar">👤</div>
+      <div class="cvs-user">
+        <div class="cvs-uname" id="cvs-uname">—</div>
+        <div class="cvs-ustatus" id="cvs-ustatus">Conectado</div>
+      </div>
+      <button class="cvs-btn" id="cvs-mic" onclick="callToggleMic()" title="Microfone">🎙</button>
+      <button class="cvs-btn" id="cvs-deafen" onclick="callToggleDeafen()" title="Ensurdecer">🎧</button>
+      <button class="cvs-btn" onclick="toggleCallPanel('settings');openCallOverlay()" title="Configurações">⚙</button>
     </div>
   </div>
 
@@ -11258,6 +11382,12 @@ function _syncMicBtn() {
   // Ícone de mudo no card do participante
   var muteIcon = document.querySelector('#call-part-local .call-part-muted');
   if (muteIcon) muteIcon.classList.toggle('visible', callState.micState === 'muted' || !callState.micStream);
+  // Sincroniza a pílula (fundo verde/vermelho do grupo mic+chevron)
+  var pill = document.getElementById('pill-mic');
+  if (pill) pill.className = 'call-ctrl-pill ' + (btn.classList.contains('active') ? 'active' : btn.classList.contains('off') ? 'off' : '');
+  // Sincroniza a barrinha flutuante "Voz Conectada"
+  var cvsMic = document.getElementById('cvs-mic');
+  if (cvsMic) { cvsMic.textContent = btn.textContent; cvsMic.className = 'cvs-btn' + (btn.classList.contains('off') ? ' off' : ''); }
 }
 
 // ── Atualiza visual do botão câmera ──
@@ -11275,9 +11405,100 @@ function _syncCamBtn() {
     default:
       btn.textContent = '📷'; btn.className = 'call-ctrl-btn'; break;
   }
+  var pill = document.getElementById('pill-cam');
+  if (pill) pill.className = 'call-ctrl-pill ' + (btn.classList.contains('active') ? 'active' : btn.classList.contains('off') ? 'off' : '');
 }
 
-// ── Atualiza visual do botão tela ──
+// ═══════════════════════════════════════
+//  ENSURDECER (deafen) — silencia todo mundo pra você, estilo Discord
+// ═══════════════════════════════════════
+callState.deafened = false;
+function callToggleDeafen() {
+  callState.deafened = !callState.deafened;
+  // Muta/desmuta o áudio de todos os participantes remotos.
+  // Tem 2 lugares onde o áudio deles pode estar tocando:
+  //  1) o <audio> oculto criado por participante (usado quando a câmera tá desligada)
+  //  2) o <video> da câmera (quando ligada, o áudio vem junto com o vídeo)
+  document.querySelectorAll('[id^="call-remote-vid-"]').forEach(function(v){ v.muted = callState.deafened; });
+  if (typeof _remoteAudioEls !== 'undefined') {
+    Object.keys(_remoteAudioEls).forEach(function(uid){
+      var el = _remoteAudioEls[uid]; if (el) el.muted = callState.deafened;
+    });
+  }
+  // Muta/desmuta o áudio da transmissão de tela também
+  if (typeof _syncScreenVolumeUI === 'function') _syncScreenVolumeUI();
+  // Ensurdecer também desliga seu microfone (igual Discord) — reativar o mic desfaz o ensurdecer
+  if (callState.deafened && callState.micState === 'active') {
+    callState.micOn = false;
+    if (callState.micStream) callState.micStream.getAudioTracks().forEach(function(t){ t.enabled = false; });
+    callState.micState = 'muted';
+    _syncMicBtn();
+  }
+  var btns = [document.getElementById('ctrl-deafen'), document.getElementById('cvs-deafen')];
+  btns.forEach(function(btn){
+    if (!btn) return;
+    btn.textContent = callState.deafened ? '🔇' : '🎧';
+    btn.title = callState.deafened ? 'Reativar áudio' : 'Ensurdecer (silenciar todo mundo pra você)';
+    btn.classList.toggle('off', callState.deafened);
+  });
+  showToast(callState.deafened ? '🔇 Você ensurdeceu (não ouve mais ninguém)' : '🎧 Áudio reativado', 'ok');
+}
+// Sempre que um novo participante remoto conectar, respeita o estado de deafen atual
+function _applyDeafenToStream(uid) {
+  if (!callState.deafened) return;
+  var v = document.getElementById('call-remote-vid-' + uid);
+  if (v) v.muted = true;
+  if (typeof _remoteAudioEls !== 'undefined' && _remoteAudioEls[uid]) _remoteAudioEls[uid].muted = true;
+}
+
+// ── Menu "mais opções" (⋯) da barra de controles ──
+function toggleCallMoreMenu() {
+  var menu = document.getElementById('call-more-menu');
+  if (!menu) return;
+  menu.classList.toggle('open');
+}
+document.addEventListener('click', function(e){
+  var menu = document.getElementById('call-more-menu');
+  if (!menu || !menu.classList.contains('open')) return;
+  if (e.target.closest('#call-more-menu') || e.target.closest('#ctrl-more')) return;
+  menu.classList.remove('open');
+});
+
+// ── Barra flutuante "Voz Conectada" (controla a call de qualquer tela do app) ──
+function _syncCallVoiceStatus() {
+  var bar = document.getElementById('call-voice-status');
+  if (!bar) return;
+  // Só mostra quando: em call ativa E a call NÃO está com o overlay grande aberto na tela
+  var cov = document.getElementById('call-overlay');
+  var overlayFullyOpen = cov && cov.classList.contains('open') && !cov.classList.contains('floating');
+  var shouldShow = callState.active && !overlayFullyOpen;
+  bar.classList.toggle('show', !!shouldShow);
+  if (!shouldShow) return;
+  // Nome do usuário / avatar
+  var uname = document.getElementById('cvs-uname');
+  var ustatus = document.getElementById('cvs-ustatus');
+  var avatar = document.getElementById('cvs-avatar');
+  if (uname) uname.textContent = (typeof currentUser!=='undefined' && currentUser) ? (currentUser.username||currentUser.name||'Você') : 'Você';
+  if (ustatus) ustatus.textContent = callState.deafened ? 'Ensurdecido' : (callState.micState==='muted' ? 'Mutado' : 'Conectado');
+  if (avatar && typeof currentUser!=='undefined' && currentUser && currentUser.avatar) {
+    avatar.innerHTML = '<img src="'+currentUser.avatar+'">';
+  }
+  var chEl = document.getElementById('cvs-channel');
+  if (chEl) {
+    var campNome = '';
+    try {
+      var camp = (data.campanhas||[]).find(function(c){ return c.id === data.campAtiva; });
+      campNome = camp ? camp.nome : '';
+    } catch(e){}
+    chEl.textContent = campNome || 'Sessão';
+  }
+  // Sincroniza ícones mic/deafen na barrinha
+  _syncMicBtn();
+  var cvsDeafen = document.getElementById('cvs-deafen');
+  if (cvsDeafen) { cvsDeafen.textContent = callState.deafened ? '🔇' : '🎧'; cvsDeafen.classList.toggle('off', callState.deafened); }
+}
+
+
 function _syncScreenBtn(state) {
   var btn = document.getElementById('ctrl-screen');
   if (!btn) return;
@@ -11322,6 +11543,38 @@ function _syncScreenAreaVisibility() {
     var vid = document.getElementById('call-screen-video');
     if (vid) { try { vid.srcObject = null; } catch(e){} }
   }
+  if (typeof _syncScreenVolumeUI === 'function') _syncScreenVolumeUI();
+}
+
+// ═══════════════════════════════════════
+//  VOLUME DA TRANSMISSÃO DE TELA (individual por quem assiste)
+// ═══════════════════════════════════════
+var _callScreenAudioMuted = true; // começa mutado (política de autoplay dos navegadores + evita susto de volume alto)
+function _syncScreenVolumeUI() {
+  var vid = document.getElementById('call-screen-video');
+  var ctrl = document.getElementById('call-screen-vol-ctrl');
+  if (!vid || !ctrl) return;
+  // Só mostra o controle de volume se a transmissão em si TEM áudio (própria ou de quem está compartilhando)
+  var hasAudio = vid.srcObject && vid.srcObject.getAudioTracks && vid.srcObject.getAudioTracks().length > 0;
+  ctrl.classList.toggle('show', !!hasAudio);
+  if (!hasAudio) return;
+  vid.muted = _callScreenAudioMuted || callState.deafened;
+  var btn = document.getElementById('csv-mute-btn');
+  if (btn) { btn.textContent = vid.muted ? '🔇' : '🔊'; btn.classList.toggle('muted', vid.muted); }
+}
+function toggleScreenAudioMute() {
+  _callScreenAudioMuted = !_callScreenAudioMuted;
+  _syncScreenVolumeUI();
+}
+function setScreenVolume(val) {
+  var vid = document.getElementById('call-screen-video');
+  if (!vid) return;
+  var v = Math.max(0, Math.min(100, parseInt(val,10)||0)) / 100;
+  vid.volume = v;
+  // Arrastar o slider acima de 0 já reativa o áudio automaticamente (comportamento esperado)
+  if (v > 0 && _callScreenAudioMuted) { _callScreenAudioMuted = false; }
+  if (v === 0) { _callScreenAudioMuted = true; }
+  _syncScreenVolumeUI();
 }
 
 // ── Abre overlay ──
@@ -11389,6 +11642,7 @@ function openCallOverlay() {
   var _ub=document.getElementById('user-bar'); if(_ub) _ub.classList.add('call-hidden');
   if (!callState.active) _startCall();
   _syncScreenAreaVisibility();
+  if (typeof _syncCallVoiceStatus === 'function') _syncCallVoiceStatus();
 }
 
 function closeCallOverlay() {
@@ -11397,6 +11651,7 @@ function closeCallOverlay() {
   ['music','settings','perm'].forEach(function(p){
     var el = document.getElementById('call-panel-'+p); if(el) el.classList.remove('open');
   });
+  if (typeof _syncCallVoiceStatus === 'function') _syncCallVoiceStatus();
 }
 
 // ── Inicia call ──
@@ -11435,6 +11690,7 @@ function _startCall() {
 
   // Pede mic automaticamente
   _doRequestMic();
+  if (typeof _syncCallVoiceStatus === 'function') _syncCallVoiceStatus();
 }
 
 // ── Encerra call ──
@@ -11445,6 +11701,7 @@ function endCall() {
 
   callState.micState='idle'; callState.camState='idle'; callState.screenState='idle';
   callState.micOn=false; callState.camOn=false; callState.screenOn=false;
+  callState.deafened=false;
 
   // Reset UI
   var timer=document.getElementById('call-timer'); if(timer) timer.textContent='00:00';
@@ -11603,6 +11860,24 @@ function callToggleScreen() {
     showToast('🖥 Compartilhamento encerrado','ok');
     return;
   }
+  callStartScreenShare(false);
+}
+
+// ── Menu de opções de compartilhamento (com ou sem áudio do sistema) ──
+function toggleScreenShareMenu() {
+  var menu = document.getElementById('screen-share-menu');
+  if (!menu) return;
+  menu.classList.toggle('open');
+}
+document.addEventListener('click', function(e){
+  var menu = document.getElementById('screen-share-menu');
+  if (!menu || !menu.classList.contains('open')) return;
+  if (e.target.closest('#screen-share-menu') || e.target.closest('#pill-screen')) return;
+  menu.classList.remove('open');
+});
+
+function callStartScreenShare(withAudio) {
+  if (callState.screenState==='active') { showToast('🖥 Você já está compartilhando a tela','warn'); return; }
   if (!navigator.mediaDevices || typeof navigator.mediaDevices.getDisplayMedia!=='function') {
     var isMob=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
     if(isMob){
@@ -11615,10 +11890,10 @@ function callToggleScreen() {
   callState.screenState='requesting'; _syncScreenBtn('requesting');
   showToast('🖥 Selecione a janela/aba para compartilhar...','warn');
 
-  // Pedido simplificado para transmissão de tela
-  navigator.mediaDevices.getDisplayMedia({video:{cursor:'always'}, audio:false})
+  navigator.mediaDevices.getDisplayMedia({video:{cursor:'always'}, audio:!!withAudio})
     .then(function(stream){
       callState.screenStream=stream; callState.screenState='active'; callState.screenOn=true;
+      callState.screenHasAudio = stream.getAudioTracks().length > 0;
       _syncScreenBtn('active');
 
       var area = document.getElementById('call-screen-area');
@@ -11630,16 +11905,15 @@ function callToggleScreen() {
       if (vid) {
         vid.srcObject = stream;
         vid.style.display = 'block';
-        // autoplay policy — play() com fallback silencioso
         var p = vid.play();
         if (p && p.catch) p.catch(function(){});
       }
+      if (typeof _syncScreenVolumeUI === 'function') _syncScreenVolumeUI();
 
-      // Quando usuário clica "Parar compartilhamento" no navegador
       stream.getVideoTracks().forEach(function(t){
         t.onended=function(){ _stopScreenStream(); showToast('🖥 Compartilhamento encerrado','ok'); };
       });
-      showToast('🖥 Tela sendo compartilhada!','ok');
+      showToast(withAudio ? '🔊 Tela + áudio do sistema sendo compartilhados!' : '🖥 Tela sendo compartilhada!','ok');
     })
     .catch(function(err){
       console.warn('[Call] Screen error:',err);
@@ -11778,6 +12052,7 @@ function minimizeCallToFloat() {
   cov.classList.add('floating');
   cov.classList.add('open'); // permanece visível, só que agora pequena
   var _ub=document.getElementById('user-bar'); if(_ub) _ub.classList.remove('call-hidden'); // volta a aparecer — dá pra navegar o site normal
+  if (typeof _syncCallVoiceStatus === 'function') _syncCallVoiceStatus();
   showToast('📞 Call flutuante — navegue no site normalmente','ok');
 }
 
@@ -11792,6 +12067,7 @@ function maximizeCallFromFloat() {
   clearInterval(window._pipTimerInterval); window._pipTimerInterval = null;
   if (cov) cov.classList.add('open');
   if (typeof _syncScreenAreaVisibility === 'function') _syncScreenAreaVisibility();
+  if (typeof _syncCallVoiceStatus === 'function') _syncCallVoiceStatus();
 }
 
 // ── Arrastar a janela flutuante da call (mouse + touch) ──
@@ -12036,6 +12312,28 @@ window.callStepCharStat = function(stat, delta) {
 // ═══════════════════════════════════════
 //  PARTICIPANTES
 // ═══════════════════════════════════════
+// ── Congela GIFs/avatares animados num frame parado; só "descongela" (anima de
+//    verdade) enquanto a pessoa está com .is-speaking (via CSS, ver acima) ──
+function _freezeAnimatedAvatars(container) {
+  var statics = container.querySelectorAll('.cp-av-static');
+  statics.forEach(function(staticImg){
+    var src = staticImg.getAttribute('src');
+    if (!src) return;
+    var probe = new Image();
+    probe.crossOrigin = 'anonymous';
+    probe.onload = function(){
+      try {
+        var canvas = document.createElement('canvas');
+        canvas.width = probe.naturalWidth || 96; canvas.height = probe.naturalHeight || 96;
+        var ctx = canvas.getContext('2d');
+        ctx.drawImage(probe, 0, 0, canvas.width, canvas.height);
+        staticImg.src = canvas.toDataURL('image/png');
+      } catch(e) { /* imagem de outra origem sem CORS liberado — mantém a imagem original (ainda funciona, só não fica 100% congelada) */ }
+    };
+    probe.src = src;
+  });
+}
+
 function renderCallParticipants() {
   var area = document.getElementById('call-participants-area');
   if (!area) return;
@@ -12046,6 +12344,7 @@ function renderCallParticipants() {
   // Mostrar usuário local
   var user = currentUser || {username: 'Você', role: 'player', avatar: null};
   area.innerHTML = buildParticipantCard(user, true, window._myCallId || 'local', false);
+  _freezeAnimatedAvatars(area);
 
   // Reanexa câmera imediatamente após rebuild
   if (savedCamStream && callState.camState === 'active') {
@@ -12077,6 +12376,7 @@ function renderCallParticipants() {
         }
       });
       area.innerHTML = html;
+      _freezeAnimatedAvatars(area);
       if (window.lucide) lucide.createIcons();
       // Reanexa câmera novamente após rebuild remoto
       if (callState.camState === 'active' && callState.camStream) {
@@ -12110,7 +12410,8 @@ function buildParticipantCard(user, isLocal, uid, canModerate) {
   var customCallAvatar = isLocal ? (window.callGetCustomAvatar ? window.callGetCustomAvatar() : null) : (user.avatar||null);
   var charAvatar = customCallAvatar || (linkedChar && linkedChar.avatar) || (user.avatar||null);
   var av = charAvatar
-    ? '<img src="'+charAvatar+'" style="width:100%;height:100%;object-fit:cover;border-radius:14px">'
+    ? '<img class="cp-av-static" src="'+charAvatar+'" style="width:100%;height:100%;object-fit:cover;border-radius:14px">'
+      + '<img class="cp-av-live" src="'+charAvatar+'" style="width:100%;height:100%;object-fit:cover;border-radius:14px">'
     : (user.role==='mestre'?'🗡':'⚔');
 
   // Nome/status customizados na call (painel ⚙ Configurações) têm prioridade
@@ -14473,6 +14774,38 @@ window._reattachKnownRemoteVideos = function() {
   });
 };
 const _remoteCamStreams = {}; // uid → MediaStream de câmera (para reanexar após re-render)
+const _remoteAnalysers = {}; // uid → {ctx, analyser} — detector de "quem tá falando" pros participantes remotos
+const _remoteSpeakIntervals = {};
+
+// ── Detector de "falando" para participantes remotos (baseado no áudio recebido) ──
+function _startRemoteSpeakingDetector(uid, stream) {
+  try {
+    if (!stream.getAudioTracks().length) return;
+    if (_remoteAnalysers[uid]) { try{_remoteAnalysers[uid].ctx.close();}catch(e){} }
+    var AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    var ctx = new AudioCtx();
+    var source = ctx.createMediaStreamSource(stream);
+    var analyser = ctx.createAnalyser();
+    analyser.fftSize = 512; analyser.smoothingTimeConstant = 0.7;
+    source.connect(analyser);
+    _remoteAnalysers[uid] = { ctx: ctx, analyser: analyser };
+    clearInterval(_remoteSpeakIntervals[uid]);
+    _remoteSpeakIntervals[uid] = setInterval(function(){
+      var el = document.querySelector('.call-participant[data-uid="'+uid+'"]');
+      if (!el) return;
+      var buf = new Uint8Array(analyser.frequencyBinCount);
+      analyser.getByteFrequencyData(buf);
+      var sum = 0; for (var i=0;i<buf.length;i++) sum += buf[i];
+      var speaking = (sum/buf.length) > (callState.speakThreshold || 12);
+      el.classList.toggle('is-speaking', speaking);
+    }, 80);
+  } catch(e) { console.warn('[Call] Remote speaking detector error:', e); }
+}
+function _stopRemoteSpeakingDetector(uid) {
+  clearInterval(_remoteSpeakIntervals[uid]); delete _remoteSpeakIntervals[uid];
+  if (_remoteAnalysers[uid]) { try{_remoteAnalysers[uid].ctx.close();}catch(e){} delete _remoteAnalysers[uid]; }
+}
 
 function _attachRemoteStream(uid, stream) {
   if (!stream) return;
@@ -14502,6 +14835,8 @@ function _attachRemoteStream(uid, stream) {
     _remoteAudioEls[uid] = el;
   }
   el.srcObject = stream;
+  if (typeof _applyDeafenToStream === 'function') _applyDeafenToStream(uid);
+  if (typeof _startRemoteSpeakingDetector === 'function') _startRemoteSpeakingDetector(uid, stream);
   
   // Vídeo de câmera (se houver track de vídeo no stream)
   var hasVideo = stream.getVideoTracks().length > 0;
@@ -14523,6 +14858,7 @@ function _removeRemoteStream(uid) {
   var el = _remoteAudioEls[uid];
   if (el) { el.srcObject = null; el.remove(); delete _remoteAudioEls[uid]; }
   delete _remoteCamStreams[uid];
+  if (typeof _stopRemoteSpeakingDetector === 'function') _stopRemoteSpeakingDetector(uid);
 }
 
 // ── Pré-visualização opt-in de transmissão de tela (quem NÃO está transmitindo) ──
@@ -14534,6 +14870,7 @@ window._attachPendingScreenShare = function() {
   if (area) { area.classList.add('active'); area.style.display = 'block'; }
   var lbl = document.querySelector('#call-screen-area .call-screen-label');
   if (lbl) lbl.textContent = '🖥 TRANSMISSÃO DE TELA — ' + (_screenShareInfo.name || 'participante');
+  if (typeof _syncScreenVolumeUI === 'function') _syncScreenVolumeUI();
 };
 
 window.showScreenInvite = function(name) {
