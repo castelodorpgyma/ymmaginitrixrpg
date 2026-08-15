@@ -7743,7 +7743,7 @@ function showView(v) {
   if(v==='referencia') { renderOrigens(); renderCustomOrigens(); renderCustomItems(); }
   setTimeout(function(){ if(window.lucide) lucide.createIcons(); }, 50);
   if(v==='equipamentos') { renderCustomItems(); }
-  if(v==='sessao') { renderMediaLibrary(); renderRollFeed(); renderChatFeed(); renderChatTabs(); renderLivePlayersStatus(); updateChatSenders(); setTimeout(initCallCard,80); }
+  if(v==='sessao') { renderMediaLibrary(); renderRollFeed(); renderChatFeed(); renderChatTabs(); renderLivePlayersStatus(); updateChatSenders(); setTimeout(initCallCard,80); setTimeout(function(){ if(typeof _syncCallEntryBtn==='function') _syncCallEntryBtn(); },80); }
 }
 
 // ===== MODAIS =====
@@ -7797,6 +7797,7 @@ function saveCampanha() {
   var bp=document.getElementById('nc-banner-preview'); if(bp){bp.innerHTML='<span style="font-size:1.6rem;opacity:.3">🗺</span>';}
   var nc_status = document.getElementById('nc-status'); if(nc_status) nc_status.value='planejando';
   renderCampanhas(); notify('// campanha "'+nome+'" criada!');
+  if (typeof _syncCallEntryBtn === 'function') _syncCallEntryBtn();
 }
 
 // ═══════════════════════════════════════
@@ -8759,9 +8760,9 @@ function renderCampanhas() {
       + '<div class="cc-mestre">⚔ '+(c.mestre||'—')+(c.criadaEm?' &nbsp;·&nbsp; '+c.criadaEm:'')+'</div>'
       + '<div class="cc-desc">'+(_esc(c.desc)||'<span style="opacity:.3">Sem descrição.</span>')+'</div>'
       + '<div class="cc-actions-row">'
-      + '<button class="btn btn-small btn-primary" onclick="event.stopPropagation();tryEnterCampanha(\'+c.id+\')">👁 Ver</button>'
-      + '<button class="btn btn-small btn-blue" onclick="event.stopPropagation();editCampanha(\'+c.id+\')">✏</button>'
-      + '<button class="btn btn-small btn-danger" onclick="event.stopPropagation();deleteCampanha(\'+c.id+\')">✕</button>'
+      + '<button class="btn btn-small btn-primary" onclick="event.stopPropagation();tryEnterCampanha(\''+c.id+'\')">👁 Ver</button>'
+      + '<button class="btn btn-small btn-blue" onclick="event.stopPropagation();editCampanha(\''+c.id+'\')">✏</button>'
+      + '<button class="btn btn-small btn-danger" onclick="event.stopPropagation();deleteCampanha(\''+c.id+'\')">✕</button>'
       + (c.senhaSet ? '<span class="cc-stat-pill" style="margin-left:auto">🔒 Senha</span>' : '')
       + '</div>'
       + '</div>'
@@ -14059,15 +14060,27 @@ function _fbPushDataNow() {
     _lastSyncedDataStr = str;
     set(_sharedDataRef, data).catch(function(e) {
       console.warn('[dataSync] Falha ao salvar no Firebase:', e.code || e.message);
-      if (typeof showToast === 'function' && e.code === 'PERMISSION_DENIED') {
-        showToast('⚠ Firebase recusou salvar (permissão). Faça login novamente.', 'err');
+      _lastSyncedDataStr = null; // não marca como "enviado" já que falhou — tenta de novo no próximo save()
+      if (typeof showToast === 'function') {
+        if (e.code === 'PERMISSION_DENIED') {
+          showToast('⚠ Firebase recusou salvar (permissão). Faça login novamente.', 'err');
+        } else {
+          showToast('⚠ Não foi possível sincronizar com o Firebase agora: ' + (e.code || e.message), 'warn');
+        }
       }
     });
   } catch(e) { console.error('[dataSync push]', e); }
 }
 // Exposta pro save() (que roda num <script> normal, fora do módulo) chamar.
 // Debounce de 700ms pra não disparar uma escrita no Firebase a cada tecla digitada.
+// IMPORTANTE: só empurra depois que a primeira leitura do Firebase já chegou
+// (_dataSyncSeeded). Sem essa trava, um dispositivo novo — que começa com
+// "data" vazio localmente — podia disparar um save() (ex.: login) ANTES de
+// puxar o estado real do Firebase, e esse "data" vazio sobrescrevia (e
+// apagava) as campanhas/fichas de todo mundo. Foi isso que fez fichas e
+// banners sumirem depois da sincronização entrar no ar.
 window._fbPushData = function() {
+  if (!_dataSyncSeeded) return;
   clearTimeout(_dataPushTimer);
   _dataPushTimer = setTimeout(_fbPushDataNow, 700);
 };
@@ -14084,11 +14097,13 @@ function _applyRemoteData(remote) {
 }
 
 onValue(_sharedDataRef, function(snap) {
+  var isFirstSync = !_dataSyncSeeded;
+
   if (!snap.exists()) {
     // Primeira vez que o Firebase liga (ou nó ainda vazio): usa os dados
     // locais atuais (se houver) como semente, pra não perder o que já
     // existia no dispositivo antes dessa sincronização existir.
-    if (!_dataSyncSeeded) {
+    if (isFirstSync) {
       _dataSyncSeeded = true;
       if (data && ((data.campanhas||[]).length || (data.players||[]).length)) {
         _fbPushDataNow();
@@ -14096,14 +14111,36 @@ onValue(_sharedDataRef, function(snap) {
     }
     return;
   }
-  _dataSyncSeeded = true;
+
   var remote = snap.val();
   var remoteStr = JSON.stringify(remote);
+
+  if (isFirstSync) {
+    _dataSyncSeeded = true;
+    // Proteção contra corrupção/perda: se na PRIMEIRA sincronização o
+    // Firebase vier com MENOS campanhas/fichas do que este dispositivo já
+    // tem localmente (ex.: nó ainda incompleto, ou corrompido por um bug
+    // anterior), NÃO sobrescreve o que já existe aqui — em vez disso,
+    // mantém os dados locais e reenvia pra reparar o Firebase. Depois
+    // dessa primeira reconciliação, o remoto passa a mandar normalmente.
+    var localCamp = (data.campanhas||[]).length, localPl = (data.players||[]).length;
+    var remCamp = (remote.campanhas||[]).length, remPl = (remote.players||[]).length;
+    if ((localCamp > 0 || localPl > 0) && (localCamp > remCamp || localPl > remPl)) {
+      console.warn('[dataSync] Firebase parece incompleto comparado ao que já existe neste dispositivo — mantendo os dados locais e reparando o Firebase.');
+      _lastSyncedDataStr = null; // força reenviar mesmo que pareça igual ao último "enviado"
+      _fbPushDataNow();
+      return;
+    }
+  }
+
   if (remoteStr === _lastSyncedDataStr) return; // é eco do que a gente mesmo acabou de mandar
   _lastSyncedDataStr = remoteStr;
   _applyRemoteData(remote);
 }, function(err) {
   console.warn('[dataSync] onValue falhou (offline ou sem permissão):', err.code || err.message);
+  // Libera o push mesmo assim (modo degradado: só localStorage), senão
+  // fica travado pra sempre esperando uma leitura que nunca vai chegar.
+  _dataSyncSeeded = true;
 });
 
 // ── Presença online ──
