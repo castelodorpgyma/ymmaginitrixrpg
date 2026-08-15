@@ -11283,6 +11283,23 @@ function _stopScreenStream() {
   _syncScreenBtn('idle');
 }
 
+// ── Corrige a área de "TRANSMISSÃO DE TELA" ficando presa/visível sem stream real ──
+// (podia acontecer ao voltar pra call — minimizar/maximizar, reabrir, etc. — deixando
+// a caixa preta em destaque mesmo sem ninguém compartilhando de fato a tela)
+function _syncScreenAreaVisibility() {
+  var area = document.getElementById('call-screen-area');
+  if (!area) return;
+  var minhaTransmissaoReal = callState.screenState === 'active' && !!callState.screenStream;
+  var transmissaoRemotaAceita = typeof _screenPreviewOk !== 'undefined' && _screenPreviewOk &&
+    typeof _pendingScreenStream !== 'undefined' && !!_pendingScreenStream;
+  if (!minhaTransmissaoReal && !transmissaoRemotaAceita) {
+    area.classList.remove('active');
+    area.style.display = 'none';
+    var vid = document.getElementById('call-screen-video');
+    if (vid) { try { vid.srcObject = null; } catch(e){} }
+  }
+}
+
 // ── Abre overlay ──
 function callCanStart() { return !!currentUser; }
 
@@ -11347,6 +11364,7 @@ function openCallOverlay() {
   }
   var _ub=document.getElementById('user-bar'); if(_ub) _ub.classList.add('call-hidden');
   if (!callState.active) _startCall();
+  _syncScreenAreaVisibility();
 }
 
 function closeCallOverlay() {
@@ -11749,6 +11767,7 @@ function maximizeCallFromFloat() {
   if (pip) pip.classList.remove('show');
   clearInterval(window._pipTimerInterval); window._pipTimerInterval = null;
   if (cov) cov.classList.add('open');
+  if (typeof _syncScreenAreaVisibility === 'function') _syncScreenAreaVisibility();
 }
 
 // ── Arrastar a janela flutuante da call (mouse + touch) ──
