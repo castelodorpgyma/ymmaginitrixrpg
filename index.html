@@ -884,6 +884,13 @@ textarea{resize:vertical;min-height:72px;border-radius:var(--r-sm)}
 }
 .ftext-textarea.editing{display:block}
 
+/* Versão compacta do inline-edit pra usar dentro da linha de meta-dados (espécie/idade/altura) — mesmo comportamento, visual de texto simples em vez de bloco grande */
+.fmeta-inline-edit{display:inline-block;vertical-align:middle}
+.fmeta-inline-edit .ftext-block{display:inline-block;background:none;border:none;border-bottom:1px dashed rgba(255,255,255,.25);border-radius:0;padding:0 2px;font-family:inherit;font-size:inherit;color:inherit;line-height:inherit;white-space:nowrap}
+.fmeta-inline-edit .ftext-block:hover{background:rgba(255,255,255,.08)}
+.fmeta-inline-edit .ftext-textarea{display:none;min-height:unset;width:90px;padding:2px 4px;font-family:inherit;font-size:.7rem;line-height:1.2;resize:none}
+.fmeta-inline-edit .ftext-textarea.editing{display:inline-block}
+
 /* INVENTÁRIO */
 .finv-item{
   display:flex;align-items:center;gap:8px;padding:8px 12px;
@@ -2227,6 +2234,14 @@ textarea{resize:vertical;min-height:72px;border-radius:var(--r-sm)}
 .sticker-panel::-webkit-scrollbar-thumb{background:rgba(210,40,40,.2)}
 .sp-title{font-family:'Share Tech Mono',monospace;font-size:.46rem;color:rgba(210,40,40,0.72);letter-spacing:.18em;margin-bottom:8px}
 .sp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(52px,1fr));gap:7px;margin-bottom:8px}
+.sp-tabs{display:flex;gap:4px;margin-bottom:8px}
+.sp-tab{flex:1;padding:6px 4px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:6px;color:rgba(200,205,225,0.72);font-family:'Share Tech Mono',monospace;font-size:.6rem;letter-spacing:.04em;cursor:pointer;transition:all .15s}
+.sp-tab:hover{background:rgba(255,255,255,.06)}
+.sp-tab.active{background:rgba(210,40,40,.18);border-color:rgba(210,40,40,.4);color:#fff}
+.sp-tenor-search{width:100%;box-sizing:border-box;margin-bottom:8px;padding:7px 10px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.1);border-radius:6px;color:#fff;font-family:'Share Tech Mono',monospace;font-size:.7rem}
+.sp-tenor-search:focus{outline:none;border-color:rgba(210,40,40,.4)}
+.sp-tenor-msg{font-family:'Share Tech Mono',monospace;font-size:.58rem;color:rgba(255,255,255,0.72);grid-column:1/-1;text-align:center;padding:8px}
+.sp-grid img.sp-tenor-gif{width:100%;height:100%;object-fit:cover;display:block}
 .sp-item{
   aspect-ratio:1;border-radius:10px;overflow:hidden;cursor:pointer;
   border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.03);
@@ -3767,6 +3782,21 @@ input:valid:not(:placeholder-shown) {
 }
 .call-participant:hover .call-part-mute-btn{ opacity:1; }
 .call-part-mute-btn.is-muted{ background:rgba(242,63,66,.85); opacity:1; }
+/* botão de expandir/ver câmera cheia de um participante */
+.call-part-cam-btn{
+  position:absolute; top:6px; left:6px; z-index:5; width:26px; height:26px; border-radius:50%;
+  background:rgba(30,30,35,.6); border:1px solid rgba(255,255,255,.3); color:#fff; font-size:.75rem;
+  cursor:pointer; display:flex; align-items:center; justify-content:center; opacity:0; transition:opacity .15s,background .15s;
+}
+.call-part-cam-btn:hover{ background:rgba(87,242,135,.35); border-color:rgba(87,242,135,.6); }
+.call-participant:hover .call-part-cam-btn{ opacity:1; }
+/* overlay de câmera em tela cheia */
+.call-cam-fullview{ display:none; position:fixed; inset:0; z-index:100000; background:rgba(0,0,0,.95); align-items:center; justify-content:center; }
+.call-cam-fullview.open{ display:flex; }
+.call-cam-fullview video{ max-width:94%; max-height:88%; border-radius:12px; background:#000; object-fit:contain; }
+.call-cam-fullview .ccfv-name{ position:absolute; top:16px; left:20px; font-family:'Share Tech Mono',monospace; font-size:.75rem; color:rgba(255,255,255,.85); background:rgba(0,0,0,.5); padding:4px 10px; border-radius:6px; letter-spacing:.05em; }
+.call-cam-fullview .ccfv-close{ position:absolute; top:12px; right:16px; background:rgba(255,40,40,.3); border:1px solid rgba(255,60,60,.5); color:#fff; font-size:1.2rem; width:38px; height:38px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+.call-cam-fullview .ccfv-empty{ font-family:'Share Tech Mono',monospace; color:rgba(255,255,255,.6); font-size:.8rem; text-align:center; }
 .call-part-forcemuted-tag{
   position:absolute; bottom:4px; left:4px; right:4px; text-align:center; z-index:5;
   font-family:'Share Tech Mono',monospace; font-size:.5rem; letter-spacing:.05em; color:#ff7f82;
@@ -5020,6 +5050,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   <button class="nav-btn" onclick="showView('referencia')"><i data-lucide="library" class="ni-icon"></i>Referência</button>
   <div class="nav-section">// sessão</div>
   <button class="nav-btn" onclick="showView('sessao')"><i data-lucide="broadcast" class="ni-icon"></i>Sessão<span class="nav-shortcut">^8</span></button>
+  <button class="nav-btn" onclick="toggleChatOverlay()"><i data-lucide="message-circle" class="ni-icon"></i>Conversas</button>
   <div class="sidebar-footer"><div id="_session-timer" title="Tempo de sessão">00:00:00</div><div id="_sb-clock" style="font-family:'Share Tech Mono',monospace;font-size:.6rem;color:rgba(200,205,225,0.72);letter-spacing:.1em;margin-bottom:4px"></div>YMMAGINITRIX · v12<br>BUILD 07/03/2026<br><span id="_conn-badge" style="font-size:.44rem;letter-spacing:.1em;transition:color .3s">● ONLINE</span><br><span id="_last-save-info" style="font-size:.4rem;opacity:.5;letter-spacing:.06em"></span>
     <button id="_sidebar-save-btn" onclick="saveHtmlFile()" style="display:block;margin-top:10px;width:100%;background:rgba(210,40,40,.14);border:1px solid rgba(210,40,40,.38);border-radius:6px;color:rgba(255,120,120,0.9);font-family:'Share Tech Mono',monospace;font-size:.52rem;letter-spacing:.1em;padding:9px;cursor:pointer;transition:all .15s" onmouseover="this.style.background='rgba(210,40,40,.3)';this.style.color='#fff'" onmouseout="this.style.background='rgba(210,40,40,.14)';this.style.color='rgba(255,120,120,.9)'">💾 SALVAR ARQUIVO</button>
     <button onclick="openThemePicker()" style="display:block;margin-top:6px;width:100%;background:rgba(255,200,0,.08);border:1px solid rgba(255,200,0,.25);border-radius:6px;color:rgba(255,200,0,0.72);font-family:'Share Tech Mono',monospace;font-size:.52rem;letter-spacing:.1em;padding:9px;cursor:pointer;transition:all .15s" onmouseover="this.style.background='rgba(255,200,0,.18)'" onmouseout="this.style.background='rgba(255,200,0,.08)'">🎨 TEMAS DO SITE</button>
@@ -5813,12 +5844,21 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
           <div class="chat-typing" id="chat-typing"></div>
           <!-- Sticker panel -->
           <div class="sticker-panel" id="sticker-panel">
-            <div class="sp-title">// FIGURINHAS</div>
-            <div class="sp-grid" id="sp-grid"></div>
-            <label class="sp-upload-lbl" onclick="document.getElementById('sp-upload-input').click()">
-              ＋ Adicionar figurinha (PNG/GIF)
-            </label>
-            <input type="file" id="sp-upload-input" accept="image/*" multiple="" style="display:none" onchange="addStickers(event)">
+            <div class="sp-tabs">
+              <button class="sp-tab active" id="sp-tab-my-" onclick="switchStickerSrc('my','')">// FIGURINHAS</button>
+              <button class="sp-tab" id="sp-tab-tenor-" onclick="switchStickerSrc('tenor','')">🔎 GIFs (Tenor)</button>
+            </div>
+            <div id="sp-my-wrap-">
+              <div class="sp-grid" id="sp-grid"></div>
+              <label class="sp-upload-lbl" onclick="document.getElementById('sp-upload-input').click()">
+                ＋ Adicionar figurinha (PNG/GIF)
+              </label>
+              <input type="file" id="sp-upload-input" accept="image/*" multiple="" style="display:none" onchange="addStickers(event)">
+            </div>
+            <div id="sp-tenor-wrap-" style="display:none">
+              <input type="text" class="sp-tenor-search" id="sp-tenor-q-" placeholder="Buscar GIFs no Tenor..." oninput="_tenorSearchDebounced('', this.value)">
+              <div class="sp-grid" id="sp-grid-tenor-"></div>
+            </div>
           </div>
           <!-- Input area -->
           <div class="chat-input-area">
@@ -6004,10 +6044,19 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     </div>
     <div class="chat-typing" id="chat-typing-ov"></div>
     <div class="sticker-panel" id="sticker-panel-ov">
-      <div class="sp-title">// FIGURINHAS</div>
-      <div class="sp-grid" id="sp-grid-ov"></div>
-      <label class="sp-upload-lbl" onclick="document.getElementById('sp-upload-ov').click()">＋ Adicionar figurinha</label>
-      <input type="file" id="sp-upload-ov" accept="image/*" multiple="" style="display:none" onchange="addStickers(event)">
+      <div class="sp-tabs">
+        <button class="sp-tab active" id="sp-tab-my-ov" onclick="switchStickerSrc('my','ov')">// FIGURINHAS</button>
+        <button class="sp-tab" id="sp-tab-tenor-ov" onclick="switchStickerSrc('tenor','ov')">🔎 GIFs (Tenor)</button>
+      </div>
+      <div id="sp-my-wrap-ov">
+        <div class="sp-grid" id="sp-grid-ov"></div>
+        <label class="sp-upload-lbl" onclick="document.getElementById('sp-upload-ov').click()">＋ Adicionar figurinha</label>
+        <input type="file" id="sp-upload-ov" accept="image/*" multiple="" style="display:none" onchange="addStickers(event)">
+      </div>
+      <div id="sp-tenor-wrap-ov" style="display:none">
+        <input type="text" class="sp-tenor-search" id="sp-tenor-q-ov" placeholder="Buscar GIFs no Tenor..." oninput="_tenorSearchDebounced('ov', this.value)">
+        <div class="sp-grid" id="sp-grid-tenor-ov"></div>
+      </div>
     </div>
     <div class="chat-input-area">
       <div class="chat-fmt-bar">
@@ -6966,7 +7015,60 @@ var selectedRole = 'mestre';
 })();
 
 function saveUsers() {
-  localStorage.setItem(AUTH_KEY, JSON.stringify(authUsers));
+  try { localStorage.setItem(AUTH_KEY, JSON.stringify(authUsers)); }
+  catch(err) {
+    console.error('[saveUsers]', err);
+    showToast('⚠ Não foi possível salvar — armazenamento local cheio. Tente uma imagem de perfil menor.', 'err');
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// UPLOAD DE IMAGEM/GIF (avatar de perfil, de personagem, etc.)
+// Corrige o bug de "não consigo colocar foto/gif no perfil": antes as
+// imagens eram salvas cruas em base64 no localStorage sem nenhum limite,
+// e uma foto de celular ou um GIF grande estourava a cota do navegador —
+// o erro ficava silencioso e a imagem simplesmente não aparecia.
+// Agora: fotos estáticas são redimensionadas/comprimidas automaticamente
+// (canvas), e GIFs (que não dá pra comprimir sem perder a animação) têm
+// um limite de tamanho com aviso claro em vez de falhar do nada.
+// ══════════════════════════════════════════════════════════════════
+function _processAvatarFile(file, cb, opts) {
+  opts = opts || {};
+  var maxDim = opts.maxDim || 512;
+  var quality = opts.quality || 0.85;
+  var maxGifBytes = opts.maxGifBytes || 4 * 1024 * 1024; // 4MB pra GIF (não dá pra comprimir sem quebrar a animação)
+  if (!file) return;
+  if (!/^image\//.test(file.type)) { showToast('⚠ Selecione um arquivo de imagem ou GIF','warn'); return; }
+
+  var isGif = file.type === 'image/gif';
+  if (isGif && file.size > maxGifBytes) {
+    showToast('⚠ GIF muito grande (máx '+(maxGifBytes/1024/1024).toFixed(1)+'MB) — escolha um GIF menor','warn');
+    return;
+  }
+
+  var reader = new FileReader();
+  reader.onload = function(ev) {
+    var dataUrl = ev.target.result;
+    if (isGif) { cb(dataUrl); return; } // GIF: mantém como está, pra não perder a animação
+    // Imagem estática: redimensiona/comprime via canvas antes de salvar
+    var img = new Image();
+    img.onload = function() {
+      try {
+        var w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+        var scale = Math.min(1, maxDim / Math.max(w, h));
+        var cw = Math.max(1, Math.round(w * scale)), ch = Math.max(1, Math.round(h * scale));
+        var canvas = document.createElement('canvas');
+        canvas.width = cw; canvas.height = ch;
+        var ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, cw, ch);
+        cb(canvas.toDataURL('image/jpeg', quality));
+      } catch(e) { console.warn('[_processAvatarFile] compress falhou, usando original', e); cb(dataUrl); }
+    };
+    img.onerror = function(){ cb(dataUrl); };
+    img.src = dataUrl;
+  };
+  reader.onerror = function(){ showToast('⚠ Não foi possível ler o arquivo','err'); };
+  reader.readAsDataURL(file);
 }
 
 function exportarHTML() {
@@ -7000,16 +7102,14 @@ function selectRole(role) {
 
 function previewAuthAvatar(e) {
   var file = e.target.files[0]; if(!file) return;
-  var reader = new FileReader();
-  reader.onload = function(ev) {
+  _processAvatarFile(file, function(dataUrl) {
     var wrap = document.getElementById('cad-avatar-preview');
     if (!wrap) return;
-    wrap.innerHTML = '<img src="'+ev.target.result+'" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:50%"><div class="auth-av-ov">📷</div>';
+    wrap.innerHTML = '<img src="'+dataUrl+'" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:50%"><div class="auth-av-ov">📷</div>';
     wrap.style.border = '2px solid rgba(150,60,255,.6)';
     wrap.style.boxShadow = '0 0 16px rgba(130,40,255,.2)';
-    document.getElementById('cad-avatar-data').value = ev.target.result;
-  };
-  reader.readAsDataURL(file);
+    document.getElementById('cad-avatar-data').value = dataUrl;
+  });
 }
 
 function loginSuccess(user) {
@@ -8971,10 +9071,20 @@ function renderFichaSelect() {
   var cur = sel.value;
   var list = data.players;
   if(currentUser && currentUser.role === 'player') {
-    list = data.players.filter(function(p){ return p.player.toLowerCase() === currentUser.username.toLowerCase(); });
+    // Personagens do próprio jogador
+    var myChars = data.players.filter(function(p){ return p.player.toLowerCase() === currentUser.username.toLowerCase(); });
+    // Todo mundo pode VER os personagens de quem divide a mesma campanha (só o Mestre pode editar os dos outros)
+    var myCampIds = {};
+    myChars.forEach(function(p){ if(p.campanha) myCampIds[p.campanha] = true; });
+    list = data.players.filter(function(p){
+      return p.player.toLowerCase() === currentUser.username.toLowerCase() || (p.campanha && myCampIds[p.campanha]);
+    });
   }
   sel.innerHTML = '<option value="">Selecionar personagem...</option>' +
-    list.map(function(p){ return '<option value="'+p.id+'">'+p.nome+' ('+p.player+')</option>'; }).join('');
+    list.map(function(p){
+      var mine = currentUser && p.player.toLowerCase() === currentUser.username.toLowerCase();
+      return '<option value="'+p.id+'">'+p.nome+' ('+p.player+')'+(mine?'':' 👁')+'</option>';
+    }).join('');
   if(cur) sel.value = cur;
 }
 
@@ -9083,9 +9193,9 @@ function renderFichaView() {
           <div class="ficha-nome">${p.nome}</div>
           ${p.vulgo ? `<div class="ficha-vulgo">// "${p.vulgo}" //</div>` : ''}
           <div class="ficha-meta-line">
-            <span>${p.especie||'Humano'}</span><span class="ficha-meta-sep">·</span>
-            <span>${p.idade||'?'} anos</span><span class="ficha-meta-sep">·</span>
-            <span>${p.altura||'?'}</span>
+            ${canEdit ? `<span class="fmeta-inline-edit">${textEl('especie', p.especie, 'Humano')}</span>` : `<span>${p.especie||'Humano'}</span>`}<span class="ficha-meta-sep">·</span>
+            ${canEdit ? `<span class="fmeta-inline-edit">${textEl('idade', p.idade, '?')}</span> anos` : `<span>${p.idade||'?'} anos</span>`}<span class="ficha-meta-sep">·</span>
+            ${canEdit ? `<span class="fmeta-inline-edit">${textEl('altura', p.altura, '?')}</span>` : `<span>${p.altura||'?'}</span>`}
             ${camp ? `<span class="ficha-meta-sep">·</span><span style="color:rgba(255,160,160,0.72)">📍 ${camp.nome}</span>` : ''}
           </div>
         </div>
@@ -9479,13 +9589,11 @@ function cancelTextEdit(eid) {
 // ── TROCAR AVATAR DIRETO NA FICHA ─────────────────────────────────────────────
 function changeFichaAvatar(playerId, input) {
   var file = input.files[0]; if(!file) return;
-  var reader = new FileReader();
-  reader.onload = function(e) {
+  _processAvatarFile(file, function(dataUrl) {
     var p = data.players.find(x=>x.id===playerId); if(!p) return;
-    p.avatar = e.target.result;
+    p.avatar = dataUrl;
     save(); renderFichaView();
-  };
-  reader.readAsDataURL(file);
+  });
   input.value = '';
 }
 
@@ -10940,14 +11048,12 @@ function triggerCelebration(nome, tipo) {
 function previewImg(event, previewId, dataId) {
   var file = event.target.files[0];
   if(!file) return;
-  var reader = new FileReader();
-  reader.onload = function(e) {
+  _processAvatarFile(file, function(dataUrl) {
     var el = document.getElementById(previewId);
-    if(el) el.innerHTML = '<img src="'+e.target.result+'" style="width:100%;height:100%;object-fit:cover">';
+    if(el) el.innerHTML = '<img src="'+dataUrl+'" style="width:100%;height:100%;object-fit:cover">';
     var dataEl = document.getElementById(dataId);
-    if(dataEl) dataEl.value = e.target.result;
-  };
-  reader.readAsDataURL(file);
+    if(dataEl) dataEl.value = dataUrl;
+  });
 }
 
 
@@ -11053,10 +11159,9 @@ function closeProfileModal() {
 
 function updateProfileAvatar(e) {
   var file = e.target.files[0]; if (!file) return;
-  var r = new FileReader();
-  r.onload = function(ev) {
+  _processAvatarFile(file, function(dataUrl) {
     if (!currentUser) return;
-    currentUser.avatar = ev.target.result;
+    currentUser.avatar = dataUrl;
     var idx = authUsers.findIndex(function(u){ return u.id === currentUser.id; });
     if (idx !== -1) authUsers[idx].avatar = currentUser.avatar;
     saveUsers();
@@ -11069,24 +11174,21 @@ function updateProfileAvatar(e) {
       + '<div class="profile-avatar-overlay">📷</div>'
       + '<input type="file" id="prof-avatar-input-extra2" accept="image/*" style="display:none" onchange="updateProfileAvatar(event)">';
     showToast('✓ Avatar atualizado', 'ok');
-  };
-  r.readAsDataURL(file);
+  });
 }
 
 function updateProfileBanner(e) {
   var file = e.target.files[0]; if (!file) return;
-  var r = new FileReader();
-  r.onload = function(ev) {
+  _processAvatarFile(file, function(dataUrl) {
     if (!currentUser) return;
-    currentUser.banner = ev.target.result;
+    currentUser.banner = dataUrl;
     var idx = authUsers.findIndex(function(u){ return u.id === currentUser.id; });
     if (idx !== -1) authUsers[idx].banner = currentUser.banner;
     saveUsers();
     var img = document.getElementById('prof-banner-img');
     if (img) { img.src = currentUser.banner; img.style.display = 'block'; }
     showToast('✓ Banner atualizado', 'ok');
-  };
-  r.readAsDataURL(file);
+  }, { maxDim: 1200, quality: 0.82 });
 }
 
 function changePassword() {
@@ -11523,7 +11625,8 @@ function _stopCamStream() {
 function _stopScreenStream() {
   if (callState.screenStream) { callState.screenStream.getTracks().forEach(function(t){t.stop();}); callState.screenStream = null; }
   var scvid = document.getElementById('call-screen-video'); if(scvid){try{scvid.srcObject=null;}catch(e){}}
-  var area = document.getElementById('call-screen-area'); if(area) area.classList.remove('active');
+  var area = document.getElementById('call-screen-area');
+  if(area) { area.classList.remove('active'); area.style.display = 'none'; } // limpa o display:block inline (senão a caixa preta fica presa mesmo sem stream)
   callState.screenState = 'idle';
   _syncScreenBtn('idle');
 }
@@ -12433,6 +12536,7 @@ function buildParticipantCard(user, isLocal, uid, canModerate) {
   var muteBtn = (!isLocal && canModerate)
     ? '<button class="call-part-mute-btn'+(user.forceMuted?' is-muted':'')+'" title="'+(user.forceMuted?'Reativar microfone':'Silenciar participante')+'" onclick="callForceMuteToggle(\''+uid+'\')">🔇</button>'
     : '';
+  var camBtn = '<button class="call-part-cam-btn" title="Ver câmera cheia" onclick="callViewParticipantCamera(\''+uid+'\','+(isLocal?'true':'false')+')">⛶</button>';
   var forcedTag = (!isLocal && user.forceMuted) ? '<div class="call-part-forcemuted-tag">🔇 SILENCIADO PELO MESTRE</div>' : '';
 
   // Barras vitais (Vida / Sanidade / Estamina) — da customização da call e/ou da ficha vinculada
@@ -12458,6 +12562,7 @@ function buildParticipantCard(user, isLocal, uid, canModerate) {
     +'<div class="call-part-muted '+muteVis+'">🔇</div>'
     +'<div class="call-part-dice" id="call-dice-'+uid+'"></div>'
     +muteBtn
+    +camBtn
     +forcedTag
     +'</div>'
     +'<div class="call-part-name">'+(isLocal?'(Você) ':'')+esc(name)+(charName?' <span class="call-part-charname">— '+esc(charName)+'</span>':'')+'</div>'
@@ -12466,7 +12571,43 @@ function buildParticipantCard(user, isLocal, uid, canModerate) {
     +'</div>';
 }
 
-// ── Mestre/permissão: silenciar/reativar um participante à força (via Firebase) ──
+// ── Ver câmera de um participante em tela cheia (local ou remoto) ──
+function callViewParticipantCamera(uid, isLocal) {
+  var stream = isLocal ? callState.camStream : (typeof _remoteCamStreams !== 'undefined' ? _remoteCamStreams[uid] : null);
+  var ov = document.getElementById('call-cam-fullview');
+  var vid = document.getElementById('call-cam-fullview-vid');
+  var empty = document.getElementById('call-cam-fullview-empty');
+  var nameEl = document.getElementById('call-cam-fullview-name');
+  if (!ov || !vid) return;
+
+  var card = document.querySelector('.call-participant[data-uid="'+uid+'"]');
+  var displayName = card ? (card.getAttribute('data-char') || card.getAttribute('data-sender') || 'Participante') : 'Participante';
+  if (nameEl) nameEl.textContent = displayName;
+
+  if (!stream || !stream.getVideoTracks || !stream.getVideoTracks().length) {
+    vid.style.display = 'none';
+    vid.srcObject = null;
+    if (empty) empty.style.display = 'block';
+  } else {
+    if (empty) empty.style.display = 'none';
+    vid.style.display = 'block';
+    vid.muted = isLocal; // evita eco da própria câmera; câmera remota já tem áudio tratado separadamente
+    vid.srcObject = stream;
+    var p = vid.play(); if (p && p.catch) p.catch(function(){});
+  }
+  ov.classList.add('open');
+}
+function closeCameraFullview() {
+  var ov = document.getElementById('call-cam-fullview');
+  var vid = document.getElementById('call-cam-fullview-vid');
+  if (vid) { try { vid.srcObject = null; } catch(e){} }
+  if (ov) ov.classList.remove('open');
+}
+document.addEventListener('keydown', function(e){
+  if (e.key === 'Escape') { var ov=document.getElementById('call-cam-fullview'); if(ov && ov.classList.contains('open')) closeCameraFullview(); }
+});
+
+
 function callForceMuteToggle(uid) {
   var isMestreLocal = currentUser && (currentUser.role === 'mestre' || currentUser.role === 'ambos');
   var canModerate = isMestreLocal || (callState.callPermissions.indexOf(currentUser && currentUser.id) !== -1);
@@ -12551,6 +12692,33 @@ function saveStickers() {
 }
 
 // ── Tab management ──
+// Lista de pessoas com quem dá pra conversar em privado: qualquer um que
+// divida uma campanha com o usuário atual (jogadores com ficha na mesma
+// campanha + o(s) Mestre(s) dela) — antes a lista trazia TODOS os usuários
+// não-mestre do app inteiro, e nem dava pra falar com o Mestre no PV.
+function _getChatPeers() {
+  if(!currentUser) return [];
+  var myCampIds = {};
+  (data.campanhas||[]).forEach(function(c){ if(isMestreDa(c)) myCampIds[c.id] = true; });
+  (data.players||[]).forEach(function(p){
+    if(p.player && p.player.toLowerCase() === currentUser.username.toLowerCase() && p.campanha) myCampIds[p.campanha] = true;
+  });
+  if(!Object.keys(myCampIds).length) {
+    // ainda sem campanha própria registrada: mantém a lista completa pra não travar quem tá testando
+    return (authUsers||[]).filter(function(u){ return u.id !== currentUser.id; });
+  }
+  var peerIds = {};
+  (data.players||[]).forEach(function(p){
+    if(p.campanha && myCampIds[p.campanha] && p.player) {
+      var u = (authUsers||[]).find(function(x){ return x.username && x.username.toLowerCase() === p.player.toLowerCase(); });
+      if(u) peerIds[u.id] = true;
+    }
+  });
+  (data.campanhas||[]).forEach(function(c){ if(myCampIds[c.id] && c.mestreId) peerIds[c.mestreId] = true; });
+  delete peerIds[currentUser.id];
+  return (authUsers||[]).filter(function(u){ return peerIds[u.id]; });
+}
+
 function openChatTab(tabId) {
   chatState.activeTab = tabId;
   cancelReply();
@@ -12571,11 +12739,12 @@ function renderChatTabs() {
   var geralTab = document.getElementById('ctab-geral');
   if(geralTab) geralTab.classList.toggle('active', chatState.activeTab === 'geral');
   // build PV tabs
-  var players = (authUsers||[]).filter(function(u){ return u.role!=='mestre' && (!currentUser || u.id!==currentUser.id); });
+  var players = _getChatPeers();
   pvTabs.innerHTML = players.map(function(u){
     var isActive = chatState.activeTab === u.id;
+    var isMestreU = u.role === 'mestre' || u.role === 'ambos';
     return '<div class="chat-tab-pill'+(isActive?' active':'')+'" onclick="openChatTab(\''+u.id+'\')" style="position:relative">'
-      + '🔒 '+(u.username||u.nome||'Player')
+      + (isMestreU?'🗡 ':'🔒 ')+(u.username||u.nome||'Player')
       + '</div>';
   }).join('');
 }
@@ -12585,11 +12754,12 @@ function renderChatTabsOv() {
   // mirror for overlay chat
   var pvTabsOv = document.getElementById('chat-pv-tabs-ov');
   if(!pvTabsOv) return;
-  var players = (authUsers||[]).filter(function(u){ return u.role!=='mestre' && (!currentUser || u.id!==currentUser.id); });
+  var players = _getChatPeers();
   pvTabsOv.innerHTML = players.map(function(u){
     var isActive = chatState.activeTab === u.id;
+    var isMestreU = u.role === 'mestre' || u.role === 'ambos';
     return '<div class="chat-tab-pill'+(isActive?' active':'')+'" onclick="openChatTab(\''+u.id+'\')" style="position:relative">'
-      + '🔒 '+(u.username||u.nome||'Player')
+      + (isMestreU?'🗡 ':'🔒 ')+(u.username||u.nome||'Player')
       + '</div>';
   }).join('');
   var geralOv = document.getElementById('ctab-geral-ov');
@@ -12968,6 +13138,73 @@ function sendSticker(id) {
   if(panel) panel.style.display = 'none';
 }
 
+// ══════════════════════════════════════════════════════════════════
+// TENOR — busca e envio de GIFs/figurinhas animadas direto no chat
+// ══════════════════════════════════════════════════════════════════
+// Chave pública de demonstração da própria Tenor (documentada nos exemplos
+// oficiais de quickstart da API). Funciona out-of-the-box, mas tem cota
+// baixa e compartilhada — pra uso sério da campanha, troque pela sua
+// chave gratuita em https://tenor.com/developer/keyregistration e cole
+// em Perfil › em breve, ou direto no console: localStorage.setItem('ymm_tenor_key','SUA_CHAVE')
+var TENOR_DEMO_KEY = 'LIVDSRZULELA';
+function _tenorApiKey() {
+  return localStorage.getItem('ymm_tenor_key') || TENOR_DEMO_KEY;
+}
+function switchStickerSrc(mode, suffix) {
+  var s = suffix || '';
+  var tabMy = document.getElementById('sp-tab-my-'+s);
+  var tabTenor = document.getElementById('sp-tab-tenor-'+s);
+  var wrapMy = document.getElementById('sp-my-wrap-'+s);
+  var wrapTenor = document.getElementById('sp-tenor-wrap-'+s);
+  if(!tabMy || !tabTenor || !wrapMy || !wrapTenor) return;
+  var isTenor = mode === 'tenor';
+  tabMy.classList.toggle('active', !isTenor);
+  tabTenor.classList.toggle('active', isTenor);
+  wrapMy.style.display = isTenor ? 'none' : '';
+  wrapTenor.style.display = isTenor ? '' : 'none';
+  if(isTenor) {
+    var grid = document.getElementById('sp-grid-tenor-'+s);
+    if(grid && !grid.dataset.loaded) { grid.dataset.loaded = '1'; _tenorFetch(s, ''); } // carrega "em alta" na primeira vez
+  }
+}
+var _tenorDebounceTimers = {};
+function _tenorSearchDebounced(suffix, q) {
+  var s = suffix || '';
+  clearTimeout(_tenorDebounceTimers[s]);
+  _tenorDebounceTimers[s] = setTimeout(function(){ _tenorFetch(s, q); }, 400);
+}
+function _tenorFetch(suffix, q) {
+  var s = suffix || '';
+  var grid = document.getElementById('sp-grid-tenor-'+s);
+  if(!grid) return;
+  grid.innerHTML = '<div class="sp-tenor-msg">Buscando...</div>';
+  var endpoint = q && q.trim()
+    ? 'https://tenor.googleapis.com/v2/search?q='+encodeURIComponent(q.trim())+'&key='+_tenorApiKey()+'&client_key=ymmaginitrix&limit=24&media_filter=tinygif,gif&contentfilter=medium'
+    : 'https://tenor.googleapis.com/v2/featured?key='+_tenorApiKey()+'&client_key=ymmaginitrix&limit=24&media_filter=tinygif,gif&contentfilter=medium';
+  fetch(endpoint).then(function(r){ if(!r.ok) throw new Error('http '+r.status); return r.json(); }).then(function(data){
+    var results = data && data.results || [];
+    if(!results.length) { grid.innerHTML = '<div class="sp-tenor-msg">Nenhum GIF encontrado.</div>'; return; }
+    grid.innerHTML = results.map(function(r){
+      var mf = r.media_formats || {};
+      var thumb = (mf.tinygif && mf.tinygif.url) || (mf.gif && mf.gif.url) || '';
+      var full = (mf.gif && mf.gif.url) || thumb;
+      if(!thumb) return '';
+      return '<div class="sp-tenor-item" data-full="'+encodeURIComponent(full)+'" onclick="_sendTenorGif(this,\''+s+'\')" style="cursor:pointer;border-radius:4px;overflow:hidden;background:rgba(255,255,255,.04);aspect-ratio:1;border:1px solid transparent" onmouseover="this.style.borderColor=\'var(--c-accent)\'" onmouseout="this.style.borderColor=\'transparent\'"><img class="sp-tenor-gif" src="'+thumb+'" loading="lazy"></div>';
+    }).join('');
+  }).catch(function(err){
+    console.error('[Tenor]', err);
+    grid.innerHTML = '<div class="sp-tenor-msg">⚠ Não foi possível buscar GIFs agora.<br>Verifique sua conexão ou tente de novo em instantes.</div>';
+  });
+}
+function _sendTenorGif(el, suffix) {
+  if(!currentUser) return;
+  var full = decodeURIComponent(el.dataset.full || '');
+  if(!full) return;
+  pushChatMsg({ sticker: full, pvTo: chatState.activeTab !== 'geral' ? chatState.activeTab : null });
+  if(suffix === 'ov') { toggleStickerPanelOv(); }
+  else { chatState.stickersVisible = false; var panel = document.getElementById('sticker-panel'); if(panel) panel.style.display = 'none'; }
+}
+
 /* ══════════════════════════════════════════════════
    FULLSCREEN para live-display e media-thumb
 ══════════════════════════════════════════════════ */
@@ -12988,7 +13225,7 @@ function initCallCard() {
   openBtn.innerHTML = '<span class="call-dot"></span>&nbsp;'+(callState.active?'VOLTAR PARA CALL':'ENTRAR NA CALL');
   openBtn.style.opacity = ''; openBtn.style.cursor = '';
 }
-</script><div id="ymm-lightbox" style="display: none; position: fixed; inset: 0px; z-index: 99999; background: rgba(0, 0, 0, 0.95); align-items: center; justify-content: center; cursor: zoom-out; touch-action: manipulation;"><video id="call-vid-preview" style="display:none;max-width:100%;max-height:100%;object-fit:contain" controls="" autoplay="" loop="" playsinline=""></video><img id="call-img-preview" style="display:none;max-width:100%;max-height:100%;object-fit:contain" alt=""><button onclick="closeLightbox()" style="position:absolute;top:12px;right:16px;background:rgba(255,40,40,.3);border:1px solid rgba(255,60,60,.5);color:#fff;font-size:1.2rem;width:38px;height:38px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center">✕</button></div>
+</script><div id="ymm-lightbox" style="display: none; position: fixed; inset: 0px; z-index: 99999; background: rgba(0, 0, 0, 0.95); align-items: center; justify-content: center; cursor: zoom-out; touch-action: manipulation;"><video id="call-vid-preview" style="display:none;max-width:100%;max-height:100%;object-fit:contain" controls="" autoplay="" loop="" playsinline=""></video><img id="call-img-preview" style="display:none;max-width:100%;max-height:100%;object-fit:contain" alt=""><button onclick="closeLightbox()" style="position:absolute;top:12px;right:16px;background:rgba(255,40,40,.3);border:1px solid rgba(255,60,60,.5);color:#fff;font-size:1.2rem;width:38px;height:38px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center">✕</button></div><div id="call-cam-fullview" class="call-cam-fullview"><div class="ccfv-name" id="call-cam-fullview-name"></div><video id="call-cam-fullview-vid" autoplay playsinline></video><div class="ccfv-empty" id="call-cam-fullview-empty" style="display:none">📷 Câmera desligada no momento</div><button class="ccfv-close" onclick="closeCameraFullview()">✕</button></div>
 
 
 
@@ -18162,6 +18399,7 @@ s.textContent=`
 .op-inv-item:hover{border-color:rgba(210,40,40,.2);background:rgba(255,255,255,.04)}
 .op-inv-item.equipado{border-color:rgba(80,220,120,.3);background:rgba(50,200,80,.05)}
 .op-inv-icon{font-size:1.1rem;flex-shrink:0;width:26px;text-align:center}
+.op-inv-icon-img{width:26px;height:26px;border-radius:6px;background-size:cover;background-position:center;flex-shrink:0}
 .op-inv-info{flex:1;min-width:0}
 .op-inv-name{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.85rem;color:rgba(220,225,240,0.9);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .op-inv-sub{font-family:'Share Tech Mono',monospace;font-size:.45rem;color:rgba(200,205,225,0.72);letter-spacing:.04em;margin-top:1px}
@@ -18788,7 +19026,7 @@ function _buildIYCatalogHTML(pid) {
             '<div class="op-cat-item-desc">'+esc(iy.efeito)+'</div>'+
           '</div>'+
           (unlocked
-            ? '<button class="op-cat-add-btn" onclick="opAddCatalogIY(\''+pid+'\','+JSON.stringify(iy).replace(/'/g,"&#39;")+')" title="Adicionar à ficha">+</button>'
+            ? '<button class="op-cat-add-btn" data-pid="'+pid+'" data-iy="'+encodeURIComponent(JSON.stringify(iy))+'" onclick="opAddCatalogIYEnc(this)" title="Adicionar à ficha">+</button>'
             : '<div style="font-size:1rem;opacity:.2">🔒</div>'
           )+
         '</div>';
@@ -18887,11 +19125,24 @@ function opRenderHabGerais(p, canEdit) {
     return '<div class="op-iy-empty">// Nenhuma habilidade geral aprendida ainda //<br><span style="font-size:.68rem;opacity:.7">Habilidades livres do Capítulo 12 — clique em + HABILIDADE.</span></div>';
   }
   return '<div style="display:flex;flex-wrap:wrap;gap:6px">' + hg.map(function(h, i) {
+    var imgHtml = h.imagem ? '<img src="'+h.imagem+'" style="width:16px;height:16px;border-radius:4px;object-fit:cover;vertical-align:-3px;margin-right:3px">' : '';
     return '<span class="hab-tipo-badge hab-tipo-ativa" style="cursor:help;position:relative" title="' + esc(h.desc || '') + (h.custo && h.custo !== '—' ? ' (Custo: ' + esc(h.custo) + ')' : '') + '">'
-      + '◆ ' + esc(h.nome)
-      + (canEdit ? ' <span onclick="opRemoverHabGeral(\'' + p.id + '\',' + i + ')" style="cursor:pointer;opacity:.7;margin-left:4px">✕</span>' : '')
+      + imgHtml + (imgHtml ? '' : '◆ ') + esc(h.nome)
+      + (canEdit ? ' <label style="cursor:pointer;opacity:.7;margin-left:4px" title="Imagem da habilidade">🖼<input type="file" accept="image/*" style="display:none" onchange="opSetHabGeralImagem(\'' + p.id + '\',' + i + ',this)"></label>' : '')
+      + (canEdit ? ' <span onclick="opRemoverHabGeral(\'' + p.id + '\',' + i + ')" style="cursor:pointer;opacity:.7;margin-left:2px">✕</span>' : '')
       + '</span>';
   }).join('') + '</div>';
+}
+
+function opSetHabGeralImagem(pid, idx, input) {
+  var file = input.files && input.files[0]; if (!file) return;
+  _processAvatarFile(file, function(dataUrl) {
+    var p = data.players.find(function(x){return x.id===pid;}); if(!p) return;
+    var h = (p.opHabGerais||[])[idx]; if(!h) return;
+    h.imagem = dataUrl;
+    save(); renderFichaView();
+    showToast('🖼 Imagem da habilidade atualizada','ok');
+  }, { maxDim: 200, quality: 0.82 });
 }
 
 function opAbrirAddHabGeral(pid) {
@@ -18906,7 +19157,7 @@ function opAbrirAddHabGeral(pid) {
         (h.custo && h.custo !== '—' ? '<div class="op-cat-item-sub"><span>Custo: ' + esc(h.custo) + '</span></div>' : '') +
         '<div class="op-cat-item-desc">' + esc(h.desc) + '</div>' +
       '</div>' +
-      (already ? '' : '<button class="op-cat-add-btn" onclick="opAddCatalogHabGeral(\'' + pid + '\',' + JSON.stringify(h).replace(/'/g,'&#39;') + ')">+</button>') +
+      (already ? '' : '<button class="op-cat-add-btn" data-pid="' + pid + '" data-h="' + encodeURIComponent(JSON.stringify(h)) + '" onclick="opAddCatalogHabGeralEnc(this)">+</button>') +
     '</div>';
   }).join('');
 
@@ -18934,6 +19185,7 @@ function opAbrirAddHabGeral(pid) {
   ov.addEventListener('click', function(e){ if(e.target===ov) ov.remove(); });
 }
 
+function opAddCatalogHabGeralEnc(btn){var pid=btn.dataset.pid;var h=JSON.parse(decodeURIComponent(btn.dataset.h));opAddCatalogHabGeral(pid,h);}
 function opAddCatalogHabGeral(pid, h) {
   var p = data.players.find(function(x){return x.id===pid;}); if(!p) return;
   if (!p.opHabGerais) p.opHabGerais = [];
@@ -19016,7 +19268,7 @@ function _buildCatalogHTML(pid) {
         (it.desc?'<div class="op-cat-item-desc">'+esc(it.desc)+'</div>':'')+
       '</div>'+
       (!locked
-        ? '<button class="op-cat-add-btn" onclick="opAddCatalogItem(\''+pid+'\','+JSON.stringify(it).replace(/'/g,"&#39;")+')">+</button>'
+        ? '<button class="op-cat-add-btn" data-pid="'+pid+'" data-it="'+encodeURIComponent(JSON.stringify(it))+'" onclick="opAddCatalogItemEnc(this)">+</button>'
         : '<div style="font-size:1rem;opacity:.2">🔒</div>'
       )+
     '</div>';
@@ -19233,14 +19485,18 @@ function opRenderInventarioPro(p,canEdit){
     filtered.forEach(function(it){
       var realIdx=itens.indexOf(it);
       var icon=OP_INV_ICONS[it.categoria]||'📦';
+      var iconHtml = it.imagem
+        ? '<span class="op-inv-icon op-inv-icon-img" style="background-image:url(\''+it.imagem+'\')"></span>'
+        : '<span class="op-inv-icon">'+icon+'</span>';
       html+='<div class="op-inv-item'+(it.equipado?' equipado':'')+'">'
-        +'<span class="op-inv-icon">'+icon+'</span>'
+        +iconHtml
         +'<div class="op-inv-info">'
         +'<div class="op-inv-name">'+esc(it.nome)+(it.equipado?' <span style="font-size:.44rem;color:rgba(80,220,120,0.72)">[EQUIPADO]</span>':'')+'</div>'
         +'<div class="op-inv-sub">'+(it.dano?'Dano:'+esc(it.dano)+' · ':it.categoria==='yma'?'YMA · ':'')+( it.peso?'Peso:'+it.peso+'kg · ':'')+esc(it.desc||'')+'</div>'
         +'</div>'
         +'<span class="op-inv-qty">×'+(it.qty||1)+'</span>'
         +(canEdit?'<div class="op-inv-btns">'
+          +'<label class="op-inv-btn" title="Imagem do item" style="cursor:pointer">🖼<input type="file" accept="image/*" style="display:none" onchange="opSetItemImagem(\''+p.id+'\','+realIdx+',this)"></label>'
           +'<button class="op-inv-btn eq" onclick="opToggleEquipar(\''+p.id+'\','+realIdx+')" title="'+(it.equipado?'Desequipar':'Equipar')+'">'+(it.equipado?'✓':'○')+'</button>'
           +'<button class="op-inv-btn" onclick="opRemoverItem(\''+p.id+'\','+realIdx+')" title="Remover">✕</button>'
           +'</div>':'')
@@ -19248,6 +19504,17 @@ function opRenderInventarioPro(p,canEdit){
     });
   }
   return html;
+}
+
+function opSetItemImagem(pid, idx, input) {
+  var file = input.files && input.files[0]; if (!file) return;
+  _processAvatarFile(file, function(dataUrl) {
+    var p = data.players.find(function(x){return x.id===pid;}); if(!p) return;
+    var it = (p.opInventario||[])[idx]; if(!it) return;
+    it.imagem = dataUrl;
+    save(); renderFichaView();
+    showToast('🖼 Imagem do item atualizada','ok');
+  }, { maxDim: 200, quality: 0.82 });
 }
 
 function opSetInvCat(pid,cat){window['_opInvCat_'+pid]=cat;renderFichaView();}
@@ -19365,7 +19632,7 @@ function _buildCatalogHTML(pid) {
         '</div>'+
         (it.desc?'<div class="op-cat-item-desc">'+esc(it.desc)+'</div>':'')+
       '</div>'+
-      '<button class="op-cat-add-btn" onclick="opAddCatalogItem(\''+pid+'\','+JSON.stringify(it).replace(/'/g,"&#39;")+')">+</button>'+
+      '<button class="op-cat-add-btn" data-pid="'+pid+'" data-it="'+encodeURIComponent(JSON.stringify(it))+'" onclick="opAddCatalogItemEnc(this)">+</button>'+
     '</div>';
   }).join('');
 
