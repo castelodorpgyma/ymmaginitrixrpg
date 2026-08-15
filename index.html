@@ -6973,6 +6973,10 @@ var data = { campanhas:[], players:[], customItems:[], customOrigens:[], customH
 function save() {
   try {
     localStorage.setItem('ymm_data', JSON.stringify(data));
+    // Sobe pro Firebase também (se já estiver carregado) — é isso que faz
+    // campanhas/fichas aparecerem em QUALQUER dispositivo logado na mesma
+    // conta, e não só no navegador onde foram criadas.
+    if (typeof window._fbPushData === 'function') window._fbPushData();
     // Feedback visual sutil no botão salvar
     // Atualiza timestamp de último save
     var saveInfo = document.getElementById('_last-save-info');
@@ -14026,6 +14030,81 @@ const gProvider = new GoogleAuthProvider();
 gProvider.addScope('email');
 gProvider.addScope('profile');
 gProvider.setCustomParameters({ prompt: 'select_account' });
+
+// ════════════════════════════════════════════════════════════════════════
+//  SYNC DE "data" (campanhas + fichas + itens/origens/habilidades custom)
+//  ------------------------------------------------------------------------
+//  ANTES: `data` só existia no localStorage do navegador — por isso
+//  campanhas/fichas criadas no PC nunca apareciam no celular (localStorage
+//  é por navegador/origem, não por conta), e trocar o domínio do site no
+//  GitHub Pages também "perdia" tudo (localStorage é preso à origem/URL).
+//  Além disso o Catálogo (globalCampaigns) já era global no Firebase,
+//  então às vezes uma campanha aparecia ali mas cadê os personagens dela?
+//  — porque data.players nunca saía do dispositivo. Isso também causava
+//  o "você não está em uma campanha" na hora de entrar na call.
+//
+//  AGORA: `data` inteiro é espelhado em tempo real no Firebase (nó
+//  "sharedData"), do mesmo jeito que já é feito com o chat/rolagens/
+//  presença. localStorage continua existindo como cache offline.
+// ════════════════════════════════════════════════════════════════════════
+const _sharedDataRef = ref(db, 'sharedData');
+let _lastSyncedDataStr = null;
+let _dataPushTimer = null;
+let _dataSyncSeeded = false;
+
+function _fbPushDataNow() {
+  try {
+    var str = JSON.stringify(data);
+    if (str === _lastSyncedDataStr) return; // nada mudou desde o último envio — evita eco/gravação redundante
+    _lastSyncedDataStr = str;
+    set(_sharedDataRef, data).catch(function(e) {
+      console.warn('[dataSync] Falha ao salvar no Firebase:', e.code || e.message);
+      if (typeof showToast === 'function' && e.code === 'PERMISSION_DENIED') {
+        showToast('⚠ Firebase recusou salvar (permissão). Faça login novamente.', 'err');
+      }
+    });
+  } catch(e) { console.error('[dataSync push]', e); }
+}
+// Exposta pro save() (que roda num <script> normal, fora do módulo) chamar.
+// Debounce de 700ms pra não disparar uma escrita no Firebase a cada tecla digitada.
+window._fbPushData = function() {
+  clearTimeout(_dataPushTimer);
+  _dataPushTimer = setTimeout(_fbPushDataNow, 700);
+};
+
+function _applyRemoteData(remote) {
+  data = remote;
+  try { localStorage.setItem('ymm_data', JSON.stringify(data)); } catch(e){}
+  // Re-renderiza qualquer tela visível que dependa de "data"
+  if (typeof renderCampanhas === 'function') try{ renderCampanhas(); }catch(e){}
+  if (typeof renderPlayers === 'function') try{ renderPlayers(); }catch(e){}
+  if (typeof renderFichaSelect === 'function') try{ renderFichaSelect(); }catch(e){}
+  if (typeof renderFichaView === 'function') try{ renderFichaView(); }catch(e){}
+  if (typeof _syncCallEntryBtn === 'function') try{ _syncCallEntryBtn(); }catch(e){}
+}
+
+onValue(_sharedDataRef, function(snap) {
+  if (!snap.exists()) {
+    // Primeira vez que o Firebase liga (ou nó ainda vazio): usa os dados
+    // locais atuais (se houver) como semente, pra não perder o que já
+    // existia no dispositivo antes dessa sincronização existir.
+    if (!_dataSyncSeeded) {
+      _dataSyncSeeded = true;
+      if (data && ((data.campanhas||[]).length || (data.players||[]).length)) {
+        _fbPushDataNow();
+      }
+    }
+    return;
+  }
+  _dataSyncSeeded = true;
+  var remote = snap.val();
+  var remoteStr = JSON.stringify(remote);
+  if (remoteStr === _lastSyncedDataStr) return; // é eco do que a gente mesmo acabou de mandar
+  _lastSyncedDataStr = remoteStr;
+  _applyRemoteData(remote);
+}, function(err) {
+  console.warn('[dataSync] onValue falhou (offline ou sem permissão):', err.code || err.message);
+});
 
 // ── Presença online ──
 let _presenceRef = null;
