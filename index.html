@@ -7098,7 +7098,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     <label class="sb-title" style="display:block;margin-bottom:5px">// ADICIONAR SOM</label>
     <input type="text" id="sb-new-name" placeholder="Nome do som..." style="width:100%;padding:5px 8px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:6px;color:rgba(200,210,230,0.8);font-family:'Share Tech Mono',monospace;font-size:.5rem;outline:none;margin-bottom:5px">
     <input type="url" id="sb-new-url" placeholder="URL direta do áudio (mp3/ogg)..." oninput="if(this.value.trim())_sbClearPendingFile()" style="width:100%;padding:5px 8px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:6px;color:rgba(200,210,230,0.8);font-family:'Share Tech Mono',monospace;font-size:.5rem;outline:none;margin-bottom:5px">
-    <div id="sb-url-hint" style="font-family:'Share Tech Mono',monospace;font-size:.42rem;color:rgba(200,205,225,0.45);line-height:1.5;margin-bottom:5px">Cole o link direto do arquivo .mp3/.ogg (ex: do Pixabay, use o botão "Baixar" no site e depois selecione o arquivo abaixo — a página do Pixabay em si não funciona como link direto).</div>
+    <div id="sb-url-hint" style="font-family:'Share Tech Mono',monospace;font-size:.42rem;color:rgba(200,205,225,0.45);line-height:1.5;margin-bottom:5px">Cole o link direto do arquivo .mp3/.ogg (ex: do Pixabay, use o botão "Baixar" no site e depois selecione o arquivo abaixo — a página do Pixabay em si não funciona como link direto). Arquivo da galeria: até 4MB na aba pública, até 20MB na sua aba secreta.</div>
     <div style="text-align:center;font-family:'Share Tech Mono',monospace;font-size:.44rem;color:rgba(200,205,225,0.4);margin:4px 0">── OU ──</div>
     <label style="display:flex;align-items:center;justify-content:center;gap:6px;padding:7px;background:rgba(0,200,100,.08);border:1px dashed rgba(0,200,100,.25);border-radius:6px;cursor:pointer;font-family:'Share Tech Mono',monospace;font-size:.48rem;color:rgba(100,255,180,0.8);margin-bottom:5px">
       📂 SELECIONAR ARQUIVO DA GALERIA
@@ -16927,14 +16927,81 @@ function _sbPlaySynth(type) {
 }
 
 // ── Carrega bibliotecas (público sincroniza por Firebase; mestre é local) ──
+// ANTES: os sons "secretos" do Mestre eram salvos em localStorage. O problema
+// é que localStorage tem uma cota MINÚSCULA (uns 5-10MB no TOTAL, dividida
+// com tudo mais que o app guarda ali) e o erro de "estourei a cota"
+// (QuotaExceededError) era engolido em silêncio (catch(e){}). Resultado: ao
+// adicionar um áudio um pouco maior, ele aparecia na lista na hora (só
+// existia na memória), mas nunca era salvo de verdade — e sumia ao recarregar
+// a página, dando a exata sensação de "não funciona". Agora usamos
+// IndexedDB, que aguenta centenas de MB sem drama, e qualquer erro real
+// aparece pro usuário em vez de desaparecer silenciosamente.
+var _SB_IDB_NAME = 'ymm_soundboard_db';
+var _SB_IDB_STORE = 'kv';
+var _SB_IDB_KEY = 'master';
+var _sbIdbPromise = null;
+function _sbOpenIdb() {
+  if (_sbIdbPromise) return _sbIdbPromise;
+  _sbIdbPromise = new Promise(function (resolve, reject) {
+    if (!window.indexedDB) { reject(new Error('IndexedDB indisponível neste navegador')); return; }
+    var req = indexedDB.open(_SB_IDB_NAME, 1);
+    req.onupgradeneeded = function (e) {
+      var d = e.target.result;
+      if (!d.objectStoreNames.contains(_SB_IDB_STORE)) d.createObjectStore(_SB_IDB_STORE);
+    };
+    req.onsuccess = function (e) { resolve(e.target.result); };
+    req.onerror = function (e) { reject(e.target.error); };
+  });
+  return _sbIdbPromise;
+}
+function _sbIdbGet(key) {
+  return _sbOpenIdb().then(function (db) {
+    return new Promise(function (resolve, reject) {
+      var tx = db.transaction(_SB_IDB_STORE, 'readonly');
+      var req = tx.objectStore(_SB_IDB_STORE).get(key);
+      req.onsuccess = function () { resolve(req.result); };
+      req.onerror = function () { reject(req.error); };
+    });
+  });
+}
+function _sbIdbSet(key, value) {
+  return _sbOpenIdb().then(function (db) {
+    return new Promise(function (resolve, reject) {
+      var tx = db.transaction(_SB_IDB_STORE, 'readwrite');
+      tx.objectStore(_SB_IDB_STORE).put(value, key);
+      tx.oncomplete = function () { resolve(); };
+      tx.onerror = function () { reject(tx.error); };
+    });
+  });
+}
 function _sbLoadMaster() {
-  try {
-    var saved = localStorage.getItem('ymm_soundboard_master');
-    _sbMasterItems = saved ? JSON.parse(saved) : _sbDefaultMaster();
-  } catch(e) { _sbMasterItems = _sbDefaultMaster(); }
+  // Migração: se existir lixo antigo salvo em localStorage (versões
+  // anteriores), importa pro IndexedDB uma única vez e libera o espaço.
+  var legacy = null;
+  try { legacy = localStorage.getItem('ymm_soundboard_master'); } catch (e) {}
+  _sbIdbGet(_SB_IDB_KEY).then(function (saved) {
+    if (saved) {
+      _sbMasterItems = saved;
+    } else if (legacy) {
+      try { _sbMasterItems = JSON.parse(legacy); } catch (e) { _sbMasterItems = _sbDefaultMaster(); }
+      _sbSaveMaster();
+      try { localStorage.removeItem('ymm_soundboard_master'); } catch (e) {}
+    } else {
+      _sbMasterItems = _sbDefaultMaster();
+    }
+    var panel = document.getElementById('soundboard-panel');
+    if (panel && panel.classList.contains('visible')) renderSoundboard();
+  }).catch(function () {
+    // IndexedDB indisponível (ex: aba anônima com storage bloqueado) — usa a
+    // lista padrão sem persistência em vez de quebrar o painel.
+    _sbMasterItems = _sbDefaultMaster();
+  });
 }
 function _sbSaveMaster() {
-  try { localStorage.setItem('ymm_soundboard_master', JSON.stringify(_sbMasterItems)); } catch(e) {}
+  _sbIdbSet(_SB_IDB_KEY, _sbMasterItems).catch(function (e) {
+    console.warn('[Soundboard] Falha ao salvar sons do Mestre', e);
+    showToast('⚠ Não foi possível salvar esse som (armazenamento cheio ou bloqueado pelo navegador)', 'err');
+  });
 }
 function _sbLoadPublic() {
   if (window.db && window._ref && window._onValue) {
@@ -17056,7 +17123,17 @@ function playSoundboardItem(id, scope) {
 // usuário clicar em ADICIONAR — assim dá pra usar arquivo local OU link,
 // sem precisar de dois botões diferentes.
 var _sbPendingFile = null; // { dataUrl, size, fileName }
-var _SB_MAX_FILE_BYTES = 700 * 1024; // ~700KB — soa bem pra efeitos curtos sem estourar o Firebase
+// Limite pra aba PÚBLICA (sincronizada via Firebase Realtime Database, que
+// tem um teto de 10MB por valor). Antes era ~700KB, o que era pouco pra
+// qualquer efeito com mais de alguns segundos — subimos pra 4MB (o áudio em
+// base64 fica ~37% maior que o arquivo original, então 4MB de arquivo vira
+// ~5.5MB salvos, com folga confortável abaixo do teto de 10MB do Firebase).
+var _SB_MAX_FILE_BYTES = 4 * 1024 * 1024; // 4MB
+// A aba SECRETA do Mestre agora é salva em IndexedDB (não mais localStorage),
+// então aguenta arquivos bem maiores sem estourar cota — 20MB é mais que
+// suficiente pra qualquer efeito sonoro e evita travar a aba com um upload
+// gigante por engano.
+var _SB_MAX_MASTER_FILE_BYTES = 20 * 1024 * 1024; // 20MB
 
 function _sbHandleFilePick(event) {
   var file = event.target.files && event.target.files[0];
@@ -17074,7 +17151,8 @@ function _sbHandleFilePick(event) {
     if (pickedEl) {
       pickedEl.style.display = 'block';
       pickedEl.textContent = '📎 ' + file.name + ' (' + Math.round(file.size/1024) + 'KB)' +
-        (file.size > _SB_MAX_FILE_BYTES ? ' — grande demais pra aba pública, mas ok na sua aba secreta' : '');
+        (file.size > _SB_MAX_MASTER_FILE_BYTES ? ' — arquivo grande demais até pra aba secreta (máx ' + (_SB_MAX_MASTER_FILE_BYTES/1024/1024) + 'MB)' :
+         file.size > _SB_MAX_FILE_BYTES ? ' — grande demais pra aba pública (máx ' + (_SB_MAX_FILE_BYTES/1024/1024) + 'MB), mas ok na sua aba secreta' : '');
     }
     var nameEl = document.getElementById('sb-new-name');
     if (nameEl && !nameEl.value.trim()) nameEl.value = file.name.replace(/\.[^/.]+$/, '');
@@ -17107,13 +17185,17 @@ function addSoundboardItem() {
   var fromFile = !!_sbPendingFile;
 
   if (scope==='master') {
+    if (fromFile && _sbPendingFile.size > _SB_MAX_MASTER_FILE_BYTES) {
+      showToast('⚠ Arquivo grande demais (limite ' + (_SB_MAX_MASTER_FILE_BYTES/1024/1024) + 'MB) — use um trecho mais curto.', 'err');
+      return;
+    }
     _sbMasterItems.push({ id:'sb'+Date.now(), name:name, url:finalUrl, emoji:'🎵' });
     _sbSaveMaster();
     nameEl.value=''; urlEl.value=''; _sbClearPendingFile(); renderSoundboard();
     showToast('✓ Som adicionado à sua aba secreta!', 'ok');
   } else {
     if (fromFile && _sbPendingFile.size > _SB_MAX_FILE_BYTES) {
-      showToast('⚠ Arquivo grande demais pra compartilhar com todo mundo (limite ~700KB) — use um trecho mais curto ou adicione só na sua aba secreta.', 'err');
+      showToast('⚠ Arquivo grande demais pra compartilhar com todo mundo (limite ' + (_SB_MAX_FILE_BYTES/1024/1024) + 'MB) — use um trecho mais curto ou adicione só na sua aba secreta.', 'err');
       return;
     }
     if (window.db && window._ref && window._push) {
