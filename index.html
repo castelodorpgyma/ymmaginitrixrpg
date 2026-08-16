@@ -6,7 +6,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>Ymmaginitrix — Gerenciador de Campanhas</title>
-<meta name="version" content="202603071900">
+<meta name="version" content="202608161125">
 <meta name="description" content="Ymmaginitrix — Plataforma de gerenciamento de campanhas de RPG">
 <meta name="application-name" content="Ymmaginitrix">
 <meta property="og:title" content="Ymmaginitrix — Gerenciador de Campanhas RPG">
@@ -14270,13 +14270,27 @@ document.addEventListener('DOMContentLoaded', function(){
 </script>
 
 <script>
-// ── PWA Service Worker ──
+// ── Remove Service Worker antigo (PWA) ──────────────────────────────────
+// O sw.js que existia antes foi removido do repositório, mas quem já tinha
+// aberto o site (ou instalado como app) ficou com aquele Service Worker
+// VELHO preso no navegador, controlando a página e servindo o index.html
+// antigo do cache dele pra sempre — por isso as atualizações "não apareciam"
+// mesmo depois do deploy funcionar certinho no GitHub Pages.
+// Como não existe mais sw.js pra registrar, a solução é desinstalar
+// qualquer Service Worker antigo e apagar o cache dele automaticamente,
+// pra QUALQUER pessoa que abrir o site — sem precisar limpar dados manualmente.
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', function() {
-    navigator.serviceWorker.register('/sw.js')
-      .then(function(reg) { console.log('[PWA] SW registrado:', reg.scope); })
-      .catch(function(err) { console.warn('[PWA] SW erro:', err); });
-  });
+  navigator.serviceWorker.getRegistrations().then(function(regs) {
+    regs.forEach(function(reg) {
+      reg.unregister();
+      console.log('[PWA] Service Worker antigo removido:', reg.scope);
+    });
+  }).catch(function(err) { console.warn('[PWA] Erro ao remover SW antigo:', err); });
+}
+if (window.caches && caches.keys) {
+  caches.keys().then(function(keys) {
+    keys.forEach(function(k) { caches.delete(k); });
+  }).catch(function(){});
 }
 
 // ── PWA Install Prompt ──
