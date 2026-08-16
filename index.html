@@ -3835,22 +3835,26 @@ input:valid:not(:placeholder-shown) {
 .call-part-av img{ border-radius:16px !important; }
 .call-part-video{ border-radius:16px !important; transform:none !important; } /* câmera quadrada, sem espelhar a de outros */
 #call-part-local-vid.call-part-video{ transform:scaleX(-1) !important; } /* só espelha a SUA própria prévia */
-/* nome + cargo viram um "selo" sobreposto no canto, como no Discord — não ocupam espaço no card */
+/* nome + cargo viram um "selo" sobreposto no canto, como no Discord — não ocupam espaço no card.
+   CORRIGIDO: as barras de vida/sanidade/estamina ficavam ACIMA do nome (mais longe da borda
+   inferior do card) — pedido do usuário era elas ficarem embaixo do nome. Agora a pilha,
+   de cima pra baixo, é: cargo → nome → barras (barras são o último elemento, mais perto
+   da borda inferior). */
+.call-part-role{
+  position:absolute; left:9px; bottom:97px; z-index:6;
+  background:rgba(0,0,0,.6);
+}
 .call-part-name{
-  position:absolute; left:9px; bottom:9px; z-index:6; max-width:calc(100% - 60px);
+  position:absolute; left:9px; bottom:65px; z-index:6; max-width:calc(100% - 60px);
   background:rgba(0,0,0,.65); padding:4px 10px; border-radius:6px; font-size:.72rem;
   backdrop-filter:blur(3px); text-align:left;
 }
-.call-part-role{
-  position:absolute; left:9px; bottom:38px; z-index:6;
-  background:rgba(0,0,0,.6);
-}
 /* HUD de vida/sanidade/estamina — antes ficava faixa cheia no TOPO do
    card, direto em cima do rosto/câmera da pessoa ("lugar horrível").
-   Agora fica empilhado no CANTO INFERIOR, junto do nome/cargo, sobre o
-   mesmo degradê escuro (scrim) — não tampa mais ninguém. */
+   Agora fica embaixo do nome/cargo, na base do card, sobre o mesmo
+   degradê escuro (scrim) — não tampa mais ninguém. */
 .call-part-stats{
-  position:absolute; left:9px; right:9px; bottom:68px; z-index:6; max-width:none;
+  position:absolute; left:9px; right:9px; bottom:9px; z-index:6; max-width:none;
   background:rgba(0,0,0,.55); border-radius:6px; padding:5px 8px; backdrop-filter:blur(3px);
 }
 /* degradê escuro só na base do card pra nome/cargo/stats ficarem legíveis
@@ -15371,6 +15375,49 @@ onValue(_sharedDataRef, function(snap) {
   // fica travado pra sempre esperando uma leitura que nunca vai chegar.
   _setDataSyncSeeded(true);
   if (typeof _syncCallEntryBtn === 'function') try{ _syncCallEntryBtn(); }catch(e){}
+});
+
+// ── Sincroniza a lista de TODOS os usuários cadastrados na campanha ──
+// CORRIGIDO — esta era a causa raiz de "não aparece ninguém novo na
+// campanha" e "não dá pra ligar pra ninguém": em nenhum lugar do código
+// existia um listener ouvindo users/ inteiro no Firebase. Cada conta só
+// gravava o PRÓPRIO perfil em users/<uid> e só LIA o próprio perfil de
+// volta no login (get(ref(db,'users/'+uid))). Então authUsers — a lista
+// usada pra montar as abas de chat privado, o botão de ligar e a lista
+// de permissões de call (a modal "Cachorrinho ff — NEGADO" do print) —
+// só continha VOCÊ MESMO mais o que já estivesse em cache no
+// localStorage deste navegador específico. Uma conta criada no celular
+// de outro jogador nunca chegava até o navegador do Mestre. Agora todo
+// dispositivo escuta users/ ao vivo e funde os perfis remotos em
+// authUsers, então gente nova aparece pra todo mundo assim que se
+// cadastra — sem precisar recarregar nem logar de novo.
+const _usersRef = ref(db, 'users');
+onValue(_usersRef, function(snap) {
+  if (!snap.exists()) return;
+  var changed = false;
+  snap.forEach(function(c) {
+    var ru = c.val();
+    if (!ru || !ru.id) return;
+    var idx = authUsers.findIndex(function(u){ return u.id === ru.id; });
+    if (idx === -1) {
+      authUsers.push(ru);
+      changed = true;
+    } else if (JSON.stringify(authUsers[idx]) !== JSON.stringify(Object.assign({}, authUsers[idx], ru))) {
+      // Preserva campos só-locais (ex.: senha de conta de convidado/Google
+      // que nunca sobe pro Firebase) e atualiza o resto com o dado remoto.
+      authUsers[idx] = Object.assign({}, authUsers[idx], ru);
+      changed = true;
+    }
+  });
+  if (!changed) return;
+  saveUsers();
+  if (typeof renderChatTabs === 'function') try{ renderChatTabs(); }catch(e){}
+  if (typeof renderChatTabsOv === 'function') try{ renderChatTabsOv(); }catch(e){}
+  if (typeof renderPlayers === 'function') try{ renderPlayers(); }catch(e){}
+  if (typeof renderCallPermList === 'function') try{ renderCallPermList(); }catch(e){}
+  if (typeof _syncCallEntryBtn === 'function') try{ _syncCallEntryBtn(); }catch(e){}
+}, function(err) {
+  console.warn('[usersSync] onValue falhou (offline, sem permissão, ou regra do Firebase não libera leitura de users/ inteiro):', err.code || err.message);
 });
 
 // ── Presença online ──
