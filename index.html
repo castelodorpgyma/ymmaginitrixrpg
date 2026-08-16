@@ -12980,6 +12980,7 @@ function callOpenYoutubeExternal() {
 var _ytPlayer = null;
 var _ytApiReady = false;
 var _ytPendingId = null;
+var _ytPlayerReady = false; // vira true só quando onReady do player realmente dispara
 var _musicActiveSource = null; // 'youtube' | 'local'
 var _musicLoopEnabled = false;
 var _musicTrackName = '';
@@ -13005,6 +13006,7 @@ if (typeof YT !== 'undefined' && YT.Player) {
 function _ytCreatePlayer(id) {
   var volEl=document.getElementById('call-music-vol');
   var startVol=volEl?parseInt(volEl.value):60;
+  _ytPlayerReady = false; // reseta a cada novo vídeo — usado pelo watchdog abaixo
   try {
     if (_ytPlayer && typeof _ytPlayer.loadVideoById === 'function') {
       _ytPlayer.loadVideoById(id);
@@ -13019,6 +13021,7 @@ function _ytCreatePlayer(id) {
       playerVars: { autoplay:1, playsinline:1, rel:0, modestbranding:1 },
       events: {
         onReady: function(e){
+          _ytPlayerReady = true;
           try { e.target.setVolume(startVol); e.target.playVideo(); } catch(err){}
           _musicActiveSource='youtube';
         },
@@ -13072,15 +13075,21 @@ function callLoadYoutube() {
   // Shields, uBlock, adblockers e alguns modos de "proteção de rastreadores"
   // que bloqueiam domínios do Google/YouTube) o painel ficava com uma caixa
   // vazia pra sempre, sem nenhum aviso — parecia que o site simplesmente
-  // "quebrou". AGORA: se depois de alguns segundos o player não respondeu
-  // (nem carregou, nem deu erro específico do vídeo), avisa claramente que
-  // é provável bloqueio do navegador/extensão e mostra o botão de abrir
-  // direto no YouTube como alternativa.
+  // "quebrou". Só isso, porém, não cobria o caso mais comum na prática: a API
+  // carrega e o objeto YT.Player É criado com sucesso (então "stillNoPlayer"
+  // dava false), mas o IFRAME interno do player nunca consegue de fato
+  // carregar o conteúdo do youtube.com — o bloqueador intercepta só a
+  // navegação do iframe, sem gerar nenhum erro que o JS consiga enxergar.
+  // Nesse caso o player "existe" só de nome e o onReady dele NUNCA dispara,
+  // então _ytPlayerReady também nunca vira true. AGORA checamos isso também:
+  // se depois de alguns segundos o player não ficou pronto de verdade (não
+  // só "não existe"), cai no mesmo fallback de embed simples.
   var checkId = id, checkTs = Date.now();
   setTimeout(function () {
     if (checkId !== id) return; // usuário já trocou de vídeo nesse meio-tempo
     var stillNoPlayer = !_ytPlayer || typeof _ytPlayer.getPlayerState !== 'function';
-    if (window._ytApiScriptFailed || (!_ytApiReady && stillNoPlayer)) {
+    var playerNeverReady = !_ytPlayerReady;
+    if (window._ytApiScriptFailed || (!_ytApiReady && stillNoPlayer) || playerNeverReady) {
       // ── Fallback: embed direto, sem a API JS do YouTube ──
       // A API JS (iframe_api) é frequentemente o alvo de bloqueadores como
       // Brave Shields/uBlock (é um script "de rastreamento" na visão deles),
