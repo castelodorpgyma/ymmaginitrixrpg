@@ -8634,8 +8634,22 @@ function _buildCatalogo() {
   var all = {};
   // Locais
   (data.campanhas || []).forEach(function(c) { all[c.id] = c; });
-  // Firebase cache
-  _catalogoCampanhas.forEach(function(c) { if (!all[c.id]) all[c.id] = c; });
+  // Firebase cache — se uma campanha existe no catálogo global mas sumiu de
+  // data.campanhas (dessincronização entre os nós "globalCampaigns" e
+  // "sharedData" no Firebase), ela aparecia com a tag "SUA CAMPANHA" mas
+  // Editar/Excluir/Entrar e o reconhecimento da call falhavam em silêncio,
+  // porque essas ações só procuram dentro de data.campanhas. Repara aqui,
+  // trazendo de volta pra data.campanhas assim que detectado.
+  var healed = false;
+  _catalogoCampanhas.forEach(function(c) {
+    if (!all[c.id]) {
+      all[c.id] = c;
+      if (!data.campanhas) data.campanhas = [];
+      data.campanhas.push(c);
+      healed = true;
+    }
+  });
+  if (healed && typeof save === 'function') save();
   _allCatalogItems = Object.values(all);
 }
 var _allCatalogItems = [];
@@ -8790,8 +8804,27 @@ function renderCampanhas() {
   }).join('') + '</div>';
 }
 
+// Acha uma campanha por id, olhando primeiro em data.campanhas (fonte
+// principal) e, se não achar ali, no catálogo global — e já repara
+// data.campanhas nesse caso, pra próxima vez achar direto. Sem isso,
+// Editar/Excluir/Entrar falhavam em silêncio sempre que o catálogo global
+// e o "sharedData" ficavam dessincronizados (a campanha aparecia na lista
+// mas as ações não achavam ela em data.campanhas).
+function _findCampanha(id) {
+  var c = (data.campanhas || []).find(function(x){ return x.id === id; });
+  if (c) return c;
+  c = (_allCatalogItems || []).find(function(x){ return x.id === id; }) ||
+      (_catalogoCampanhas || []).find(function(x){ return x.id === id; });
+  if (c) {
+    if (!data.campanhas) data.campanhas = [];
+    data.campanhas.push(c);
+    save();
+  }
+  return c;
+}
+
 function tryEnterCampanha(id) {
-  var c = data.campanhas.find(function(x){ return x.id===id; });
+  var c = _findCampanha(id);
   if (!c) { showToast('⚠ Campanha não encontrada localmente', 'warn'); return; }
   if (c.senhaSet && !isMestreDa(c)) {
     var s = prompt('🔒 Senha da campanha:');
@@ -8802,7 +8835,7 @@ function tryEnterCampanha(id) {
 }
 
 function editCampanha(id) {
-  var c = data.campanhas.find(x=>x.id===id); if(!c) return;
+  var c = _findCampanha(id); if(!c) { showToast('⚠ Campanha não encontrada localmente', 'warn'); return; }
   if (!isMestreDa(c)) { showToast('✕ Apenas o mestre criador pode editar esta campanha', 'err'); return; }
   document.getElementById('ec-id').value = id;
   document.getElementById('ec-nome').value = c.nome;
@@ -8813,7 +8846,7 @@ function editCampanha(id) {
 }
 function updateCampanha() {
   var id = document.getElementById('ec-id').value;
-  var c = data.campanhas.find(x=>x.id===id); if(!c) return;
+  var c = _findCampanha(id); if(!c) { showToast('⚠ Campanha não encontrada localmente', 'warn'); return; }
   if (!isMestreDa(c)) { showToast('✕ Permissão negada', 'err'); return; }
   c.nome = document.getElementById('ec-nome').value.trim();
   c.mestre = document.getElementById('ec-mestre').value.trim();
@@ -8831,7 +8864,7 @@ function updateCampanha() {
   save(); closeModal('modal-edit-campanha'); renderCampanhas(); notify('// campanha atualizada!');
 }
 function deleteCampanha(id) {
-  var c = data.campanhas.find(x=>x.id===id);
+  var c = _findCampanha(id);
   if (c && !isMestreDa(c)) { showToast('✕ Apenas o mestre criador pode excluir esta campanha', 'err'); return; }
   if(!confirm('Excluir esta campanha?')) return;
   data.campanhas = data.campanhas.filter(x=>x.id!==id);
@@ -14671,6 +14704,7 @@ onValue(gcRef, function(snap) {
   // Atualiza contador mesmo sem a aba aberta
   var countEl = document.getElementById('cat-count');
   if (countEl) countEl.textContent = '// ' + _catalogoCampanhas.length + ' campanha(s) encontrada(s)';
+  if (typeof _syncCallEntryBtn === 'function') try{ _syncCallEntryBtn(); }catch(e){}
 });
 
 // ────────────────────────────────────────────────────────────────────────
