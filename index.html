@@ -9843,15 +9843,20 @@ function openFichaTheme(playerId) {
   if(bannerInp) {
     bannerInp.onchange = function() {
       var file = bannerInp.files[0]; if(!file) return;
-      var r = new FileReader();
-      r.onload = function(e) {
+      // Antes: salvava a imagem crua (FileReader puro), sem redimensionar nem
+      // comprimir — uma foto de celular (5-10MB) virava uma string base64
+      // gigante dentro de "data", que é sincronizado inteiro com o Firebase.
+      // Isso estourava o limite de escrita e era a causa principal do erro
+      // "Firebase recusou salvar — reduza o tamanho das imagens (banner/ficha)".
+      // Agora usa o mesmo compressor (canvas) usado em avatares/banners de campanha.
+      _processAvatarFile(file, function(dataUrl) {
         var pp = data.players.find(x=>x.id===playerId); if(!pp) return;
         if(!pp.theme) pp.theme = {};
-        pp.banner = e.target.result;
+        pp.banner = dataUrl;
         save();
         showToast('✓ Banner atualizado','ok');
-      };
-      r.readAsDataURL(file);
+      }, { maxDim: 900, quality: 0.78 });
+      bannerInp.value = '';
     };
   }
 
@@ -13339,14 +13344,24 @@ function sendChatMedia(event) {
   var file = event.target.files && event.target.files[0];
   event.target.value = '';
   if(!file || !currentUser) return;
-  var reader = new FileReader();
-  reader.onload = function(e) {
-    var isVid = file.type.startsWith('video/');
-    var msg = { pvTo: chatState.activeTab !== 'geral' ? chatState.activeTab : null };
-    if(isVid) msg.vid = e.target.result; else msg.img = e.target.result;
-    pushChatMsg(msg);
-  };
-  reader.readAsDataURL(file);
+  var isVid = file.type.startsWith('video/');
+  if(isVid) {
+    // Vídeo não dá pra comprimir no navegador sem libs pesadas — só avisa
+    // antes de tentar, já que um vídeo grande vai falhar ao sincronizar.
+    if(file.size > 8*1024*1024) { showToast('⚠ Vídeo muito grande (máx 8MB) — envie um trecho menor ou comprima antes','warn'); return; }
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      pushChatMsg({ vid: e.target.result, pvTo: chatState.activeTab !== 'geral' ? chatState.activeTab : null });
+    };
+    reader.onerror = function(){ showToast('⚠ Não foi possível ler o vídeo','err'); };
+    reader.readAsDataURL(file);
+    return;
+  }
+  // Imagem estática (ou GIF): comprime/limita antes de mandar pro chat,
+  // pra não estourar o Firebase igual acontecia com banners/fichas.
+  _processAvatarFile(file, function(dataUrl){
+    pushChatMsg({ img: dataUrl, pvTo: chatState.activeTab !== 'geral' ? chatState.activeTab : null });
+  }, { maxDim: 1280, quality: 0.82, maxGifBytes: 4*1024*1024 });
 }
 
 function sendChatMediaOv(event) { sendChatMedia(event); }
@@ -13364,13 +13379,15 @@ function addStickers(event) {
   event.target.value = '';
   files.forEach(function(f){
     if(!f.type.startsWith('image/')) return;
-    var r = new FileReader();
-    r.onload = function(e){
-      chatState.stickers.push({ id: Date.now().toString(36)+Math.random().toString(36).slice(2), dataUrl: e.target.result });
+    // Comprime figurinhas estáticas (PNG/JPG) antes de guardar — GIFs
+    // continuam intactos (só perdem animação se recomprimidos), mas com
+    // limite de tamanho, senão travam o envio pro chat/Firebase depois.
+    _processAvatarFile(f, function(dataUrl){
+      chatState.stickers.push({ id: Date.now().toString(36)+Math.random().toString(36).slice(2), dataUrl: dataUrl });
       saveStickers();
       renderStickerGrid();
-    };
-    r.readAsDataURL(f);
+      renderStickerGridOv();
+    }, { maxDim: 320, quality: 0.85, maxGifBytes: 2.5*1024*1024 });
   });
 }
 
@@ -14349,6 +14366,44 @@ gProvider.setCustomParameters({ prompt: 'select_account' });
 //  "sharedData"), do mesmo jeito que já é feito com o chat/rolagens/
 //  presença. localStorage continua existindo como cache offline.
 // ════════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════
+//  TRATAMENTO CENTRAL DE ERROS DE ESCRITA NO FIREBASE
+//  ------------------------------------------------------------------------
+//  ANTES: cada ponto que salvava no Firebase (data, chat, catálogo...) só
+//  mostrava um toast de erro e desistia — se o problema era o TOKEN DE LOGIN
+//  expirado (comum depois de várias horas com o app aberto), a única saída
+//  era o usuário perceber sozinho e clicar em sair/entrar de novo.
+//  AGORA: em erro de permissão, tenta renovar o token automaticamente e
+//  refazer a escrita 1x antes de pedir pro usuário logar de novo — e o aviso
+//  final vem com um link clicável que já dispara o re-login.
+// ════════════════════════════════════════════════════════════════════════
+function _fbHandleWriteError(e, retryFn, label) {
+  var code = e && (e.code || e.message);
+  console.warn('[Firebase] Falha ao salvar' + (label ? ' (' + label + ')' : '') + ':', code);
+  if (e && e.code === 'PERMISSION_DENIED' && auth.currentUser && !e._ymmRetried) {
+    auth.currentUser.getIdToken(true).then(function() {
+      if (typeof retryFn === 'function') {
+        try { retryFn(); } catch(err) {}
+      }
+    }).catch(function() {
+      if (typeof showToast === 'function') {
+        showToast('⚠ Firebase recusou salvar (permissão) — <span onclick="_forceRelogin()" style="text-decoration:underline;cursor:pointer">toque aqui para logar novamente</span>.', 'err');
+      }
+    });
+    return;
+  }
+  if (typeof showToast !== 'function') return;
+  if (e && e.code === 'PERMISSION_DENIED') {
+    showToast('⚠ Firebase recusou salvar (permissão) — <span onclick="_forceRelogin()" style="text-decoration:underline;cursor:pointer">toque aqui para logar novamente</span>.', 'err');
+  } else {
+    showToast('⚠ Não foi possível sincronizar com o Firebase agora — tentando de novo...', 'warn');
+  }
+}
+window._forceRelogin = function() {
+  try { signOut(auth); } catch(e) {}
+  if (typeof showToast === 'function') showToast('🔄 Sessão encerrada — faça login novamente.', 'warn');
+};
+
 const _sharedDataRef = ref(db, 'sharedData');
 let _lastSyncedDataStr = null;
 let _dataPushTimer = null;
@@ -14393,9 +14448,15 @@ function _fbPushDataNow() {
       // sozinho, sem depender de o usuário digitar/salvar de novo pra disparar o retry.
       clearTimeout(_dataPushRetryTimer);
       _dataPushRetryTimer = setTimeout(_fbPushDataNow, 5000);
-      if (typeof showToast === 'function') {
+      // Erro de permissão na 1ª tentativa: pode ser só o token de login expirado
+      // (comum depois de horas com o app aberto) — tenta renovar sozinho antes
+      // de incomodar o usuário. Só mostra o aviso "faça login de novo" se isso
+      // também falhar.
+      if (e.code === 'PERMISSION_DENIED' && _pushFailCount === 1) {
+        _fbHandleWriteError(e, _fbPushDataNow, 'campanhas/fichas');
+      } else if (typeof showToast === 'function') {
         if (e.code === 'PERMISSION_DENIED') {
-          showToast('⚠ Firebase recusou salvar (permissão). Faça login novamente.', 'err');
+          showToast('⚠ Firebase recusou salvar (permissão) — <span onclick="_forceRelogin()" style="text-decoration:underline;cursor:pointer">toque aqui para logar novamente</span>.', 'err');
         } else {
           showToast('⚠ Não foi possível sincronizar com o Firebase agora — tentando de novo...', 'warn');
         }
@@ -15168,9 +15229,14 @@ window.pushChatMsg = function(msg) {
   if (!msg.senderId && currentUser) msg.senderId = currentUser.id;
   if (!msg.sender   && currentUser) msg.sender   = currentUser.username;
   if (!msg.role     && currentUser) msg.role      = currentUser.role;
-  // Salva no Firebase (todos os outros vão receber via onValue)
-  push(ref(db, 'live/chat'), msg);
-  // Local imediato
+  // Salva no Firebase (todos os outros vão receber via onValue).
+  // ANTES: essa chamada não tinha .catch() nenhum — se um GIF/figurinha/imagem
+  // fosse grande demais ou o login tivesse expirado, a mensagem simplesmente
+  // não chegava aos outros e ninguém ficava sabendo (falha 100% silenciosa).
+  push(ref(db, 'live/chat'), msg).catch(function(e) {
+    _fbHandleWriteError(e, function(){ push(ref(db, 'live/chat'), msg).catch(function(){}); }, 'mensagem do chat');
+  });
+  // Local imediato (sempre aparece pra quem enviou, mesmo se a sincronização falhar)
   liveSession.chat.push(msg);
   if (liveSession.chat.length > 200) liveSession.chat.splice(0, liveSession.chat.length - 200);
   saveLive();
