@@ -10131,11 +10131,17 @@ function cancelTextEdit(eid) {
 // ── TROCAR AVATAR DIRETO NA FICHA ─────────────────────────────────────────────
 function changeFichaAvatar(playerId, input) {
   var file = input.files[0]; if(!file) return;
+  // CORRIGIDO: imagens estáticas já eram comprimidas, mas um GIF de avatar
+  // de ficha ainda passava sem redução (limite antigo de 4MB "cru" em base64
+  // ~5.3MB) — isso sozinho já era o bastante pra estourar o envio de "data"
+  // inteiro pro Firebase e gerar o erro "reduza o tamanho das imagens
+  // (banner/ficha)" repetidamente. Alinhado ao mesmo limite (1.5MB) já usado
+  // pro avatar da call.
   _processAvatarFile(file, function(dataUrl) {
     var p = data.players.find(x=>x.id===playerId); if(!p) return;
     p.avatar = dataUrl;
     save(); renderFichaView();
-  });
+  }, { maxGifBytes: 1.5*1024*1024 });
   input.value = '';
 }
 
@@ -10239,13 +10245,16 @@ function openFichaTheme(playerId) {
       // Isso estourava o limite de escrita e era a causa principal do erro
       // "Firebase recusou salvar — reduza o tamanho das imagens (banner/ficha)".
       // Agora usa o mesmo compressor (canvas) usado em avatares/banners de campanha.
+      // CORRIGIDO: faltava limitar GIF aqui — só maxDim/quality (que só valem
+      // pra imagem estática) tinham sido ajustados; um banner em GIF ainda
+      // passava cru com até 4MB, reintroduzindo o mesmo estouro no Firebase.
       _processAvatarFile(file, function(dataUrl) {
         var pp = data.players.find(x=>x.id===playerId); if(!pp) return;
         if(!pp.theme) pp.theme = {};
         pp.banner = dataUrl;
         save();
         showToast('✓ Banner atualizado','ok');
-      }, { maxDim: 900, quality: 0.78 });
+      }, { maxDim: 900, quality: 0.78, maxGifBytes: 1.5*1024*1024 });
       bannerInp.value = '';
     };
   }
@@ -11595,12 +11604,16 @@ function triggerCelebration(nome, tipo) {
 function previewImg(event, previewId, dataId) {
   var file = event.target.files[0];
   if(!file) return;
+  // CORRIGIDO: usada tanto pro banner de campanha NOVA quanto pro avatar de
+  // ficha NOVA — os dois pontos de entrada mais comuns de imagem grande, e
+  // os dois iam sem limite de GIF pro "data" sincronizado inteiro. Mesmo
+  // limite (1.5MB) usado nos outros uploads de avatar/banner.
   _processAvatarFile(file, function(dataUrl) {
     var el = document.getElementById(previewId);
     if(el) el.innerHTML = '<img src="'+dataUrl+'" style="width:100%;height:100%;object-fit:cover">';
     var dataEl = document.getElementById(dataId);
     if(dataEl) dataEl.value = dataUrl;
-  });
+  }, { maxGifBytes: 1.5*1024*1024 });
 }
 
 
@@ -15282,10 +15295,23 @@ function _setDataSyncSeeded(v) { _dataSyncSeeded = v; window._dataSyncSeeded = v
 let _pendingLocalPush = false;
 let _pushFailCount = 0;
 
+// Acima disso o Firebase Realtime Database tende a recusar/travar a escrita
+// (o limite documentado é bem maior, mas na prática conexões domésticas/móveis
+// já sofrem bem antes disso). Serve pra avisar rápido quando o motivo é a SOMA
+// de várias imagens (banners/avatars de várias fichas), não só uma imagem única
+// grande — caso que os limites por upload não cobrem sozinhos.
+var _FB_DATA_SOFT_LIMIT_BYTES = 8 * 1024 * 1024;
+var _fbSizeWarnedAt = 0;
 function _fbPushDataNow() {
   try {
     var str = JSON.stringify(data);
     if (str === _lastSyncedDataStr) { _pendingLocalPush = false; return; } // nada mudou desde o último envio — evita eco/gravação redundante
+    if (str.length > _FB_DATA_SOFT_LIMIT_BYTES && Date.now() - _fbSizeWarnedAt > 15000) {
+      _fbSizeWarnedAt = Date.now();
+      if (typeof showToast === 'function') {
+        showToast('⚠ Dados da campanha ficaram grandes (~' + Math.round(str.length/1024/1024) + 'MB) — se o Firebase começar a recusar salvar, reduza banners/avatars de fichas (prefira imagens estáticas a GIF).', 'warn');
+      }
+    }
     _pendingLocalPush = true;
     _lastSyncedDataStr = str;
     set(_sharedDataRef, data).then(function() {
