@@ -27,6 +27,11 @@
 
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Share+Tech+Mono&family=Rajdhani:wght@400;600;700&family=Orbitron:wght@400;600;700;900&family=Exo+2:wght@300;400;600;700&family=Audiowide&family=Major+Mono+Display&family=Recursive:wght@400;700&family=Cinzel:wght@400;600;700&family=Black+Ops+One&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/lucide/dist/umd/lucide.min.js"></script>
+<!-- YouTube IFrame API — permite controlar de verdade o áudio do YouTube tocado
+     no painel de Áudio Ambiente (play/pause/stop/volume/loop), que antes só
+     mexiam no player de arquivo local e não tinham nenhum efeito sobre o
+     vídeo embutido do YouTube. -->
+<script src="https://www.youtube.com/iframe_api" async></script>
 
 <style>
 
@@ -2117,7 +2122,7 @@ textarea{resize:vertical;min-height:72px;border-radius:var(--r-sm)}
 }
 .cm-media-wrap img,.cm-media-wrap video{width:100%;display:block;max-height:200px;object-fit:contain}
 .cm-sticker-wrap{margin-top:4px;cursor:pointer;display:inline-block}
-.cm-sticker-wrap img{width:80px;height:80px;object-fit:contain;border-radius:12px;transition:transform .15s}
+.cm-sticker-wrap img{width:160px;height:160px;object-fit:contain;border-radius:12px;transition:transform .15s}
 .cm-sticker-wrap:hover img{transform:scale(1.1)}
 /* ── REACTIONS ── */
 .cm-reactions{
@@ -4122,6 +4127,8 @@ window.authTab = function(tab) {
 /* ── SOUNDBOARD ── */
 #soundboard-panel{position:fixed;right:12px;top:50%;transform:translateY(-50%);width:180px;background:rgba(6,4,14,.97);border:1px solid rgba(245,200,58,.12);border-radius:14px;padding:10px;z-index:9050;display:none;box-shadow:0 8px 32px rgba(0,0,0,.7);max-height:60vh;overflow-y:auto;scrollbar-width:none;}
 #soundboard-panel.visible{display:block;}
+.sb-tab-btn{flex:1;padding:6px 4px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:6px;color:rgba(200,205,225,0.72);font-family:'Share Tech Mono',monospace;font-size:.46rem;cursor:pointer;letter-spacing:.02em;transition:background .15s,border-color .15s,color .15s}
+.sb-tab-btn.active{background:rgba(245,200,58,.12);border-color:rgba(245,200,58,.35);color:rgba(245,200,58,0.95)}
 .sb-title{font-family:'Share Tech Mono',monospace;font-size:.46rem;color:rgba(245,200,58,0.72);letter-spacing:.15em;margin-bottom:8px;}
 .sb-btn{width:100%;padding:8px 10px;margin-bottom:5px;background:rgba(245,200,58,.05);border:1px solid rgba(245,200,58,.1);border-radius:8px;color:rgba(245,200,58,0.72);font-family:'Share Tech Mono',monospace;font-size:.5rem;cursor:pointer;text-align:left;transition:all .15s;display:flex;align-items:center;gap:6px;}
 .sb-btn:hover{background:rgba(245,200,58,.15);border-color:rgba(245,200,58,.35);color:var(--c-gold);}
@@ -6595,6 +6602,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
       <input type="file" id="call-audio-file" accept="audio/*,video/*" style="display:none" onchange="callLoadLocalAudio(event)">
     </label>
     <audio id="call-local-audio" controls="" style="width:100%;border-radius:8px;display:none"></audio>
+    <!-- Nome do áudio -->
+    <div class="call-vol-row" style="margin-top:8px">
+      <span class="call-vol-lbl">🏷 NOME</span>
+      <input type="text" id="call-audio-name" class="call-music-inp" style="flex:1" placeholder="Ex: Trilha da Taverna..." maxlength="60" oninput="_updateNowPlayingLabel()">
+    </div>
+    <div id="call-audio-nowplaying" style="display:none;margin-top:4px;font-family:'Share Tech Mono',monospace;font-size:.5rem;color:rgba(100,255,180,0.85);letter-spacing:.04em"></div>
     <!-- Volume -->
     <div class="call-vol-row" style="margin-top:8px">
       <span class="call-vol-lbl">🔊 VOL. MÚSICA</span>
@@ -7001,6 +7014,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     <div class="sb-title">// SOUNDBOARD</div>
     <button onclick="document.getElementById('soundboard-panel').classList.remove('visible')" style="background:none;border:none;color:rgba(255,255,255,0.72);cursor:pointer;font-size:.8rem">✕</button>
   </div>
+  <div id="sb-tabs" style="display:flex;gap:4px;margin-bottom:8px"><!-- populated by JS --></div>
+  <div id="sb-hint" style="font-family:'Share Tech Mono',monospace;font-size:.44rem;color:rgba(200,205,225,0.6);margin-bottom:6px;line-height:1.5"></div>
   <div id="sb-list"><!-- populated by JS --></div>
   <div style="margin-top:8px;border-top:1px solid rgba(255,255,255,.05);padding-top:8px">
     <label class="sb-title" style="display:block;margin-bottom:5px">// ADICIONAR SOM</label>
@@ -12064,6 +12079,11 @@ function _startCall() {
   // Pede mic automaticamente
   _doRequestMic();
   if (typeof _syncCallVoiceStatus === 'function') _syncCallVoiceStatus();
+
+  // Passa a escutar os efeitos do soundboard disparados por qualquer um
+  // nesta call (inclusive os "secretos" do Mestre — só o áudio chega, a
+  // lista continua escondida de quem não é Mestre)
+  if (typeof _sbStartListening === 'function') _sbStartListening();
 }
 
 // ── Encerra call ──
@@ -12085,7 +12105,12 @@ function endCall() {
   var pb=document.getElementById('call-perm-btn'); if(pb) pb.style.display='none';
   var audio=document.getElementById('call-local-audio'); if(audio){audio.pause();audio.currentTime=0;}
   var ytWrap=document.getElementById('call-yt-wrap'); if(ytWrap) ytWrap.style.display='none';
-  var ytIframe=document.getElementById('call-yt-iframe'); if(ytIframe) ytIframe.src='';
+  // Usa a API do player quando disponível (setar .src direto no iframe depois
+  // que a YT IFrame API assumiu o elemento não funciona mais e pode até dar erro)
+  if (_ytPlayer && typeof _ytPlayer.stopVideo === 'function') { try{ _ytPlayer.stopVideo(); }catch(e){} }
+  else { var ytIframe=document.getElementById('call-yt-iframe'); if(ytIframe && ytIframe.tagName==='IFRAME') ytIframe.src=''; }
+  _musicActiveSource=null;
+  if (typeof _sbStopListening === 'function') _sbStopListening();
   var ob=document.getElementById('call-open-btn');
   if(ob) ob.innerHTML='<span class="call-dot"></span>&nbsp;ENTRAR NA CALL';
 
@@ -12365,6 +12390,21 @@ function callSetMusicVol(el) {
   var ve=document.getElementById('call-music-vol-val'); if(ve) ve.textContent=val+'%';
   el.style.setProperty('--p',val+'%');
   var audio=document.getElementById('call-local-audio'); if(audio) audio.volume=val/100;
+  // ANTES: só mexia no <audio> local — o volume do YouTube ficava travado
+  // no que veio por padrão, então esse controle parecia "quebrado" sempre
+  // que a música tocando era do YouTube (o caso mais comum).
+  if(_ytPlayer && typeof _ytPlayer.setVolume==='function'){ try{ _ytPlayer.setVolume(val); }catch(e){} }
+}
+
+// ── Nome do áudio tocando (rótulo opcional que o usuário pode colar) ──
+function _updateNowPlayingLabel() {
+  var nameEl=document.getElementById('call-audio-name');
+  var lbl=document.getElementById('call-audio-nowplaying');
+  if(!lbl) return;
+  var name=nameEl?nameEl.value.trim():'';
+  _musicTrackName=name;
+  if(name){ lbl.style.display='block'; lbl.textContent='♪ Tocando: '+name; }
+  else{ lbl.style.display='none'; lbl.textContent=''; }
 }
 
 // ── CHAT LATERAL DA CALL (estilo Discord) ──
@@ -12507,23 +12547,88 @@ function callOpenYoutubeExternal() {
   if (url) { window.open(url, '_blank'); }
 }
 
+// ══════════════════════════════════════════════════════════════════
+// CONTROLE REAL DO ÁUDIO AMBIENTE (YouTube + arquivo local)
+// ANTES: os botões de play/pause/stop/loop e o slider de volume só
+// mexiam no <audio> do arquivo local. Quando a música era do YouTube
+// (o uso mais comum do painel) esses controles simplesmente não faziam
+// nada, porque o iframe do YouTube tinha o src trocado direto na mão
+// e nada estava conectado a ele. Agora usamos a YouTube IFrame API de
+// verdade (player.playVideo/pauseVideo/stopVideo/setVolume), então os
+// mesmos botões controlam a fonte que estiver ativa no momento.
+// ══════════════════════════════════════════════════════════════════
+var _ytPlayer = null;
+var _ytApiReady = false;
+var _ytPendingId = null;
+var _musicActiveSource = null; // 'youtube' | 'local'
+var _musicLoopEnabled = false;
+var _musicTrackName = '';
+
+window.onYouTubeIframeAPIReady = function () {
+  _ytApiReady = true;
+  if (_ytPendingId) { var id=_ytPendingId; _ytPendingId=null; _ytCreatePlayer(id); }
+};
+
+function _ytCreatePlayer(id) {
+  var volEl=document.getElementById('call-music-vol');
+  var startVol=volEl?parseInt(volEl.value):60;
+  try {
+    if (_ytPlayer && typeof _ytPlayer.loadVideoById === 'function') {
+      _ytPlayer.loadVideoById(id);
+      setTimeout(function(){ try{ _ytPlayer.setVolume(startVol); }catch(e){} }, 300);
+      _musicActiveSource='youtube';
+      return;
+    }
+  } catch(e){ /* player anterior não existe mais / foi destruído — cria de novo abaixo */ }
+  try {
+    _ytPlayer = new YT.Player('call-yt-iframe', {
+      videoId: id,
+      playerVars: { autoplay:1, playsinline:1, rel:0, modestbranding:1 },
+      events: {
+        onReady: function(e){
+          try { e.target.setVolume(startVol); e.target.playVideo(); } catch(err){}
+          _musicActiveSource='youtube';
+        },
+        onStateChange: function(e){
+          // Loop manual: quando o vídeo termina e o loop está ligado, recomeça.
+          if (e.data === YT.PlayerState.ENDED && _musicLoopEnabled) {
+            try { e.target.seekTo(0); e.target.playVideo(); } catch(err){}
+          }
+        },
+        onError: function(){ showToast('⚠ Não foi possível carregar esse vídeo do YouTube','warn'); }
+      }
+    });
+    _musicActiveSource='youtube';
+  } catch(e){ console.warn('[YT Player]', e); }
+}
+
 function callLoadYoutube() {
   var url=(document.getElementById('call-yt-input')||{}).value||''; url=url.trim();
   if(!url) return;
   var id=extractYoutubeId(url);
   if(!id){showToast('⚠ URL inválida do YouTube','warn');return;}
   var wrap=document.getElementById('call-yt-wrap');
-  var iframe=document.getElementById('call-yt-iframe');
   var notice=document.getElementById('call-yt-notice');
   var openBtn=document.getElementById('call-yt-open-btn');
-  iframe.src='https://www.youtube-nocookie.com/embed/'+id+'?autoplay=1&loop=1&playlist='+id+'&rel=0&modestbranding=1';
   wrap.style.display='block';
+  // Pausa o áudio local se estava tocando, pra não sobrepor duas fontes
+  var localAudio=document.getElementById('call-local-audio');
+  if(localAudio && !localAudio.paused) localAudio.pause();
+  if (_ytApiReady) { _ytCreatePlayer(id); } else { _ytPendingId=id; }
+  _musicActiveSource='youtube';
   // Em mobile o iframe costuma ser bloqueado — mostra aviso e botão externo
   var isMob=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
   if(isMob){
     if(notice) notice.style.display='block';
     if(openBtn){ openBtn.style.display='block'; openBtn.onclick=function(){ window.open(url,'_blank'); }; }
+  } else {
+    if(notice) notice.style.display='none';
+    if(openBtn) openBtn.style.display='none';
   }
+  // Se o campo de nome estiver vazio, sugere o próprio link como identificação provisória
+  var nameEl=document.getElementById('call-audio-name');
+  if(nameEl && !nameEl.value.trim()) nameEl.value = 'Vídeo do YouTube';
+  _updateNowPlayingLabel();
   showToast('🎬 YouTube carregado','ok');
 }
 
@@ -12536,22 +12641,41 @@ function extractYoutubeId(url) {
 function callLoadLocalAudio(event) {
   var file=event.target.files&&event.target.files[0]; event.target.value='';
   if(!file) return;
+  // Pausa o YouTube se estava tocando, pra não sobrepor duas fontes
+  if(_ytPlayer && typeof _ytPlayer.pauseVideo==='function'){ try{ _ytPlayer.pauseVideo(); }catch(e){} }
   var audio=document.getElementById('call-local-audio');
   audio.src=URL.createObjectURL(file); audio.style.display='block';
   var volEl=document.getElementById('call-music-vol');
   audio.volume=volEl?parseInt(volEl.value)/100:0.6;
+  audio.loop=_musicLoopEnabled;
   audio.play().catch(function(){});
+  _musicActiveSource='local';
+  var nameEl=document.getElementById('call-audio-name');
+  if(nameEl && !nameEl.value.trim()) nameEl.value = file.name.replace(/\.[^/.]+$/, '');
+  _updateNowPlayingLabel();
   showToast('🎵 Carregado: '+file.name,'ok');
 }
 
 function callAudioControl(action) {
-  var audio=document.getElementById('call-local-audio'); if(!audio) return;
-  if(action==='play'){if(audio.src)audio.play().catch(function(){});}
-  else if(action==='pause') audio.pause();
-  else if(action==='stop'){audio.pause();audio.currentTime=0;}
+  var audio=document.getElementById('call-local-audio');
+  var usingYt = _musicActiveSource==='youtube' && _ytPlayer;
+  if(action==='play'){
+    if(usingYt && typeof _ytPlayer.playVideo==='function'){ try{ _ytPlayer.playVideo(); }catch(e){} }
+    else if(audio && audio.src){ audio.play().catch(function(){}); }
+  }
+  else if(action==='pause'){
+    if(usingYt && typeof _ytPlayer.pauseVideo==='function'){ try{ _ytPlayer.pauseVideo(); }catch(e){} }
+    else if(audio){ audio.pause(); }
+  }
+  else if(action==='stop'){
+    if(usingYt && typeof _ytPlayer.stopVideo==='function'){ try{ _ytPlayer.stopVideo(); }catch(e){} }
+    if(audio){ audio.pause(); audio.currentTime=0; }
+  }
   else if(action==='loop'){
-    audio.loop=!audio.loop;
-    var lb=document.getElementById('call-loop-btn');if(lb) lb.textContent='🔁 Loop:'+(audio.loop?'ON':'OFF');
+    _musicLoopEnabled=!_musicLoopEnabled;
+    if(audio) audio.loop=_musicLoopEnabled;
+    var lb=document.getElementById('call-loop-btn'); if(lb) lb.textContent='🔁 Loop:'+(_musicLoopEnabled?'ON':'OFF');
+    showToast(_musicLoopEnabled?'🔁 Loop ativado':'Loop desativado', _musicLoopEnabled?'ok':'info');
   }
 }
 
@@ -16190,65 +16314,229 @@ function _initTalkingDetector(stream) {
 
 // Hook mic para detector de voz
 
-// ── SOUNDBOARD ──
-var _soundboardItems = [];
-var _soundboardAudio = null;
-var _soundboardPlaying = null;
+// ══════════════════════════════════════════════════════════════════
+// SOUNDBOARD — reescrito do zero
+//
+// Problemas do sistema antigo:
+// 1) Os 5 sons padrão apontavam pra URLs de exemplo que não existem de
+//    verdade → clicar em qualquer um deles dava erro silencioso (parecia
+//    que "quase nenhum botão funcionava").
+// 2) Tocava só no navegador de quem clicou — ninguém mais na call ouvia
+//    nada, então não fazia sentido chamar de "soundboard de call".
+// 3) Não existia separação entre efeitos privados do Mestre e efeitos
+//    públicos que qualquer um pode acionar.
+//
+// Solução:
+// • Sons padrão são SINTETIZADOS na hora via Web Audio API (osciladores/
+//   ruído) — não dependem de nenhum link externo, então nunca "caem".
+//   Sons customizados por URL continuam funcionando como antes.
+// • Duas abas: "🔊 Público" (todo mundo na call vê, adiciona e aciona) e
+//   "🎭 Mestre" (só aparece pra quem é Mestre — os players nem sabem que
+//   ela existe, então dá pra guardar sons-surpresa sem entregar o roteiro).
+// • Ao clicar em qualquer som, ele toca localmente na hora (sem esperar
+//   ida e volta ao servidor) E dispara um evento no Firebase que todo
+//   mundo que estiver na MESMA call recebe e reproduz também — inclusive
+//   os efeitos "secretos" do Mestre, cujo áudio chega a todos mas cuja
+//   lista nunca é enviada pra quem não é Mestre.
+// ══════════════════════════════════════════════════════════════════
+var _sbPublicItems = [];
+var _sbMasterItems = [];
+var _sbAudio = null;
+var _sbPlayingId = null;
+var _sbTab = 'public'; // 'public' | 'master'
+var _sbSfxOff = null;
+var _sbSeenTriggerIds = {};
+var _sbAudioCtx = null;
 
-(function _loadSoundboard() {
-  try {
-    var saved = localStorage.getItem('ymm_soundboard');
-    if (saved) { _soundboardItems = JSON.parse(saved); }
-    else {
-      _soundboardItems = [
-        { id:'sb1', name:'⚔ Batalha Épica', url:'https://cdn.pixabay.com/audio/2022/03/15/audio_36b4b39d96.mp3', emoji:'⚔' },
-        { id:'sb2', name:'🌲 Floresta Mística', url:'https://cdn.pixabay.com/audio/2022/01/18/audio_d0a13f69d2.mp3', emoji:'🌲' },
-        { id:'sb3', name:'⚡ Tempestade', url:'https://cdn.pixabay.com/audio/2022/03/10/audio_2c6e3d6e5e.mp3', emoji:'⚡' },
-        { id:'sb4', name:'🏰 Taverna Medieval', url:'https://cdn.pixabay.com/audio/2021/11/25/audio_91b32e02df.mp3', emoji:'🏰' },
-        { id:'sb5', name:'💀 Horror Ambiente', url:'https://cdn.pixabay.com/audio/2022/10/25/audio_946b6826c9.mp3', emoji:'💀' },
-      ];
-    }
-  } catch(e) { _soundboardItems = []; }
-  setTimeout(renderSoundboard, 500);
-})();
-
-function _saveSoundboard() {
-  try { localStorage.setItem('ymm_soundboard', JSON.stringify(_soundboardItems)); } catch(e) {}
+function _sbIsMestre() {
+  return !!(currentUser && (currentUser.role==='mestre' || currentUser.role==='ambos'));
 }
 
+function _sbDefaultPublic() {
+  return [
+    { id:'pub1', name:'🔔 Sino', emoji:'🔔', synth:'sino' },
+    { id:'pub2', name:'🥁 Rufar de Tambor', emoji:'🥁', synth:'tambor' },
+    { id:'pub3', name:'🎉 Fanfarra', emoji:'🎉', synth:'fanfarra' },
+    { id:'pub4', name:'⚔ Choque de Espadas', emoji:'⚔', synth:'espada' }
+  ];
+}
+function _sbDefaultMaster() {
+  return [
+    { id:'mst1', name:'⚡ Trovão Súbito', emoji:'⚡', synth:'trovao' },
+    { id:'mst2', name:'😱 Grito Sinistro', emoji:'😱', synth:'grito' }
+  ];
+}
+
+// ── Sons sintetizados via Web Audio API (zero dependência de rede) ──
+function _sbPlaySynth(type) {
+  try {
+    var ctx = _sbAudioCtx || (_sbAudioCtx = new (window.AudioContext||window.webkitAudioContext)());
+    if (ctx.state === 'suspended') ctx.resume();
+    var now = ctx.currentTime;
+    function tone(freq, start, dur, wave, vol) {
+      var o=ctx.createOscillator(), g=ctx.createGain();
+      o.type=wave||'sine'; o.frequency.value=freq;
+      g.gain.setValueAtTime(0.0001, now+start);
+      g.gain.linearRampToValueAtTime(vol||.3, now+start+.02);
+      g.gain.exponentialRampToValueAtTime(.0001, now+start+dur);
+      o.connect(g); g.connect(ctx.destination);
+      o.start(now+start); o.stop(now+start+dur+.05);
+    }
+    function noiseBurst(start, dur, vol) {
+      var size=Math.max(1,Math.floor(ctx.sampleRate*dur));
+      var buf=ctx.createBuffer(1,size,ctx.sampleRate);
+      var data=buf.getChannelData(0);
+      for(var i=0;i<size;i++) data[i]=(Math.random()*2-1)*(1-i/size);
+      var src=ctx.createBufferSource(); src.buffer=buf;
+      var g=ctx.createGain(); g.gain.value=vol||.3;
+      src.connect(g); g.connect(ctx.destination);
+      src.start(now+start);
+    }
+    if(type==='sino'){ tone(1200,0,1.2,'sine',.25); tone(1800,0,1.0,'sine',.12); }
+    else if(type==='tambor'){ for(var i=0;i<6;i++) noiseBurst(i*.09,.09,.35); }
+    else if(type==='fanfarra'){ tone(523,0,.18,'square',.2); tone(659,.15,.18,'square',.2); tone(784,.3,.4,'square',.25); }
+    else if(type==='espada'){ noiseBurst(0,.12,.4); tone(2600,0,.08,'sawtooth',.15); tone(1800,.06,.1,'sawtooth',.12); }
+    else if(type==='trovao'){ noiseBurst(0,1.5,.55); tone(55,0,1.5,'sawtooth',.32); }
+    else if(type==='grito'){
+      var o=ctx.createOscillator(), g=ctx.createGain();
+      o.type='sawtooth';
+      o.frequency.setValueAtTime(300,now);
+      o.frequency.exponentialRampToValueAtTime(1200,now+.35);
+      o.frequency.exponentialRampToValueAtTime(150,now+.85);
+      g.gain.setValueAtTime(.001,now);
+      g.gain.linearRampToValueAtTime(.28,now+.05);
+      g.gain.exponentialRampToValueAtTime(.0001,now+.95);
+      o.connect(g); g.connect(ctx.destination);
+      o.start(now); o.stop(now+1);
+    }
+    else { tone(440,0,.3,'sine',.2); }
+  } catch(e) { console.warn('[Soundboard synth]', e); }
+}
+
+// ── Carrega bibliotecas (público sincroniza por Firebase; mestre é local) ──
+function _sbLoadMaster() {
+  try {
+    var saved = localStorage.getItem('ymm_soundboard_master');
+    _sbMasterItems = saved ? JSON.parse(saved) : _sbDefaultMaster();
+  } catch(e) { _sbMasterItems = _sbDefaultMaster(); }
+}
+function _sbSaveMaster() {
+  try { localStorage.setItem('ymm_soundboard_master', JSON.stringify(_sbMasterItems)); } catch(e) {}
+}
+function _sbLoadPublic() {
+  if (window.db && window._ref && window._onValue) {
+    try {
+      var pubRef = window._ref(window.db, 'soundboardPublic');
+      window._onValue(pubRef, function(snap){
+        var items=[];
+        if (snap.exists()) snap.forEach(function(c){ var v=c.val()||{}; v.id=c.key; items.push(v); });
+        _sbPublicItems = items.length ? items : _sbDefaultPublic();
+        renderSoundboard();
+      });
+      return;
+    } catch(e){ console.warn('[Soundboard] sync público falhou', e); }
+  }
+  _sbPublicItems = _sbDefaultPublic();
+}
+_sbLoadMaster();
+_sbPublicItems = _sbDefaultPublic();
+setTimeout(renderSoundboard, 500);
+document.addEventListener('ymm-fb-ready', _sbLoadPublic);
+if (window._fbReady) _sbLoadPublic();
+
+// ── Renderização (com abas) ──
 function renderSoundboard() {
-  var list = document.getElementById('sb-list'); if (!list) return;
-  if (!_soundboardItems.length) { list.innerHTML = '<div style="font-family:\'Share Tech Mono\',monospace;font-size:.48rem;color:rgba(255,255,255,0.72);text-align:center;padding:8px">// sem sons cadastrados //</div>'; return; }
-  list.innerHTML = _soundboardItems.map(function(s, i) {
-    var isPlaying = _soundboardPlaying === s.id;
+  var listEl = document.getElementById('sb-list'); if (!listEl) return;
+  var isMestre = _sbIsMestre();
+  if (_sbTab==='master' && !isMestre) _sbTab='public';
+
+  var tabsEl = document.getElementById('sb-tabs');
+  if (tabsEl) {
+    tabsEl.innerHTML =
+      '<button class="sb-tab-btn'+(_sbTab==='public'?' active':'')+'" onclick="switchSoundboardTab(\'public\')">🔊 Público</button>'
+      + (isMestre ? '<button class="sb-tab-btn'+(_sbTab==='master'?' active':'')+'" onclick="switchSoundboardTab(\'master\')">🎭 Mestre</button>' : '');
+  }
+  var hintEl = document.getElementById('sb-hint');
+  if (hintEl) {
+    hintEl.textContent = _sbTab==='master'
+      ? '🔒 Só você vê esta aba. Ao tocar, o som chega a todo mundo na call — sem revelar essa lista pra eles.'
+      : '🌍 Visível e utilizável por qualquer um na call, mestre ou player.';
+  }
+
+  var items = _sbTab==='master' ? _sbMasterItems : _sbPublicItems;
+  if (!items.length) { listEl.innerHTML = '<div style="font-family:\'Share Tech Mono\',monospace;font-size:.48rem;color:rgba(255,255,255,0.72);text-align:center;padding:8px">// sem sons cadastrados //</div>'; return; }
+  var scope = _sbTab;
+  listEl.innerHTML = items.map(function(s) {
+    var isPlaying = _sbPlayingId === s.id;
     return '<div style="display:flex;align-items:center;gap:4px">'
-      + '<button class="sb-btn' + (isPlaying ? ' playing' : '') + '" style="flex:1" onclick="playSoundboardItem(\'' + s.id + '\')">'
+      + '<button class="sb-btn' + (isPlaying ? ' playing' : '') + '" style="flex:1" onclick="playSoundboardItem(\'' + s.id + '\',\''+scope+'\')">'
       + '<span>' + (s.emoji||'🎵') + '</span>'
       + '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (s.name||'Som') + '</span>'
       + '<span>' + (isPlaying ? '⏹' : '▶') + '</span>'
       + '</button>'
-      + '<button onclick="removeSoundboardItem(\'' + s.id + '\')" style="background:none;border:none;color:rgba(255,80,80,0.72);cursor:pointer;font-size:.7rem;padding:2px 4px;flex-shrink:0" title="Remover">✕</button>'
+      + '<button onclick="removeSoundboardItem(\'' + s.id + '\',\''+scope+'\')" style="background:none;border:none;color:rgba(255,80,80,0.72);cursor:pointer;font-size:.7rem;padding:2px 4px;flex-shrink:0" title="Remover">✕</button>'
       + '</div>';
   }).join('');
 }
 
-function playSoundboardItem(id) {
-  var s = _soundboardItems.find(function(x){return x.id===id;});
+function switchSoundboardTab(tab) {
+  if (tab==='master' && !_sbIsMestre()) return; // trava extra além do botão nem aparecer
+  _sbTab = tab;
+  renderSoundboard();
+}
+
+// ── Toca localmente (usado tanto por quem aciona quanto por quem recebe) ──
+function _sbPlayLocal(item) {
+  if (item.synth) { _sbPlaySynth(item.synth); return; }
+  if (!item.url) return;
+  var a = new Audio(item.url);
+  a.volume = 0.6;
+  a.play().catch(function(){});
+  return a;
+}
+
+// ── Transmite pra todo mundo que estiver na MESMA call ouvir também ──
+function _sbBroadcast(item, scope) {
+  if (!(callState.active && window.db && window._ref && window._push)) return;
+  try {
+    window._push(window._ref(window.db, 'calls/'+_curCallRoom()+'/sfx'), {
+      name: item.name || '', url: item.url || null, synth: item.synth || null,
+      by: window._myCallId || (currentUser ? currentUser.username : '?'),
+      scope: scope || 'public', ts: Date.now()
+    });
+  } catch(e) { console.warn('[Soundboard] transmissão falhou', e); }
+}
+
+function playSoundboardItem(id, scope) {
+  if (scope==='master' && !_sbIsMestre()) return;
+  var list = scope==='master' ? _sbMasterItems : _sbPublicItems;
+  var s = list.find(function(x){ return x.id===id; });
   if (!s) return;
-  if (_soundboardPlaying === id) {
-    if (_soundboardAudio) { _soundboardAudio.pause(); _soundboardAudio = null; }
-    _soundboardPlaying = null; renderSoundboard(); return;
+
+  if (!s.synth) {
+    // Sons por URL personalizada continuam em loop com toggle (comportamento antigo)
+    if (_sbPlayingId === id) {
+      if (_sbAudio) { _sbAudio.pause(); _sbAudio = null; }
+      _sbPlayingId = null; renderSoundboard(); return;
+    }
+    if (_sbAudio) { _sbAudio.pause(); _sbAudio = null; }
+    _sbAudio = new Audio(s.url);
+    _sbAudio.loop = true;
+    _sbAudio.volume = 0.6;
+    _sbAudio.play().then(function(){
+      _sbPlayingId = id; renderSoundboard();
+      showToast((scope==='master'?'🎭 ':'🔊 ') + s.name, 'ok');
+      _sbBroadcast(s, scope);
+    }).catch(function(){
+      _sbPlayingId = null; renderSoundboard();
+      showToast('⚠ Não foi possível reproduzir esse link.', 'warn');
+    });
+  } else {
+    // Sons sintetizados são curtos (one-shot) — só toca
+    _sbPlaySynth(s.synth);
+    showToast((scope==='master'?'🎭 ':'🔊 ') + s.name, 'ok');
+    _sbBroadcast(s, scope);
   }
-  if (_soundboardAudio) { _soundboardAudio.pause(); _soundboardAudio = null; }
-  _soundboardAudio = new Audio(s.url);
-  _soundboardAudio.loop = true;
-  _soundboardAudio.volume = 0.55;
-  _soundboardAudio.play().then(function(){
-    _soundboardPlaying = id; renderSoundboard(); showToast('🎵 ' + s.name, 'ok');
-  }).catch(function(){
-    _soundboardPlaying = null; renderSoundboard();
-    showToast('⚠ Não foi possível reproduzir. Tente outro URL.', 'warn');
-  });
 }
 
 function addSoundboardItem() {
@@ -16257,20 +16545,72 @@ function addSoundboardItem() {
   if (!nameEl || !urlEl) return;
   var name = nameEl.value.trim(); var url = urlEl.value.trim();
   if (!name || !url) { showToast('⚠ Preencha nome e URL', 'warn'); return; }
-  _soundboardItems.push({ id:'sb'+Date.now(), name:name, url:url, emoji:'🎵' });
-  _saveSoundboard(); nameEl.value=''; urlEl.value='';
-  renderSoundboard(); showToast('✓ Som adicionado!', 'ok');
+  var scope = _sbTab;
+  if (scope==='master') {
+    _sbMasterItems.push({ id:'sb'+Date.now(), name:name, url:url, emoji:'🎵' });
+    _sbSaveMaster();
+    nameEl.value=''; urlEl.value=''; renderSoundboard();
+    showToast('✓ Som adicionado à sua aba secreta!', 'ok');
+  } else {
+    if (window.db && window._ref && window._push) {
+      window._push(window._ref(window.db, 'soundboardPublic'), { name:name, url:url, emoji:'🎵' })
+        .catch(function(){ showToast('⚠ Não foi possível sincronizar — som salvo só aqui', 'warn'); });
+    } else {
+      _sbPublicItems.push({ id:'sb'+Date.now(), name:name, url:url, emoji:'🎵' });
+    }
+    nameEl.value=''; urlEl.value=''; renderSoundboard();
+    showToast('✓ Som adicionado pra todo mundo!', 'ok');
+  }
 }
 
-function removeSoundboardItem(id) {
-  if (_soundboardPlaying === id && _soundboardAudio) { _soundboardAudio.pause(); _soundboardAudio=null; _soundboardPlaying=null; }
-  _soundboardItems = _soundboardItems.filter(function(x){return x.id!==id;});
-  _saveSoundboard(); renderSoundboard();
+function removeSoundboardItem(id, scope) {
+  if (scope==='master' && !_sbIsMestre()) return;
+  if (_sbPlayingId === id && _sbAudio) { _sbAudio.pause(); _sbAudio=null; _sbPlayingId=null; }
+  if (scope==='master') {
+    _sbMasterItems = _sbMasterItems.filter(function(x){ return x.id!==id; });
+    _sbSaveMaster();
+  } else {
+    if (window.db && window._ref && window._remove) {
+      try { window._remove(window._ref(window.db, 'soundboardPublic/'+id)); } catch(e){}
+    }
+    _sbPublicItems = _sbPublicItems.filter(function(x){ return x.id!==id; });
+  }
+  renderSoundboard();
 }
+
+// ── Escuta os efeitos disparados por qualquer um na mesma call ──
+// Ligado quando entra na call, desligado quando sai — assim quem não está
+// na call não recebe (nem gasta) nada, e cada call tem seus próprios sons.
+function _sbStartListening() {
+  if (!(window.db && window._ref && window._onValue)) return;
+  _sbStopListening();
+  var startTs = Date.now();
+  var sfxRef = window._ref(window.db, 'calls/'+_curCallRoom()+'/sfx');
+  window._onValue(sfxRef, function(snap){
+    if (!snap.exists()) return;
+    snap.forEach(function(child){
+      var v = child.val(); var key = child.key;
+      if (!v || (v.ts||0) <= startTs || _sbSeenTriggerIds[key]) return;
+      _sbSeenTriggerIds[key] = true;
+      // Não re-toca pra quem já ouviu na hora que clicou
+      if (window._myCallId && v.by === window._myCallId) return;
+      _sbPlayLocal(v);
+    });
+  });
+  _sbSfxOff = function(){ try{ window._off(sfxRef); }catch(e){} };
+}
+function _sbStopListening() {
+  if (_sbSfxOff) { _sbSfxOff(); _sbSfxOff=null; }
+  _sbSeenTriggerIds = {};
+}
+window._sbStartListening = _sbStartListening;
+window._sbStopListening = _sbStopListening;
 
 function toggleSoundboard() {
   var panel = document.getElementById('soundboard-panel');
-  if (panel) panel.classList.toggle('visible');
+  if (!panel) return;
+  panel.classList.toggle('visible');
+  if (panel.classList.contains('visible')) renderSoundboard();
 }
 
 // ── Expõe globalmente ──
@@ -16281,6 +16621,7 @@ window.toggleQuickDice = toggleQuickDice;
 window.addSoundboardItem = addSoundboardItem;
 window.playSoundboardItem = playSoundboardItem;
 window.removeSoundboardItem = removeSoundboardItem;
+window.switchSoundboardTab = switchSoundboardTab;
 window.sendCallReaction = sendCallReaction;
 
 // Oculta tray antes do login
