@@ -15756,6 +15756,17 @@ window._fbPublishCampanha = async function(c) {
       banner: '',          // não envia base64 para o Firebase
       hasBanner: !!(c.banner && c.banner.length > 10),
       senhaSet: !!c.senhaSet,
+      // ANTES: a senha (hash) e a lista de convites nunca eram publicadas no
+      // catálogo global — só a flag "tem senha". Isso significava que
+      // QUALQUER dispositivo que não fosse o do criador (ou seja, todo
+      // player tentando entrar pela busca/catálogo) recebia uma campanha sem
+      // "senha" nem "convites" pra comparar, e a senha/código nunca batiam
+      // com nada — pareciam sempre errados, mesmo estando certos. O hash
+      // aqui já é só "obfuscação básica" (ver comentário em hashPass()), não
+      // segurança de verdade, então publicá-lo é necessário pra validação
+      // funcionar em qualquer dispositivo.
+      senha: c.senha || '',
+      convites: c.convites || [],
       criadaEm: c.criadaEm || ''
     };
     await set(ref(db, 'globalCampaigns/' + c.id), pub);
