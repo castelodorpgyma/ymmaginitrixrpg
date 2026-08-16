@@ -7230,7 +7230,13 @@ function save() {
       }, 1800);
     }
   } catch(e) {
+    // CORRIGIDO: antes essa falha só ia pro console — se o localStorage
+    // estivesse cheio (comum quando a campanha acumula várias imagens),
+    // o "SALVAR" parecia funcionar (nenhum erro na tela) mas nada era
+    // gravado de fato, nem local nem no Firebase (que depende de chegar
+    // até aqui). Agora avisa, igual já acontecia em saveUsers().
     console.error('[save]', e);
+    showToast('✕ Não foi possível salvar (armazenamento local cheio) — reduza o tamanho das imagens da campanha/fichas.', 'err');
   }
 }
 
