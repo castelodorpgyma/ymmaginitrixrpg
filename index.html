@@ -5910,7 +5910,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
               <input type="file" id="sp-upload-input" accept="image/*" multiple="" style="display:none" onchange="addStickers(event)">
             </div>
             <div id="sp-tenor-wrap-" style="display:none">
-              <input type="text" class="sp-tenor-search" id="sp-tenor-q-" placeholder="🔎 Buscar GIFs..." oninput="_tenorSearchDebounced('', this.value)">
+              <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px">
+                <input type="text" class="sp-tenor-search" id="sp-tenor-q-" placeholder="🔎 Buscar GIFs..." oninput="_tenorSearchDebounced('', this.value)" style="flex:1;margin-bottom:0">
+                <button type="button" title="Configurar chave do Tenor" onclick="_tenorPromptKey('')" style="flex-shrink:0;background:none;border:1px solid rgba(255,255,255,.1);border-radius:6px;color:rgba(255,255,255,0.72);padding:7px 9px;cursor:pointer;font-size:.85rem">⚙</button>
+              </div>
               <div class="sp-grid" id="sp-grid-tenor-"></div>
             </div>
             <div id="sp-emoji-wrap-" style="display:none">
@@ -6116,7 +6119,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
         <input type="file" id="sp-upload-ov" accept="image/*" multiple="" style="display:none" onchange="addStickers(event)">
       </div>
       <div id="sp-tenor-wrap-ov" style="display:none">
-        <input type="text" class="sp-tenor-search" id="sp-tenor-q-ov" placeholder="🔎 Buscar GIFs..." oninput="_tenorSearchDebounced('ov', this.value)">
+        <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px">
+          <input type="text" class="sp-tenor-search" id="sp-tenor-q-ov" placeholder="🔎 Buscar GIFs..." oninput="_tenorSearchDebounced('ov', this.value)" style="flex:1;margin-bottom:0">
+          <button type="button" title="Configurar chave do Tenor" onclick="_tenorPromptKey('ov')" style="flex-shrink:0;background:none;border:1px solid rgba(255,255,255,.1);border-radius:6px;color:rgba(255,255,255,0.72);padding:7px 9px;cursor:pointer;font-size:.85rem">⚙</button>
+        </div>
         <div class="sp-grid" id="sp-grid-tenor-ov"></div>
       </div>
       <div id="sp-emoji-wrap-ov" style="display:none">
@@ -13429,14 +13435,26 @@ function sendSticker(id) {
 // ══════════════════════════════════════════════════════════════════
 // TENOR — busca e envio de GIFs/figurinhas animadas direto no chat
 // ══════════════════════════════════════════════════════════════════
-// Chave pública de demonstração da própria Tenor (documentada nos exemplos
-// oficiais de quickstart da API). Funciona out-of-the-box, mas tem cota
-// baixa e compartilhada — pra uso sério da campanha, troque pela sua
-// chave gratuita em https://tenor.com/developer/keyregistration e cole
-// em Perfil › em breve, ou direto no console: localStorage.setItem('ymm_tenor_key','SUA_CHAVE')
-var TENOR_DEMO_KEY = 'LIVDSRZULELA';
+// Chave da API do Tenor. A antiga chave pública "de demonstração" era da
+// API v1 e a Tenor não aceita mais ela na v2 — por isso a busca de GIFs
+// sempre falhava (erro 403), em qualquer dispositivo/rede. Agora, sem uma
+// chave própria configurada, a busca nem tenta e já orienta a pessoa a
+// pegar uma (gratuita) e colar direto pela interface, sem precisar de console.
+var TENOR_DEMO_KEY = ''; // não existe mais chave de demo funcional pra v2
 function _tenorApiKey() {
   return localStorage.getItem('ymm_tenor_key') || TENOR_DEMO_KEY;
+}
+function _tenorPromptKey(suffix) {
+  var atual = localStorage.getItem('ymm_tenor_key') || '';
+  var nova = prompt('Cole sua chave de API do Tenor (gratuita, pegue em tenor.com/developer/keyregistration):', atual);
+  if (nova === null) return;
+  nova = nova.trim();
+  if (!nova) { localStorage.removeItem('ymm_tenor_key'); showToast('🔑 Chave do Tenor removida', 'warn'); return; }
+  localStorage.setItem('ymm_tenor_key', nova);
+  showToast('✓ Chave do Tenor salva — buscando GIFs...', 'ok');
+  var grid = document.getElementById('sp-grid-tenor-'+(suffix||''));
+  if (grid) grid.dataset.loaded = '';
+  _tenorFetch(suffix || '', '');
 }
 function switchStickerSrc(mode, suffix) {
   var s = suffix || '';
@@ -13489,11 +13507,16 @@ function _tenorFetch(suffix, q) {
   var s = suffix || '';
   var grid = document.getElementById('sp-grid-tenor-'+s);
   if(!grid) return;
+  var key = _tenorApiKey();
+  if (!key) {
+    grid.innerHTML = '<div class="sp-tenor-msg">🔑 Busca de GIFs precisa de uma chave grátis do Tenor.<br><span style="text-decoration:underline;cursor:pointer" onclick="_tenorPromptKey(\''+s+'\')">Toque aqui pra configurar</span> (leva 1 minuto).</div>';
+    return;
+  }
   grid.innerHTML = '<div class="sp-tenor-msg">Buscando...</div>';
   var endpoint = q && q.trim()
-    ? 'https://tenor.googleapis.com/v2/search?q='+encodeURIComponent(q.trim())+'&key='+_tenorApiKey()+'&client_key=ymmaginitrix&limit=24&media_filter=tinygif,gif&contentfilter=medium'
-    : 'https://tenor.googleapis.com/v2/featured?key='+_tenorApiKey()+'&client_key=ymmaginitrix&limit=24&media_filter=tinygif,gif&contentfilter=medium';
-  fetch(endpoint).then(function(r){ if(!r.ok) throw new Error('http '+r.status); return r.json(); }).then(function(data){
+    ? 'https://tenor.googleapis.com/v2/search?q='+encodeURIComponent(q.trim())+'&key='+key+'&client_key=ymmaginitrix&limit=24&media_filter=tinygif,gif&contentfilter=medium'
+    : 'https://tenor.googleapis.com/v2/featured?key='+key+'&client_key=ymmaginitrix&limit=24&media_filter=tinygif,gif&contentfilter=medium';
+  fetch(endpoint).then(function(r){ if(!r.ok) { var err = new Error('http '+r.status); err.status = r.status; throw err; } return r.json(); }).then(function(data){
     var results = data && data.results || [];
     if(!results.length) { grid.innerHTML = '<div class="sp-tenor-msg">Nenhum GIF encontrado.</div>'; return; }
     grid.innerHTML = results.map(function(r){
@@ -13505,7 +13528,12 @@ function _tenorFetch(suffix, q) {
     }).join('');
   }).catch(function(err){
     console.error('[Tenor]', err);
-    grid.innerHTML = '<div class="sp-tenor-msg">⚠ Não foi possível buscar GIFs agora.<br>Verifique sua conexão ou tente de novo em instantes.</div>';
+    // 401/403 = chave inválida/expirada — orienta a trocar em vez de dar erro genérico
+    if (err && (err.status === 401 || err.status === 403)) {
+      grid.innerHTML = '<div class="sp-tenor-msg">🔑 Chave do Tenor inválida ou expirada.<br><span style="text-decoration:underline;cursor:pointer" onclick="_tenorPromptKey(\''+s+'\')">Toque aqui pra configurar uma nova</span>.</div>';
+    } else {
+      grid.innerHTML = '<div class="sp-tenor-msg">⚠ Não foi possível buscar GIFs agora.<br>Verifique sua conexão ou tente de novo em instantes.</div>';
+    }
   });
 }
 function _sendTenorGif(el, suffix) {
