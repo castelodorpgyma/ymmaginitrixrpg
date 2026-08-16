@@ -6396,6 +6396,29 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   </div>
 </div>
 
+<!-- ══ MODAL: SENHA/CONVITE DA CAMPANHA ══
+     ANTES: usava window.prompt() nativo do navegador pra pedir a senha. Em
+     apps instalados como PWA, dentro de WebViews, Electron ou extensões
+     (exatamente o tipo de janela sem barra de endereço que esse app usa), o
+     prompt() nativo frequentemente NÃO aparece ou é bloqueado — então pro
+     usuário parecia que "não dá pra entrar na campanha", quando na verdade a
+     caixinha de senha nem chegava a abrir. Agora é um modal de verdade, no
+     mesmo estilo do resto do app. -->
+<div class="modal-overlay" id="modal-campanha-senha" onclick="if(event.target===this)closeModal('modal-campanha-senha')">
+  <div class="modal" style="max-width:380px">
+    <div class="modal-hd"><span>🔒 SENHA DA CAMPANHA</span><button class="modal-close" onclick="closeModal('modal-campanha-senha')">✕</button></div>
+    <p style="font-size:.72rem;color:rgba(200,210,240,0.72);margin-bottom:14px" id="cs-campanha-nome">Digite a senha ou cole seu código de convite para entrar.</p>
+    <input type="password" id="cs-senha-input" placeholder="Senha ou código de convite..." autocomplete="off"
+      style="width:100%;padding:10px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:8px;color:#fff;font-family:'Share Tech Mono',monospace;font-size:.72rem;outline:none;margin-bottom:6px"
+      onkeydown="if(event.key==='Enter')confirmCampanhaSenha()">
+    <div id="cs-senha-erro" style="display:none;font-family:'Share Tech Mono',monospace;font-size:.56rem;color:#ff8a8a;margin-bottom:8px">✕ Senha ou código incorretos</div>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <button class="btn" onclick="closeModal('modal-campanha-senha')" style="flex:1">Cancelar</button>
+      <button class="btn btn-primary" onclick="confirmCampanhaSenha()" style="flex:1">🔓 Entrar</button>
+    </div>
+  </div>
+</div>
+
 
 <div class="modal-overlay" id="modal-custom-item">
   <div class="modal">
@@ -9085,34 +9108,59 @@ function _findCampanha(id) {
   return c;
 }
 
+var _pendingCampanhaEntry = null; // id da campanha aguardando confirmação de senha
+
 function tryEnterCampanha(id) {
   var c = _findCampanha(id);
   if (!c) { showToast('⚠ Campanha não encontrada localmente', 'warn'); return; }
   if (c.senhaSet && !isMestreDa(c)) {
-    var s = prompt('🔒 Senha da campanha (ou cole seu código de convite):');
-    if (!s) return;
-    s = s.trim();
-    if (hashPass(s) === c.senha) {
-      // senha correta, segue
-    } else {
-      // Tenta como código de convite individual: precisa bater o código E
-      // o convite ter sido gerado pro username da conta atual (ou pra
-      // qualquer um, se o convite não tiver dono definido).
-      var convite = (c.convites || []).find(function(inv) {
-        return inv.code.toUpperCase() === s.toUpperCase() && !inv.usado;
-      });
-      var pertenceAoUser = convite && currentUser && convite.username &&
-        convite.username.toLowerCase() === currentUser.username.toLowerCase();
-      if (!convite) { showToast('✕ Senha ou código de convite incorretos', 'err'); return; }
-      if (!pertenceAoUser) { showToast('✕ Esse código de convite não é seu', 'err'); return; }
-      convite.usado = true;
-      save();
-      if (typeof window._fbPublishCampanha === 'function') window._fbPublishCampanha(c);
-      showToast('🎟 Convite aceito!', 'ok');
-    }
+    _pendingCampanhaEntry = id;
+    var nomeEl = document.getElementById('cs-campanha-nome');
+    if (nomeEl) nomeEl.textContent = 'Digite a senha (ou cole seu código de convite) para entrar em "' + (c.nome||'') + '".';
+    var inputEl = document.getElementById('cs-senha-input');
+    var erroEl = document.getElementById('cs-senha-erro');
+    if (inputEl) inputEl.value = '';
+    if (erroEl) erroEl.style.display = 'none';
+    openModal('modal-campanha-senha');
+    setTimeout(function(){ if (inputEl) inputEl.focus(); }, 80);
+    return;
   }
   openCampanhaDetail(id);
 }
+
+// Chamado pelo botão "Entrar" (ou Enter no campo) do modal de senha —
+// substitui o antigo window.prompt(), que não funciona em janelas de app
+// instalado (PWA), WebView, Electron ou extensões.
+function confirmCampanhaSenha() {
+  var id = _pendingCampanhaEntry;
+  var c = id ? _findCampanha(id) : null;
+  var inputEl = document.getElementById('cs-senha-input');
+  var erroEl = document.getElementById('cs-senha-erro');
+  if (!c || !inputEl) { closeModal('modal-campanha-senha'); return; }
+  var s = inputEl.value.trim();
+  if (!s) { if (erroEl) { erroEl.textContent='✕ Digite a senha ou o código de convite'; erroEl.style.display='block'; } return; }
+
+  if (hashPass(s) === c.senha) {
+    // senha correta, segue
+  } else {
+    var convite = (c.convites || []).find(function(inv) {
+      return inv.code.toUpperCase() === s.toUpperCase() && !inv.usado;
+    });
+    var pertenceAoUser = convite && currentUser && convite.username &&
+      convite.username.toLowerCase() === currentUser.username.toLowerCase();
+    if (!convite) { if (erroEl) { erroEl.textContent='✕ Senha ou código de convite incorretos'; erroEl.style.display='block'; } return; }
+    if (!pertenceAoUser) { if (erroEl) { erroEl.textContent='✕ Esse código de convite não é seu'; erroEl.style.display='block'; } return; }
+    convite.usado = true;
+    save();
+    if (typeof window._fbPublishCampanha === 'function') window._fbPublishCampanha(c);
+    showToast('🎟 Convite aceito!', 'ok');
+  }
+  closeModal('modal-campanha-senha');
+  _pendingCampanhaEntry = null;
+  openCampanhaDetail(id);
+}
+window.confirmCampanhaSenha = confirmCampanhaSenha;
+window.tryEnterCampanha = tryEnterCampanha;
 
 // ── Modal de detalhe da campanha: mostra os personagens (fichas) dos
 //    players e do mestre que foram vinculados a essa campanha ──
