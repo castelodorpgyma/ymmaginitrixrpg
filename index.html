@@ -6,13 +6,31 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>Ymmaginitrix — Gerenciador de Campanhas</title>
-<meta name="version" content="202608161125">
+<meta name="version" content="202608161445">
 <meta name="description" content="Ymmaginitrix — Plataforma de gerenciamento de campanhas de RPG">
 <meta name="application-name" content="Ymmaginitrix">
 <meta property="og:title" content="Ymmaginitrix — Gerenciador de Campanhas RPG">
 <meta property="og:description" content="Plataforma completa para mestres e jogadores de RPG">
 <meta property="og:type" content="application">
 <meta name="robots" content="noindex, nofollow">
+
+<!-- CORREÇÕES DE CALL (WebRTC) — v202608161445
+     1) Sala de call de grupo não era mais determinada por "campanha aberta
+        localmente" (dessincronizada entre jogadores) — agora é sempre 'main'
+        (ou a sala privada dm_..._... na call 1:1), removida a entrada
+        duplicada na sala que deixava presença fantasma.
+     2) Adicionado servidor TURN de fallback — só STUN falhava entre pessoas
+        em redes diferentes (o caso mais comum), que é a causa mais provável
+        de "não dá pra ligar com o resto da campanha".
+     3) Lista de participantes da call era buscada do Firebase só UMA VEZ
+        (onlyOnce) — agora atualiza ao vivo, então avatar/ícone e indicador
+        de "falando" de quem entra depois já aparecem sem precisar recarregar.
+     4) Adicionado aviso (toast + destaque no botão) quando alguém entra na
+        call de GRUPO enquanto você não está nela — antes só existia aviso
+        pra chamada privada.
+     5) Barra de vida/sanidade/estamina não fica mais em cima do rosto da
+        pessoa no topo do card — movida pro canto inferior, sobre um degradê
+        escuro junto do nome/cargo. -->
 
 <!-- PWA -->
 <link rel="manifest" href="/manifest.json">
@@ -2587,6 +2605,13 @@ textarea{resize:vertical;min-height:72px;border-radius:var(--r-sm)}
    CALL SYSTEM — YMMAGINITRIX v10
 ══════════════════════════════════════ */
 .call-open-btn{display:flex;align-items:center;gap:8px;padding:10px 16px;background:linear-gradient(135deg,rgba(35,165,90,.15),rgba(35,165,90,.1));border:1px solid rgba(35,165,90,.28);border-radius:var(--r-sm);color:rgba(87,242,135,0.9);font-family:'Share Tech Mono',monospace;font-size:.72rem;letter-spacing:.08em;cursor:pointer;transition:all .18s;width:100%;justify-content:center}
+/* pulso visual quando alguém entra na call de grupo e eu ainda não estou nela —
+   chama atenção pro botão sem depender só do toast, que some rápido */
+.call-open-btn.call-pulse{animation:callOpenBtnPulse 1s ease-in-out 4}
+@keyframes callOpenBtnPulse{
+  0%,100%{box-shadow:0 0 0 0 rgba(87,242,135,.55);border-color:rgba(35,165,90,.28)}
+  50%{box-shadow:0 0 0 8px rgba(87,242,135,0);border-color:rgba(87,242,135,.85)}
+}
 .call-open-btn:hover{background:linear-gradient(135deg,rgba(35,165,90,.25),rgba(35,165,90,.18));border-color:rgba(35,165,90,.5);box-shadow:0 0 20px rgba(35,165,90,.15)}
 .call-dot{width:8px;height:8px;border-radius:50%;background:rgba(87,242,135,.8);box-shadow:0 0 10px rgba(87,242,135,.6);animation:callDotPulse 1.5s ease-in-out infinite}
 @keyframes callDotPulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.5);opacity:.55}}
@@ -3820,10 +3845,19 @@ input:valid:not(:placeholder-shown) {
   position:absolute; left:9px; bottom:38px; z-index:6;
   background:rgba(0,0,0,.6);
 }
-/* HUD de vida/sanidade/estamina vira uma faixa sobreposta no topo do card */
+/* HUD de vida/sanidade/estamina — antes ficava faixa cheia no TOPO do
+   card, direto em cima do rosto/câmera da pessoa ("lugar horrível").
+   Agora fica empilhado no CANTO INFERIOR, junto do nome/cargo, sobre o
+   mesmo degradê escuro (scrim) — não tampa mais ninguém. */
 .call-part-stats{
-  position:absolute; top:9px; left:9px; right:9px; z-index:6; max-width:none;
-  background:rgba(0,0,0,.5); border-radius:6px; padding:5px 8px; backdrop-filter:blur(3px);
+  position:absolute; left:9px; right:9px; bottom:68px; z-index:6; max-width:none;
+  background:rgba(0,0,0,.55); border-radius:6px; padding:5px 8px; backdrop-filter:blur(3px);
+}
+/* degradê escuro só na base do card pra nome/cargo/stats ficarem legíveis
+   sem precisar de um retângulo opaco cobrindo metade do rosto */
+.call-participant::after{
+  content:''; position:absolute; left:0; right:0; bottom:0; height:58%; z-index:5;
+  pointer-events:none; background:linear-gradient(to top,rgba(0,0,0,.72) 0%,rgba(0,0,0,.32) 55%,transparent 100%);
 }
 /* evita a tag "silenciado pelo mestre" colidir com o selo de nome no rodapé */
 .call-part-forcemuted-tag{ bottom:auto !important; top:44px !important; }
@@ -3875,6 +3909,7 @@ input:valid:not(:placeholder-shown) {
 .call-overlay.floating .call-header-title{ font-size:.68rem; }
 .call-overlay.floating .call-participants-area{ grid-template-columns:repeat(auto-fill,minmax(76px,1fr)); gap:8px; padding:8px; }
 .call-overlay.floating .call-part-name,.call-overlay.floating .call-part-role{ font-size:.5rem; }
+.call-overlay.floating .call-part-stats{ display:none; } /* não cabe no card minúsculo da janela flutuante */
 .call-overlay.floating .call-screen-area video{ max-height:110px; }
 .call-overlay.floating .call-controls{ padding:6px; gap:4px; }
 .call-overlay.floating .call-ctrl-btn{ width:30px; height:30px; font-size:.7rem; }
@@ -12438,10 +12473,24 @@ function _startCall() {
   var ob = document.getElementById('call-open-btn');
   if(ob) ob.innerHTML='<span class="call-dot"></span>&nbsp;VOLTAR PARA CALL';
 
-  // Entra na sala WebRTC se Firebase estiver disponível
+  // Entra na sala WebRTC se Firebase estiver disponível.
+  // IMPORTANTE: a sala tem que ser a MESMA pra todo mundo da campanha —
+  // antes isso usava "data.campAtiva" (qual campanha CADA UM tinha aberta
+  // localmente na própria tela), que não é sincronizado entre os jogadores.
+  // Duas pessoas na MESMA campanha podiam estar com abas diferentes abertas
+  // e cair em salas Firebase diferentes → a call parecia "não funcionar"
+  // entre elas (cada um ficava sozinho na sua sala, sem nunca se verem).
+  // Também tinha um "join" duplicado (esta função era chamada, e DEPOIS um
+  // hook mais abaixo chamava _joinCallRoom de novo com outra sala) — isso
+  // deixava presença "fantasma" numa sala errada e listeners duplicados.
+  // Agora só entra UMA vez, sempre em 'main' pra call de grupo (ou a sala
+  // privada dm_..._... quando é uma chamada 1:1) — o mesmo valor usado em
+  // todo o resto do sistema de call (_curCallRoom(), sinalização, etc).
   if (window.db && window._ref && typeof window._joinCallRoom === 'function') {
-    var campId = (data && data.campAtiva) ? data.campAtiva : 'main';
-    window._joinCallRoom(campId).catch(function(e){ console.warn('[Call] WebRTC join:', e); });
+    var _room = callState.privateWith
+      ? _privateCallRoomId(currentUser.id, callState.privateWith)
+      : 'main';
+    window._joinCallRoom(_room).catch(function(e){ console.warn('[Call] WebRTC join:', e); });
   }
 
   // Pede mic automaticamente
@@ -16117,6 +16166,7 @@ window.pushRoll = function(entry) {
 let _peers       = {};   // uid → RTCPeerConnection
 let _callRoomRef = null;
 let _callSignalUnsub = null;
+let _membersUnsub = null;
 let _myCallId    = null;
 
 // ── Estado da transmissão de tela (pré-visualização opt-in para quem assiste) ──
@@ -16127,10 +16177,28 @@ let _screenTrackId     = null;    // id da track de tela que EU estou enviando (
 let _screenShareUnsub  = null;
 let _ownMuteUnsub       = null;
 
+// IMPORTANTE: só STUN não é suficiente pra conectar duas pessoas em redes
+// diferentes (ex: um jogador no wifi de casa, outro no 4G/outra operadora,
+// ou atrás de CGNAT/firewall corporativo — que é o caso mais comum). Sem um
+// servidor TURN de retransmissão, o ICE simplesmente não acha um caminho e a
+// call fica muda/preta pra quem não está na mesma rede — isso explica calls
+// que "funcionam" só entre gente próxima e nunca com o resto da campanha.
+// Servidor TURN público de fallback (openrelay) foi adicionado — para uso
+// em produção com muitos usuários simultâneos, o ideal é trocar por um TURN
+// próprio (ex: coturn, Twilio, Metered.ca com chave paga).
 const RTC_CONFIG = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' }
+    { urls: 'stun:stun1.l.google.com:19302' },
+    {
+      urls: [
+        'turn:openrelay.metered.ca:80',
+        'turn:openrelay.metered.ca:443',
+        'turn:openrelay.metered.ca:443?transport=tcp'
+      ],
+      username: 'openrelayproject',
+      credential: 'openrelayproject'
+    }
   ]
 };
 
@@ -16139,6 +16207,38 @@ function _initWebRTC(profile) {
   window._myCallId = profile.id;
   _subscribeCallRoomExtras('main');
   _watchIncomingPrivateCalls(profile.id);
+  _watchGroupCallActivity(profile.id);
+}
+
+// ── Avisa quando alguém da campanha entra na call de GRUPO (sala 'main')
+//    enquanto EU não estou nela — antes só existia aviso de chamada
+//    PRIVADA (dmCalls), então uma call de grupo começando passava
+//    batido: ninguém via nem ouvia nada até abrir a aba de call na mão. ──
+var _groupCallMembersUnsub = null;
+var _knownGroupCallMembers = null; // null = ainda não recebeu o primeiro snapshot
+function _watchGroupCallActivity(myId) {
+  if (_groupCallMembersUnsub) { try { _groupCallMembersUnsub(); } catch(e){} }
+  var mRef = ref(db, 'calls/main/members');
+  _groupCallMembersUnsub = () => off(mRef);
+  onValue(mRef, function(snap) {
+    var current = {};
+    snap.forEach(function(c){ current[c.key] = c.val(); });
+    var isFirstSnapshot = (_knownGroupCallMembers === null);
+    if (!isFirstSnapshot) {
+      Object.keys(current).forEach(function(uid) {
+        if (uid === myId) return; // sou eu mesmo
+        if (_knownGroupCallMembers[uid]) return; // já sabia que essa pessoa estava
+        // Alguém novo entrou na call de grupo — só avisa se eu não estiver nela
+        if (!callState.active || callState.privateWith) {
+          var nm = (current[uid] && current[uid].username) || 'Alguém';
+          showToast('📞 ' + nm + ' entrou na call da campanha', 'ok');
+          var ob = document.getElementById('call-open-btn');
+          if (ob) { ob.classList.add('call-pulse'); setTimeout(function(){ ob.classList.remove('call-pulse'); }, 4000); }
+        }
+      });
+    }
+    _knownGroupCallMembers = current;
+  });
 }
 
 // ── "Toca" no outro lado de uma chamada privada: escuta convites endereçados
@@ -16236,6 +16336,7 @@ function _cleanupWebRTC() {
   Object.values(_peers).forEach(pc => { try { pc.close(); } catch(e){} });
   _peers = {};
   if (_callSignalUnsub) { try { _callSignalUnsub(); } catch(e){} _callSignalUnsub = null; }
+  if (_membersUnsub) { try { _membersUnsub(); } catch(e){} _membersUnsub = null; }
   if (_screenShareUnsub) { try { _screenShareUnsub(); } catch(e){} _screenShareUnsub = null; }
   if (_ownMuteUnsub) { try { _ownMuteUnsub(); } catch(e){} _ownMuteUnsub = null; }
   _callRoomRef = null;
@@ -16263,6 +16364,10 @@ window._joinCallRoom = async function(roomId) {
 
   // Escuta sinalização
   const sigRef = ref(db, 'calls/' + roomId + '/signals/' + _myCallId);
+  // Sempre desliga o listener de sinalização ANTERIOR antes de assinar um novo
+  // (evita acumular vários onValue "fantasmas" escutando salas antigas toda
+  // vez que se entra/sai de uma call — o que gerava reconexões erradas).
+  if (_callSignalUnsub) { try { _callSignalUnsub(); } catch(e){} }
   _callSignalUnsub = () => off(sigRef);
   onValue(sigRef, async (snap) => {
     if (!snap.exists()) return;
@@ -16274,8 +16379,15 @@ window._joinCallRoom = async function(roomId) {
     }
   });
 
-  // Escuta novos membros para iniciar conexão
+  // Escuta novos membros para iniciar conexão E manter o grid de participantes
+  // atualizado ao vivo. Antes o grid (renderCallParticipants) só buscava a
+  // lista de membros UMA VEZ (onlyOnce:true) — então quando alguém entrava ou
+  // saía da call depois, quem já estava dentro nunca via essa pessoa aparecer
+  // (nem o ícone/avatar, nem o indicador de "falando"), a não ser que
+  // clicasse em algo que forçasse o grid a redesenhar por acaso.
+  if (_membersUnsub) { try { _membersUnsub(); } catch(e){} }
   const membersRef = ref(db, 'calls/' + roomId + '/members');
+  _membersUnsub = () => off(membersRef);
   onValue(membersRef, async (snap) => {
     if (!snap.exists()) return;
     snap.forEach(child => {
@@ -16286,6 +16398,9 @@ window._joinCallRoom = async function(roomId) {
         _createOffer(roomId, uid);
       }
     });
+    // Redesenha o card de cada participante (entrada/saída, avatar, cargo)
+    // toda vez que a lista de membros da sala mudar — não só na entrada.
+    if (typeof renderCallParticipants === 'function') renderCallParticipants();
   });
 
   showToast('📡 Entrou na call — conectando peers...', 'ok');
@@ -16686,15 +16801,11 @@ window._leaveCallRoom = function(roomId) {
   Object.values(_remoteAudioEls).forEach(el => { el.srcObject = null; el.remove(); });
   Object.keys(_remoteAudioEls).forEach(k => delete _remoteAudioEls[k]);
   if (_callSignalUnsub) { _callSignalUnsub(); _callSignalUnsub = null; }
+  if (_membersUnsub) { _membersUnsub(); _membersUnsub = null; }
 };
 
-// ── Hook na função _startCall para entrar na sala WebRTC ──
-const _origStartCall = window._startCall;
-window._startCall = function() {
-  if (_origStartCall) _origStartCall();
-  var room = callState.privateWith ? _privateCallRoomId(currentUser.id, callState.privateWith) : 'main';
-  window._joinCallRoom(room);
-};
+// (o hook antigo que ficava aqui duplicava o _joinCallRoom — a própria
+// _startCall() já entra na sala certa agora, então foi removido.)
 
 const _origEndCall = window.endCall;
 window.endCall = function() {
