@@ -5123,7 +5123,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 <div class="view active" id="view-campanhas">
   <div class="topbar">
     <h1><i data-lucide="compass" style="width:22px;height:22px;vertical-align:-4px;margin-right:6px;color:var(--c-accent)"></i><span>Campanhas</span></h1>
-    <button class="btn btn-primary" id="btn-nova-campanha" onclick="openModal('modal-nova-campanha')">+ Nova Campanha</button>
+    <button class="btn btn-primary" id="btn-nova-campanha" onclick="_pendingInvites=[];renderInviteList('nc');openModal('modal-nova-campanha')">+ Nova Campanha</button>
   </div>
 
   <!-- Stats rápidas -->
@@ -6353,6 +6353,16 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
       <label class="lbl">🔒 senha da campanha</label>
       <input type="password" id="ec-senha" placeholder="Deixe vazio para remover senha..." autocomplete="new-password">
     </div>
+    <div class="form-group">
+      <label class="lbl">🎟 convites individuais</label>
+      <div style="display:flex;gap:6px;margin-bottom:8px">
+        <input type="text" id="ec-invite-user" placeholder="Username do player..." style="flex:1;font-size:.78rem">
+        <button class="btn btn-small btn-primary" onclick="addInviteCode('ec')" style="white-space:nowrap">+ Gerar Código</button>
+      </div>
+      <div id="ec-invite-list" style="max-height:120px;overflow-y:auto;display:flex;flex-direction:column;gap:4px">
+        <div style="font-family:'Share Tech Mono',monospace;font-size:.52rem;color:rgba(255,255,255,0.72);text-align:center;padding:8px">Nenhum convite gerado</div>
+      </div>
+    </div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px">
       <button class="btn" onclick="closeModal('modal-edit-campanha')">Cancelar</button>
       <button class="btn btn-primary" onclick="updateCampanha()">[ SALVAR ]</button>
@@ -6360,7 +6370,33 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   </div>
 </div>
 
-<!-- MODAL: CUSTOM ITEM -->
+<!-- ══ MODAL: DETALHE DA CAMPANHA (personagens dos players & do mestre) ══ -->
+<div class="modal-overlay" id="modal-campanha-detail" onclick="if(event.target===this)closeModal('modal-campanha-detail')">
+  <div class="modal" style="max-width:640px;padding:0;overflow:hidden;border-radius:14px">
+    <div style="height:120px;background:linear-gradient(135deg,var(--c-red),rgba(0,0,0,.6));position:relative" id="cd-banner-bg">
+      <img id="cd-banner-img" src="" style="display:none;width:100%;height:100%;object-fit:cover;position:absolute;inset:0">
+      <button class="modal-close" onclick="closeModal('modal-campanha-detail')" style="position:absolute;top:12px;right:12px;z-index:2">✕</button>
+    </div>
+    <div style="padding:16px 22px 22px">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap">
+        <div>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:1.5rem;letter-spacing:.06em;color:#fff" id="cd-nome">—</div>
+          <div style="font-family:'Share Tech Mono',monospace;font-size:.6rem;color:rgba(200,205,225,0.72);margin-top:2px" id="cd-mestre">⚔ —</div>
+        </div>
+        <span class="cc-status-badge" id="cd-status-badge">—</span>
+      </div>
+      <div style="font-family:'Exo 2',sans-serif;font-size:.78rem;color:rgba(210,215,235,0.85);margin-top:10px;line-height:1.5" id="cd-desc"></div>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:20px;margin-bottom:10px">
+        <label class="lbl" style="margin:0">🎭 Personagens nesta Campanha</label>
+        <span style="font-family:'Share Tech Mono',monospace;font-size:.5rem;color:rgba(200,205,225,0.72)" id="cd-char-count">0 personagens</span>
+      </div>
+      <div id="cd-char-list" style="display:flex;flex-direction:column;gap:8px;max-height:340px;overflow-y:auto"></div>
+    </div>
+  </div>
+</div>
+
+
 <div class="modal-overlay" id="modal-custom-item">
   <div class="modal">
     <button class="modal-close" onclick="closeModal('modal-custom-item')">✕</button>
@@ -6688,6 +6724,37 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
         </div>
       </div>
     </div>
+    <div class="call-music-sep">— DISPOSITIVOS —</div>
+    <!-- Seleção de microfone e câmera. Antes não existia jeito nenhum de
+         trocar o dispositivo de captura — o app sempre pegava o padrão do
+         sistema e não tinha como o usuário escolher outro microfone/câmera
+         conectado, nem redirecionar o áudio de saída pra outro dispositivo. -->
+    <div class="call-setting-row" style="align-items:flex-start">
+      <div style="flex:1">
+        <div class="call-setting-lbl">🎙 Dispositivo de Microfone</div>
+        <select id="call-mic-device-sel" class="call-music-inp" style="margin-top:6px" onchange="callChangeMicDevice(this.value)">
+          <option value="">Padrão do sistema</option>
+        </select>
+      </div>
+    </div>
+    <div class="call-setting-row" style="align-items:flex-start">
+      <div style="flex:1">
+        <div class="call-setting-lbl">📷 Dispositivo de Câmera</div>
+        <select id="call-cam-device-sel" class="call-music-inp" style="margin-top:6px" onchange="callChangeCamDevice(this.value)">
+          <option value="">Padrão do sistema</option>
+        </select>
+      </div>
+    </div>
+    <div class="call-setting-row" style="align-items:flex-start" id="call-out-device-row">
+      <div style="flex:1">
+        <div class="call-setting-lbl">🔊 Dispositivo de Saída (Fones/Caixa)</div>
+        <select id="call-out-device-sel" class="call-music-inp" style="margin-top:6px" onchange="callChangeOutDevice(this.value)">
+          <option value="">Padrão do sistema</option>
+        </select>
+        <div class="call-setting-sub" id="call-out-device-unsupported" style="display:none">Troca de saída de áudio não é suportada neste navegador.</div>
+      </div>
+    </div>
+    <button class="call-music-btn" style="width:100%;margin-bottom:10px;justify-content:center;display:flex" onclick="_populateDeviceSelectors(true)">↺ Atualizar Lista de Dispositivos</button>
     <!-- Supressão de ruído -->
     <div class="call-setting-row">
       <div style="flex:1">
@@ -6776,13 +6843,23 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     <div class="profile-body">
       <div class="profile-avatar-wrap">
         <div class="profile-avatar" id="prof-avatar-zone" onclick="document.getElementById('prof-avatar-input').click()">
-          <span id="prof-avatar-inner">👤</span>
+          <div id="prof-avatar-media"><span id="prof-avatar-inner">👤</span></div>
           <div class="profile-avatar-overlay">📷</div>
-          <input type="file" id="prof-avatar-input" accept="image/*" style="display:none" onchange="updateProfileAvatar(event)">
         </div>
+        <!-- Input fica FORA da zona clicável, como elemento fixo que nunca é
+             recriado — antes ele era regerado dentro do innerHTML toda vez
+             que o perfil abria/atualizava, ganhando um id novo cada vez, e o
+             onclick da zona continuava apontando pro id antigo (que não
+             existia mais). Resultado: clicar no avatar não fazia nada. -->
+        <input type="file" id="prof-avatar-input" accept="image/*" style="display:none" onchange="updateProfileAvatar(event)">
       </div>
       <div class="profile-name-row">
-        <div class="profile-name" id="prof-username">—</div>
+        <div class="profile-name-edit-wrap" style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">
+          <div class="profile-name" id="prof-username" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">—</div>
+          <input type="text" id="prof-username-input" class="call-music-inp" style="display:none;margin:0;width:auto;flex:1;min-width:120px;font-family:'Bebas Neue',sans-serif;font-size:1.1rem;letter-spacing:.06em;padding:6px 10px" maxlength="24" placeholder="Novo nome de usuário...">
+          <button type="button" id="prof-username-edit-btn" onclick="toggleEditUsername()" title="Editar nome" style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);color:rgba(220,225,240,.85);cursor:pointer;border-radius:6px;width:26px;height:26px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:.68rem">✏</button>
+          <button type="button" id="prof-username-save-btn" onclick="saveUsername()" title="Salvar nome" style="display:none;background:rgba(60,180,90,.15);border:1px solid rgba(60,180,90,.4);color:#9dffb0;cursor:pointer;border-radius:6px;width:26px;height:26px;flex-shrink:0;align-items:center;justify-content:center;font-size:.68rem">✓</button>
+        </div>
         <div class="profile-role-badge" id="prof-role-badge">⚔ PLAYER</div>
       </div>
       <div class="profile-tabs">
@@ -7878,6 +7955,7 @@ function saveCampanha() {
     senha: hashPass(document.getElementById('nc-senha').value.trim()) || '',
     senhaSet: !!document.getElementById('nc-senha').value.trim(),
     membros: [],
+    convites: _pendingInvites.slice(),
     criadaEm: new Date().toLocaleDateString('pt-BR')
   };
   data.campanhas.push(c);
@@ -7887,11 +7965,102 @@ function saveCampanha() {
     window._fbPublishCampanha(c);
   }
   closeModal('modal-nova-campanha');
-  ['nc-nome','nc-mestre','nc-desc','nc-banner-data','nc-senha'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
+  ['nc-nome','nc-mestre','nc-desc','nc-banner-data','nc-senha','nc-invite-user'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
   var bp=document.getElementById('nc-banner-preview'); if(bp){bp.innerHTML='<span style="font-size:1.6rem;opacity:.3">🗺</span>';}
   var nc_status = document.getElementById('nc-status'); if(nc_status) nc_status.value='planejando';
+  _pendingInvites = [];
+  renderInviteList('nc');
   renderCampanhas(); notify('// campanha "'+nome+'" criada!');
   if (typeof _syncCallEntryBtn === 'function') _syncCallEntryBtn();
+}
+
+// ═══════════════════════════════════════
+//  CONVITES INDIVIDUAIS DE CAMPANHA
+// ═══════════════════════════════════════
+// Gera um código curto (6 caracteres, letras maiúsculas + números, sem
+// caracteres ambíguos como 0/O/1/I) pra convidar um player específico.
+function _gerarCodigoConvite() {
+  var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  var code = '';
+  for (var i = 0; i < 6; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
+  return code;
+}
+// Convites de campanhas ainda não salvas (fluxo "Nova Campanha") ficam aqui
+// temporariamente até o SALVAR final, que os copia pro objeto da campanha.
+var _pendingInvites = [];
+
+function addInviteCode(prefix) {
+  var userInp = document.getElementById(prefix + '-invite-user');
+  var username = userInp ? userInp.value.trim() : '';
+  if (!username) { showToast('⚠ Informe o username do player', 'warn'); return; }
+
+  var convite = { code: _gerarCodigoConvite(), username: username, usado: false, criadoEm: new Date().toLocaleDateString('pt-BR') };
+
+  if (prefix === 'nc') {
+    _pendingInvites.push(convite);
+  } else {
+    var id = document.getElementById('ec-id').value;
+    var c = _findCampanha(id);
+    if (!c) { showToast('⚠ Campanha não encontrada localmente', 'warn'); return; }
+    if (!isMestreDa(c)) { showToast('✕ Apenas o mestre criador pode gerar convites', 'err'); return; }
+    if (!c.convites) c.convites = [];
+    c.convites.push(convite);
+    save();
+    if (typeof window._fbPublishCampanha === 'function') window._fbPublishCampanha(c);
+  }
+
+  if (userInp) userInp.value = '';
+  renderInviteList(prefix);
+  showToast('🎟 Convite gerado para ' + username, 'ok');
+}
+
+function removeInviteCode(prefix, code) {
+  if (prefix === 'nc') {
+    _pendingInvites = _pendingInvites.filter(function(inv){ return inv.code !== code; });
+  } else {
+    var id = document.getElementById('ec-id').value;
+    var c = _findCampanha(id);
+    if (!c) return;
+    if (!isMestreDa(c)) { showToast('✕ Permissão negada', 'err'); return; }
+    c.convites = (c.convites || []).filter(function(inv){ return inv.code !== code; });
+    save();
+    if (typeof window._fbPublishCampanha === 'function') window._fbPublishCampanha(c);
+  }
+  renderInviteList(prefix);
+}
+
+function copyInviteCode(code) {
+  var done = function(){ showToast('📋 Código copiado: ' + code, 'ok'); };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(code).then(done).catch(function(){ prompt('Copie o código:', code); });
+  } else {
+    prompt('Copie o código:', code);
+  }
+}
+
+function renderInviteList(prefix) {
+  var listEl = document.getElementById(prefix + '-invite-list');
+  if (!listEl) return;
+  var invites;
+  if (prefix === 'nc') {
+    invites = _pendingInvites;
+  } else {
+    var id = document.getElementById('ec-id') ? document.getElementById('ec-id').value : '';
+    var c = _findCampanha(id);
+    invites = (c && c.convites) || [];
+  }
+  if (!invites.length) {
+    listEl.innerHTML = '<div style="font-family:\'Share Tech Mono\',monospace;font-size:.52rem;color:rgba(255,255,255,0.72);text-align:center;padding:8px">Nenhum convite gerado</div>';
+    return;
+  }
+  listEl.innerHTML = invites.map(function(inv) {
+    return '<div style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:6px 8px">'
+      + '<span style="font-family:\'Share Tech Mono\',monospace;font-size:.62rem;letter-spacing:.08em;color:var(--c-gold);flex-shrink:0">' + _esc(inv.code) + '</span>'
+      + '<span style="font-family:\'Share Tech Mono\',monospace;font-size:.56rem;color:rgba(200,205,225,0.72);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">👤 ' + _esc(inv.username) + (inv.usado ? ' · usado' : '') + '</span>'
+      + '<button class="btn btn-small" style="padding:2px 8px;font-size:.6rem" onclick="copyInviteCode(\'' + inv.code + '\')" title="Copiar código">📋</button>'
+      + '<button class="btn btn-small btn-danger" style="padding:2px 8px;font-size:.6rem" onclick="removeInviteCode(\'' + prefix + '\',\'' + inv.code + '\')" title="Remover">✕</button>'
+      + '</div>';
+  }).join('');
 }
 
 // ═══════════════════════════════════════
@@ -8913,11 +9082,89 @@ function tryEnterCampanha(id) {
   var c = _findCampanha(id);
   if (!c) { showToast('⚠ Campanha não encontrada localmente', 'warn'); return; }
   if (c.senhaSet && !isMestreDa(c)) {
-    var s = prompt('🔒 Senha da campanha:');
+    var s = prompt('🔒 Senha da campanha (ou cole seu código de convite):');
     if (!s) return;
-    if (hashPass(s) !== c.senha) { showToast('✕ Senha incorreta', 'err'); return; }
+    s = s.trim();
+    if (hashPass(s) === c.senha) {
+      // senha correta, segue
+    } else {
+      // Tenta como código de convite individual: precisa bater o código E
+      // o convite ter sido gerado pro username da conta atual (ou pra
+      // qualquer um, se o convite não tiver dono definido).
+      var convite = (c.convites || []).find(function(inv) {
+        return inv.code.toUpperCase() === s.toUpperCase() && !inv.usado;
+      });
+      var pertenceAoUser = convite && currentUser && convite.username &&
+        convite.username.toLowerCase() === currentUser.username.toLowerCase();
+      if (!convite) { showToast('✕ Senha ou código de convite incorretos', 'err'); return; }
+      if (!pertenceAoUser) { showToast('✕ Esse código de convite não é seu', 'err'); return; }
+      convite.usado = true;
+      save();
+      if (typeof window._fbPublishCampanha === 'function') window._fbPublishCampanha(c);
+      showToast('🎟 Convite aceito!', 'ok');
+    }
   }
-  showToast('✓ Entrando: ' + c.nome, 'ok');
+  openCampanhaDetail(id);
+}
+
+// ── Modal de detalhe da campanha: mostra os personagens (fichas) dos
+//    players e do mestre que foram vinculados a essa campanha ──
+function openCampanhaDetail(id) {
+  var c = _findCampanha(id);
+  if (!c) { showToast('⚠ Campanha não encontrada localmente', 'warn'); return; }
+
+  var bannerImg = document.getElementById('cd-banner-img');
+  if (bannerImg) {
+    if (c.banner) { bannerImg.src = c.banner; bannerImg.style.display = 'block'; }
+    else { bannerImg.removeAttribute('src'); bannerImg.style.display = 'none'; }
+  }
+  var nomeEl = document.getElementById('cd-nome'); if (nomeEl) nomeEl.textContent = c.nome || '—';
+  var mestreEl = document.getElementById('cd-mestre'); if (mestreEl) mestreEl.textContent = '⚔ Mestre: ' + (c.mestre || '—');
+  var descEl = document.getElementById('cd-desc');
+  if (descEl) descEl.innerHTML = c.desc ? _esc(c.desc) : '<span style="opacity:.4">Sem descrição.</span>';
+
+  var statusLabel = {planejando:'◉ Planejando',ativa:'● Ativa',pausada:'◐ Pausada',concluida:'○ Concluída'};
+  var statusClass = {planejando:'ccb-planejando',ativa:'ccb-ativa',pausada:'ccb-pausada',concluida:'ccb-concluida'};
+  var st = c.status || 'planejando';
+  var badge = document.getElementById('cd-status-badge');
+  if (badge) { badge.className = 'cc-status-badge ' + (statusClass[st]||'ccb-planejando'); badge.textContent = statusLabel[st]||st; }
+
+  // Todos os personagens (fichas) vinculados a essa campanha — de qualquer
+  // player, mais o(s) do próprio mestre, se ele também tiver ficha nela.
+  var chars = (data.players || []).filter(function(p){ return p.campanha === id; });
+  var mestreUname = (c.mestreUsername || c.mestre || '').toLowerCase();
+
+  var countEl = document.getElementById('cd-char-count');
+  if (countEl) countEl.textContent = chars.length + (chars.length === 1 ? ' personagem' : ' personagens');
+
+  var listEl = document.getElementById('cd-char-list');
+  if (listEl) {
+    if (!chars.length) {
+      listEl.innerHTML = '<div class="empty-state" style="padding:20px"><div class="es-icon" style="font-size:1.4rem">🎭</div><p style="font-size:.7rem">Nenhum personagem vinculado a esta campanha ainda.<br>Players podem escolher a campanha ao criar/editar a ficha.</p></div>';
+    } else {
+      listEl.innerHTML = chars.map(function(p) {
+        var ehMestre = mestreUname && (p.player || '').toLowerCase() === mestreUname;
+        var tagHtml = ehMestre
+          ? '<span class="cc-stat-pill" style="background:rgba(180,15,15,.18);border-color:rgba(210,40,40,.35);color:rgba(255,140,140,.9)">🗡 Mestre</span>'
+          : '<span class="cc-stat-pill">⚔ Player</span>';
+        var vidaPct = p.vidaMax > 0 ? Math.min(100, Math.round((p.vida||0)/p.vidaMax*100)) : 0;
+        return '<div class="player-card" style="cursor:pointer" onclick="closeModal(\'modal-campanha-detail\');openFicha(\''+p.id+'\')">'
+          + '<div class="pc-top">'
+          + '<div class="pc-av">'+(p.avatar?'<img src="'+p.avatar+'">':'<span style="opacity:.4">👤</span>')+'</div>'
+          + '<div class="pc-info">'
+          + '<div class="pc-name">'+_esc(p.nome)+'</div>'
+          + '<div class="pc-player">player: '+_esc(p.player)+(p.vulgo?' &nbsp;·&nbsp; "'+_esc(p.vulgo)+'"':'')+'</div>'
+          + tagHtml
+          + '</div>'
+          + '</div>'
+          + '<div class="pc-bars" style="padding:0 12px 12px">'
+          + '<div class="pc-bar-row"><span class="pc-bar-lbl">❤</span><div class="pc-bar-track"><div class="pc-bar-fill vida" style="width:'+vidaPct+'%"></div></div><span class="pc-bar-val">'+(p.vida||0)+'/'+(p.vidaMax||0)+'</span></div>'
+          + '</div>'
+          + '</div>';
+      }).join('');
+    }
+  }
+  openModal('modal-campanha-detail');
 }
 
 function editCampanha(id) {
@@ -8928,6 +9175,7 @@ function editCampanha(id) {
   document.getElementById('ec-mestre').value = c.mestre||'';
   document.getElementById('ec-desc').value = c.desc||'';
   document.getElementById('ec-status').value = c.status;
+  renderInviteList('ec');
   openModal('modal-edit-campanha');
 }
 function updateCampanha() {
@@ -11308,19 +11556,21 @@ function openProfile() {
     rbadge.innerHTML = currentUser.role === 'mestre' ? '🗡 MESTRE' : currentUser.role === 'ambos' ? '🗡⚔ MESTRE & PLAYER' : '⚔ PLAYER';
   }
   if (bio) bio.value = currentUser.bio || '';
-  if (avInner) {
-    var _avParent = avInner.parentNode; // salva a referência ANTES de sobrescrever o innerHTML
-    _avParent.innerHTML = (currentUser.avatar
+  // Só atualiza o conteúdo visual (img/emoji) — o input de arquivo e o
+  // onclick da zona ficam intactos, então o upload continua funcionando
+  // depois de abrir o modal várias vezes.
+  var avMedia = document.getElementById('prof-avatar-media');
+  if (avMedia) {
+    avMedia.innerHTML = currentUser.avatar
       ? '<img src="'+currentUser.avatar+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%">'
-      : '<span style="font-size:2rem">'+(currentUser.role==='mestre'?'🗡':'⚔')+'</span>')
-      + '<div class="profile-avatar-overlay">📷</div>'
-      + '<input type="file" id="prof-avatar-input-extra1" accept="image/*" style="display:none" onchange="updateProfileAvatar(event)">';
-    _avParent.onclick = function(){ document.getElementById('prof-avatar-input').click(); };
+      : '<span style="font-size:2rem">'+(currentUser.role==='mestre'?'🗡':'⚔')+'</span>';
   }
-  if (bannerImg && currentUser.banner) {
-    bannerImg.src = currentUser.banner;
-    bannerImg.style.display = 'block';
+  if (bannerImg) {
+    if (currentUser.banner) { bannerImg.src = currentUser.banner; bannerImg.style.display = 'block'; }
+    else { bannerImg.removeAttribute('src'); bannerImg.style.display = 'none'; }
   }
+  // Reseta o campo de edição de nome pro estado "exibindo" (não editando)
+  _cancelEditUsername();
   // Status selecionado
   document.querySelectorAll('#modal-my-profile .prof-status-opt').forEach(function(e){ e.classList.remove('sel'); });
   var ssel = document.querySelector('#modal-my-profile [data-s="'+(currentUser.status||'disponivel')+'"]');
@@ -11328,6 +11578,60 @@ function openProfile() {
   switchProfTab('info');
   var modal = document.getElementById('modal-my-profile');
   if (modal) modal.classList.add('open');
+}
+
+// ── Edição do nome de usuário ──
+function toggleEditUsername() {
+  if (!currentUser) return;
+  var disp = document.getElementById('prof-username');
+  var inp  = document.getElementById('prof-username-input');
+  var editBtn = document.getElementById('prof-username-edit-btn');
+  var saveBtn = document.getElementById('prof-username-save-btn');
+  if (!disp || !inp) return;
+  inp.value = currentUser.username || '';
+  disp.style.display = 'none';
+  inp.style.display = 'block';
+  if (editBtn) editBtn.style.display = 'none';
+  if (saveBtn) saveBtn.style.display = 'flex';
+  inp.focus();
+  inp.select();
+}
+function _cancelEditUsername() {
+  var disp = document.getElementById('prof-username');
+  var inp  = document.getElementById('prof-username-input');
+  var editBtn = document.getElementById('prof-username-edit-btn');
+  var saveBtn = document.getElementById('prof-username-save-btn');
+  if (disp) disp.style.display = 'block';
+  if (inp) inp.style.display = 'none';
+  if (editBtn) editBtn.style.display = 'flex';
+  if (saveBtn) saveBtn.style.display = 'none';
+}
+function saveUsername() {
+  if (!currentUser) return;
+  var inp = document.getElementById('prof-username-input');
+  if (!inp) return;
+  var novo = inp.value.trim();
+  if (!novo) { showToast('⚠ O nome não pode ficar em branco', 'warn'); return; }
+  if (novo.length < 3) { showToast('⚠ Nome deve ter ao menos 3 caracteres', 'warn'); return; }
+  if (novo === currentUser.username) { _cancelEditUsername(); return; }
+  var jaExiste = (authUsers || []).some(function(u){
+    return u.id !== currentUser.id && (u.username || '').toLowerCase() === novo.toLowerCase();
+  });
+  if (jaExiste) { showToast('✕ Esse nome de usuário já está em uso', 'err'); return; }
+  var antigo = currentUser.username;
+  currentUser.username = novo;
+  var idx = authUsers.findIndex(function(u){ return u.id === currentUser.id; });
+  if (idx !== -1) authUsers[idx].username = novo;
+  saveUsers();
+  // Atualiza exibição no modal
+  var disp = document.getElementById('prof-username');
+  if (disp) disp.textContent = novo;
+  _cancelEditUsername();
+  // Atualiza topbar
+  var ubName = document.getElementById('ub-username');
+  if (ubName) ubName.textContent = novo;
+  showToast('✓ Nome de usuário atualizado', 'ok');
+  if (typeof window._fbUpdateUsername === 'function') { try { window._fbUpdateUsername(currentUser.id, novo, antigo); } catch(e){} }
 }
 
 function closeProfileModal() {
@@ -11346,13 +11650,13 @@ function updateProfileAvatar(e) {
     // Atualiza na topbar
     var ubav = document.getElementById('ub-avatar-wrap');
     if (ubav) ubav.innerHTML = '<img src="'+currentUser.avatar+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%">';
-    // Atualiza no modal
-    var avZone = document.getElementById('prof-avatar-zone');
-    if (avZone) avZone.innerHTML = '<img src="'+currentUser.avatar+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%">'
-      + '<div class="profile-avatar-overlay">📷</div>'
-      + '<input type="file" id="prof-avatar-input-extra2" accept="image/*" style="display:none" onchange="updateProfileAvatar(event)">';
+    // Atualiza só o conteúdo visual no modal — input e overlay ficam intactos
+    var avMedia = document.getElementById('prof-avatar-media');
+    if (avMedia) avMedia.innerHTML = '<img src="'+currentUser.avatar+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%">';
     showToast('✓ Avatar atualizado', 'ok');
   });
+  // Permite escolher o mesmo arquivo de novo em seguida sem precisar trocar
+  e.target.value = '';
 }
 
 function updateProfileBanner(e) {
@@ -11622,7 +11926,10 @@ var callState = {
   screenState: 'idle', // idle | requesting | active
   forceMuted: false,   // true quando o Mestre/permissão silenciou este usuário à força
   privateWith: null,       // id do player em chamada privada (null = call de grupo normal)
-  privateWithName: null    // nome de exibição do player da chamada privada
+  privateWithName: null,   // nome de exibição do player da chamada privada
+  micDeviceId: '',     // deviceId do microfone escolhido ('' = padrão do sistema)
+  camDeviceId: '',     // deviceId da câmera escolhida ('' = padrão do sistema)
+  outDeviceId: ''      // deviceId do dispositivo de saída escolhido ('' = padrão do sistema)
 };
 
 // ── Sala privada (1:1) entre dois usuários — sempre o mesmo id pros dois lados ──
@@ -12143,13 +12450,17 @@ function _doRequestMic() {
   var noiseEl=document.getElementById('tog-noise');
   var echoEl=document.getElementById('tog-echo');
   var gainEl=document.getElementById('tog-gain');
-  var constraints={audio:{echoCancellation:echoEl?echoEl.checked:true, noiseSuppression:noiseEl?noiseEl.checked:true, autoGainControl:gainEl?gainEl.checked:true}, video:false};
+  var audioConstraints={echoCancellation:echoEl?echoEl.checked:true, noiseSuppression:noiseEl?noiseEl.checked:true, autoGainControl:gainEl?gainEl.checked:true};
+  if (callState.micDeviceId) audioConstraints.deviceId = {exact: callState.micDeviceId};
+  var constraints={audio:audioConstraints, video:false};
 
   navigator.mediaDevices.getUserMedia(constraints)
     .catch(function(err){
-      // fallback sem constraints avançados
-      if(err.name==='OverconstrainedError'||err.name==='ConstraintNotSatisfiedError')
+      // fallback sem constraints avançados (ex.: dispositivo escolhido não existe mais)
+      if(err.name==='OverconstrainedError'||err.name==='ConstraintNotSatisfiedError') {
+        if (callState.micDeviceId) { callState.micDeviceId = ''; var s=document.getElementById('call-mic-device-sel'); if(s) s.value=''; }
         return navigator.mediaDevices.getUserMedia({audio:true,video:false});
+      }
       return Promise.reject(err);
     })
     .then(function(stream){
@@ -12157,6 +12468,8 @@ function _doRequestMic() {
       callState.micState='active'; callState.micOn=true;
       _syncMicBtn();
       _setupAudioPipeline(stream);
+      // Popula os selects agora que os labels de dispositivo já estão disponíveis
+      _populateDeviceSelectors(false);
       showToast('🎙 Microfone ativado!','ok');
       // Auto-para se usuário revogar no navegador
       stream.getAudioTracks().forEach(function(t){
@@ -12205,11 +12518,22 @@ function callToggleCam() {
   showToast('📷 Aguardando permissão da câmera...','warn');
 
   // Pedido simplificado para evitar bloqueios de permissão e problemas de constraints
-  navigator.mediaDevices.getUserMedia({video:{facingMode:'user'}, audio:false})
+  var videoConstraints = callState.camDeviceId
+    ? {deviceId:{exact:callState.camDeviceId}}
+    : {facingMode:'user'};
+  navigator.mediaDevices.getUserMedia({video:videoConstraints, audio:false})
+    .catch(function(err){
+      if(err.name==='OverconstrainedError'||err.name==='ConstraintNotSatisfiedError') {
+        if (callState.camDeviceId) { callState.camDeviceId = ''; var s=document.getElementById('call-cam-device-sel'); if(s) s.value=''; }
+        return navigator.mediaDevices.getUserMedia({video:{facingMode:'user'}, audio:false});
+      }
+      return Promise.reject(err);
+    })
     .then(function(stream){
       callState.camStream=stream;
       callState.camState='active'; callState.camOn=true;
       _syncCamBtn();
+      _populateDeviceSelectors(false);
 
       // Garante que o card local existe; se não, reconstroi
       function _attachCamToCard() {
@@ -12364,6 +12688,89 @@ function callApplyConstraints() {
   _stopMicStream();
   callState.micState='idle'; callState.micOn=false; _syncMicBtn();
   _doRequestMic();
+}
+
+// ═══════════════════════════════════════
+//  SELEÇÃO DE DISPOSITIVOS (mic / câmera / saída)
+// ═══════════════════════════════════════
+// Preenche os <select> de dispositivos disponíveis. Os labels só vêm
+// preenchidos pelo navegador depois que alguma permissão de mídia já foi
+// concedida — antes disso aparecem como "Microfone 1", "Câmera 1" etc.
+function _populateDeviceSelectors(manual) {
+  if (!navigator.mediaDevices || typeof navigator.mediaDevices.enumerateDevices !== 'function') return;
+  navigator.mediaDevices.enumerateDevices().then(function(devices) {
+    var mics = devices.filter(function(d){ return d.kind === 'audioinput'; });
+    var cams = devices.filter(function(d){ return d.kind === 'videoinput'; });
+    var outs = devices.filter(function(d){ return d.kind === 'audiooutput'; });
+
+    _fillDeviceSelect('call-mic-device-sel', mics, callState.micDeviceId, 'Microfone');
+    _fillDeviceSelect('call-cam-device-sel', cams, callState.camDeviceId, 'Câmera');
+
+    var outRow = document.getElementById('call-out-device-row');
+    var outSel = document.getElementById('call-out-device-sel');
+    var outWarn = document.getElementById('call-out-device-unsupported');
+    var outSupported = !!(outSel && typeof outSel.setSinkId === 'function' || (HTMLMediaElement && HTMLMediaElement.prototype && 'setSinkId' in HTMLMediaElement.prototype));
+    if (outSupported) {
+      _fillDeviceSelect('call-out-device-sel', outs, callState.outDeviceId, 'Saída');
+      if (outSel) outSel.style.display = '';
+      if (outWarn) outWarn.style.display = 'none';
+    } else {
+      if (outSel) outSel.style.display = 'none';
+      if (outWarn) outWarn.style.display = 'block';
+    }
+    if (manual) showToast('↺ Lista de dispositivos atualizada', 'ok');
+  }).catch(function(err) {
+    console.warn('[Call] enumerateDevices error:', err);
+    if (manual) showToast('⚠ Não foi possível listar dispositivos', 'warn');
+  });
+}
+function _fillDeviceSelect(selId, list, curVal, fallbackLabel) {
+  var sel = document.getElementById(selId);
+  if (!sel) return;
+  var html = '<option value="">Padrão do sistema</option>';
+  list.forEach(function(d, i) {
+    var label = d.label || (fallbackLabel + ' ' + (i + 1));
+    html += '<option value="' + d.deviceId.replace(/"/g,'&quot;') + '">' + _esc(label) + '</option>';
+  });
+  sel.innerHTML = html;
+  sel.value = curVal || '';
+}
+// Atualiza a lista automaticamente quando um dispositivo é plugado/removido
+if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
+  navigator.mediaDevices.addEventListener('devicechange', function(){ _populateDeviceSelectors(false); });
+}
+
+function callChangeMicDevice(deviceId) {
+  callState.micDeviceId = deviceId || '';
+  // Se o mic já está ativo, reabre o stream já usando o novo dispositivo
+  if (callState.micStream) {
+    _stopMicStream();
+    callState.micState = 'idle'; callState.micOn = false; _syncMicBtn();
+    _doRequestMic();
+  }
+  showToast('🎙 Microfone selecionado', 'ok');
+}
+function callChangeCamDevice(deviceId) {
+  callState.camDeviceId = deviceId || '';
+  // Se a câmera já está ativa, reabre o stream já usando o novo dispositivo
+  if (callState.camStream) {
+    _stopCamStream();
+    callState.camState = 'idle'; callState.camOn = false; _syncCamBtn();
+    callToggleCam();
+  }
+  showToast('📷 Câmera selecionada', 'ok');
+}
+function callChangeOutDevice(deviceId) {
+  callState.outDeviceId = deviceId || '';
+  var applied = 0;
+  document.querySelectorAll('audio, video').forEach(function(el) {
+    if (typeof el.setSinkId === 'function') {
+      el.setSinkId(callState.outDeviceId || '').then(function(){ applied++; }).catch(function(err){
+        console.warn('[Call] setSinkId error:', err);
+      });
+    }
+  });
+  showToast('🔊 Dispositivo de saída selecionado', 'ok');
 }
 
 // ═══════════════════════════════════════
@@ -12684,7 +13091,7 @@ function toggleCallPanel(name) {
     var el=document.getElementById('call-panel-'+p); if(!el) return;
     if(p===name) el.classList.toggle('open'); else el.classList.remove('open');
   });
-  if (name === 'settings') { _callRefreshAvatarPreview(); _callRefreshCharPreview(); }
+  if (name === 'settings') { _callRefreshAvatarPreview(); _callRefreshCharPreview(); _populateDeviceSelectors(false); }
 }
 
 // ── Ícone customizado (imagem/GIF) do participante na call ──
