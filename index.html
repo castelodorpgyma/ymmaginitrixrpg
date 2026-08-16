@@ -13063,11 +13063,26 @@ function callLoadYoutube() {
     if (checkId !== id) return; // usuário já trocou de vídeo nesse meio-tempo
     var stillNoPlayer = !_ytPlayer || typeof _ytPlayer.getPlayerState !== 'function';
     if (window._ytApiScriptFailed || (!_ytApiReady && stillNoPlayer)) {
-      showToast('⚠ O player do YouTube não carregou — pode ser bloqueio do navegador/extensão (ex: Brave Shields, uBlock). Tente desativar o bloqueador para este site ou use "ABRIR NO YOUTUBE".', 'err');
-      if (notice) notice.style.display = 'block';
+      // ── Fallback: embed direto, sem a API JS do YouTube ──
+      // A API JS (iframe_api) é frequentemente o alvo de bloqueadores como
+      // Brave Shields/uBlock (é um script "de rastreamento" na visão deles),
+      // mas o EMBED do vídeo em si (youtube-nocookie.com/embed/...) quase
+      // sempre passa. Então, se a API não respondeu, troca pro embed puro —
+      // perde-se o controle fino de play/pause/volume pelos nossos botões,
+      // mas o vídeo passa a tocar de verdade em vez de ficar em branco.
+      var iframe = document.getElementById('call-yt-iframe');
+      if (iframe) {
+        iframe.src = 'https://www.youtube-nocookie.com/embed/' + id + '?autoplay=1&rel=0&playsinline=1';
+        _musicActiveSource = 'youtube-fallback';
+      }
+      if (notice) {
+        notice.style.display = 'block';
+        notice.innerHTML = '⚠ O player avançado do YouTube não respondeu (provável bloqueio do navegador/extensão, ex: Brave Shields, uBlock). Ativamos o modo simples abaixo — use os controles dentro do próprio vídeo (nossos botões de play/pause/volume não funcionam nesse modo).';
+      }
       if (openBtn) { openBtn.style.display = 'block'; openBtn.onclick = function () { window.open(url, '_blank'); }; }
+      showToast('⚠ Player avançado bloqueado — usando modo simples de vídeo', 'warn');
     }
-  }, 6000);
+  }, 5000);
 }
 
 function extractYoutubeId(url) {
@@ -13097,6 +13112,12 @@ function callLoadLocalAudio(event) {
 function callAudioControl(action) {
   var audio=document.getElementById('call-local-audio');
   var usingYt = _musicActiveSource==='youtube' && _ytPlayer;
+  // Modo fallback (embed simples sem API JS) — nossos botões não têm como
+  // controlar esse iframe. Avisa em vez de fingir que fez algo.
+  if (_musicActiveSource === 'youtube-fallback' && (action==='play'||action==='pause'||action==='stop')) {
+    showToast('ℹ Nesse modo simples, use os controles dentro do próprio vídeo do YouTube', 'info');
+    return;
+  }
   if(action==='play'){
     if(usingYt && typeof _ytPlayer.playVideo==='function'){ try{ _ytPlayer.playVideo(); }catch(e){} }
     else if(audio && audio.src){ audio.play().catch(function(){}); }
