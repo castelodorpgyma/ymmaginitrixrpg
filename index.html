@@ -12988,6 +12988,19 @@ window.onYouTubeIframeAPIReady = function () {
   _ytApiReady = true;
   if (_ytPendingId) { var id=_ytPendingId; _ytPendingId=null; _ytCreatePlayer(id); }
 };
+// BUG CORRIGIDO: o <script src="...iframe_api"> é carregado com "async" lá no
+// <head> (topo do arquivo), enquanto a função acima só é DEFINIDA aqui embaixo,
+// depois de milhares de linhas de HTML/CSS serem parseadas. Como o script da
+// API é pequeno, é comum ele terminar de baixar e já chamar
+// window.onYouTubeIframeAPIReady() ANTES dessa função existir — nesse caso a
+// chamada não faz nada (função ainda undefined) e _ytApiReady ficava travado em
+// false PRA SEMPRE. Resultado: o botão "TOCAR" só empilhava o vídeo em
+// _ytPendingId esperando um evento "pronto" que já tinha passado e nunca mais
+// ia disparar — o toast de sucesso aparecia, mas nada tocava. Aqui checamos se
+// a API já terminou de carregar nesse meio-tempo e, se sim, disparamos na mão.
+if (typeof YT !== 'undefined' && YT.Player) {
+  window.onYouTubeIframeAPIReady();
+}
 
 function _ytCreatePlayer(id) {
   var volEl=document.getElementById('call-music-vol');
@@ -13034,6 +13047,11 @@ function callLoadYoutube() {
   // Pausa o áudio local se estava tocando, pra não sobrepor duas fontes
   var localAudio=document.getElementById('call-local-audio');
   if(localAudio && !localAudio.paused) localAudio.pause();
+  // Reforço extra: se por algum motivo _ytApiReady ainda estiver false mas o
+  // objeto global YT já existe (API terminou de carregar), trata como pronta
+  // na hora em vez de ficar esperando um evento "onYouTubeIframeAPIReady" que
+  // pode já ter disparado antes do nosso código estar pronto pra ouvi-lo.
+  if (!_ytApiReady && typeof YT !== 'undefined' && YT.Player) { _ytApiReady = true; }
   if (_ytApiReady) { _ytCreatePlayer(id); } else { _ytPendingId=id; }
   _musicActiveSource='youtube';
   // Em mobile o iframe costuma ser bloqueado — mostra aviso e botão externo
