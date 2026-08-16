@@ -6228,7 +6228,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     <div class="form-group">
       <label class="lbl">🎟 convites individuais</label>
       <div style="display:flex;gap:6px;margin-bottom:8px">
-        <input type="text" id="nc-invite-user" placeholder="Username do player..." style="flex:1;font-size:.78rem">
+        <input type="text" id="nc-invite-user" placeholder="Username (opcional — em branco = código genérico p/ qualquer um)" style="flex:1;font-size:.78rem">
         <button class="btn btn-small btn-primary" onclick="addInviteCode('nc')" style="white-space:nowrap">+ Gerar Código</button>
       </div>
       <div id="nc-invite-list" style="max-height:120px;overflow-y:auto;display:flex;flex-direction:column;gap:4px">
@@ -6395,7 +6395,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     <div class="form-group">
       <label class="lbl">🎟 convites individuais</label>
       <div style="display:flex;gap:6px;margin-bottom:8px">
-        <input type="text" id="ec-invite-user" placeholder="Username do player..." style="flex:1;font-size:.78rem">
+        <input type="text" id="ec-invite-user" placeholder="Username (opcional — em branco = código genérico p/ qualquer um)" style="flex:1;font-size:.78rem">
         <button class="btn btn-small btn-primary" onclick="addInviteCode('ec')" style="white-space:nowrap">+ Gerar Código</button>
       </div>
       <div id="ec-invite-list" style="max-height:120px;overflow-y:auto;display:flex;flex-direction:column;gap:4px">
@@ -8094,9 +8094,16 @@ var _pendingInvites = [];
 function addInviteCode(prefix) {
   var userInp = document.getElementById(prefix + '-invite-user');
   var username = userInp ? userInp.value.trim() : '';
-  if (!username) { showToast('⚠ Informe o username do player', 'warn'); return; }
-
-  var convite = { code: _gerarCodigoConvite(), username: username, usado: false, criadoEm: new Date().toLocaleDateString('pt-BR') };
+  // CORRIGIDO: antes era obrigatório digitar o username exato do player pra
+  // gerar o código — mas isso só funciona se você já souber, letra por
+  // letra, com qual username seu amigo vai (ou já) se cadastrou. Na prática
+  // isso fazia todo código "não funcionar pra dar pra alguém", que é
+  // exatamente o uso mais comum (mandar o código antes da pessoa nem ter
+  // conta ainda). Agora, se o campo ficar em branco, gera um código genérico
+  // que qualquer pessoa pode resgatar (continua de uso único). Se você
+  // preencher um username, o comportamento antigo (travado pra essa conta)
+  // continua disponível pra quem quiser um convite nominal.
+  var convite = { code: _gerarCodigoConvite(), username: username || null, usado: false, criadoEm: new Date().toLocaleDateString('pt-BR') };
 
   if (prefix === 'nc') {
     _pendingInvites.push(convite);
@@ -8113,7 +8120,7 @@ function addInviteCode(prefix) {
 
   if (userInp) userInp.value = '';
   renderInviteList(prefix);
-  showToast('🎟 Convite gerado para ' + username, 'ok');
+  showToast(username ? ('🎟 Convite gerado para ' + username) : '🎟 Convite genérico gerado — dê o código pra qualquer pessoa', 'ok');
 }
 
 function removeInviteCode(prefix, code) {
@@ -8158,7 +8165,7 @@ function renderInviteList(prefix) {
   listEl.innerHTML = invites.map(function(inv) {
     return '<div style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:6px 8px">'
       + '<span style="font-family:\'Share Tech Mono\',monospace;font-size:.62rem;letter-spacing:.08em;color:var(--c-gold);flex-shrink:0">' + _esc(inv.code) + '</span>'
-      + '<span style="font-family:\'Share Tech Mono\',monospace;font-size:.56rem;color:rgba(200,205,225,0.72);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">👤 ' + _esc(inv.username) + (inv.usado ? ' · usado' : '') + '</span>'
+      + '<span style="font-family:\'Share Tech Mono\',monospace;font-size:.56rem;color:rgba(200,205,225,0.72);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (inv.username ? '👤 ' + _esc(inv.username) : '🌐 qualquer pessoa') + (inv.usado ? ' · usado' : '') + '</span>'
       + '<button class="btn btn-small" style="padding:2px 8px;font-size:.6rem" onclick="copyInviteCode(\'' + inv.code + '\')" title="Copiar código">📋</button>'
       + '<button class="btn btn-small btn-danger" style="padding:2px 8px;font-size:.6rem" onclick="removeInviteCode(\'' + prefix + '\',\'' + inv.code + '\')" title="Remover">✕</button>'
       + '</div>';
@@ -9218,8 +9225,10 @@ function confirmCampanhaSenha() {
     var convite = (c.convites || []).find(function(inv) {
       return inv.code.toUpperCase() === s.toUpperCase() && !inv.usado;
     });
-    var pertenceAoUser = convite && currentUser && convite.username &&
-      convite.username.toLowerCase() === currentUser.username.toLowerCase();
+    // Convite genérico (sem username travado) pode ser resgatado por
+    // qualquer pessoa; convite nominal continua exigindo o username certo.
+    var pertenceAoUser = convite && (!convite.username || (currentUser &&
+      convite.username.toLowerCase() === currentUser.username.toLowerCase()));
     if (!convite) { if (erroEl) { erroEl.textContent='✕ Senha ou código de convite incorretos'; erroEl.style.display='block'; } return; }
     if (!pertenceAoUser) { if (erroEl) { erroEl.textContent='✕ Esse código de convite não é seu'; erroEl.style.display='block'; } return; }
     convite.usado = true;
@@ -15485,6 +15494,14 @@ onValue(_usersRef, function(snap) {
   if (typeof _syncCallEntryBtn === 'function') try{ _syncCallEntryBtn(); }catch(e){}
 }, function(err) {
   console.warn('[usersSync] onValue falhou (offline, sem permissão, ou regra do Firebase não libera leitura de users/ inteiro):', err.code || err.message);
+  // CORRIGIDO: essa falha específica só ia pro console — se as REGRAS DE
+  // SEGURANÇA do projeto Firebase não permitirem ler o nó "users" inteiro
+  // (só o próprio "users/{uid}"), essa sincronização nunca funciona pra
+  // ninguém, silenciosamente, e a lista de permissão de call fica sempre
+  // incompleta sem nenhuma pista visível do motivo. Agora avisa.
+  if (err && err.code === 'PERMISSION_DENIED' && typeof showToast === 'function') {
+    showToast('⚠ Sem permissão para ver outros jogadores (regra do Firebase) — a lista de permissão de call pode ficar incompleta.', 'err');
+  }
 });
 
 // ── Presença online ──
