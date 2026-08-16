@@ -7748,7 +7748,15 @@ function showView(v) {
 
 // ===== MODAIS =====
 function openModal(id) {
-  if(id==='modal-novo-player') populateCampanhaSelect('np-campanha');
+  if(id==='modal-novo-player') {
+    populateCampanhaSelect('np-campanha');
+    var _mnp = document.getElementById('modal-novo-player');
+    // Só pré-preenche em ficha NOVA (sem editId ativo) — evita atrapalhar edição
+    if (_mnp && !_mnp.dataset.editId && currentUser) {
+      var npPlayerEl = document.getElementById('np-player');
+      if (npPlayerEl && !npPlayerEl.value) npPlayerEl.value = currentUser.username;
+    }
+  }
   document.getElementById(id).classList.add('open');
 }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
@@ -8570,10 +8578,18 @@ function requestAllPerms() {
 function isMestreDa(c) {
   if (!currentUser) return false;
   if (!c) return false;
-  // Campanha tem mestreId — checar contra id do usuário atual
-  if (c.mestreId) return c.mestreId === currentUser.id;
+  // Match primário: id da conta bate com quem criou a campanha (mais confiável)
+  if (c.mestreId && c.mestreId === currentUser.id) return true;
+  var isMestreRole = currentUser.role === 'mestre' || currentUser.role === 'ambos';
   // Campanha legacy sem mestreId — qualquer mestre pode editar
-  return currentUser.role === 'mestre' || currentUser.role === 'ambos';
+  if (!c.mestreId) return isMestreRole;
+  // FALLBACK: o mestreId não bate (ex.: a campanha foi criada como convidado/
+  // conta local e agora você está logado via Google, ou vice-versa — cada
+  // método de login gera um id diferente) mas o username de quem criou é
+  // o mesmo da conta atual. Evita travar o dono de verdade fora da própria campanha.
+  if (isMestreRole && c.mestreUsername && currentUser.username &&
+      c.mestreUsername.toLowerCase() === currentUser.username.toLowerCase()) return true;
+  return false;
 }
 
 // ── Catálogo global de campanhas (todas, incluindo Firebase) ──
@@ -8806,6 +8822,10 @@ function updateCampanha() {
   var newSenha = document.getElementById('ec-senha').value.trim();
   if(newSenha) { c.senha = hashPass(newSenha); c.senhaSet = true; }
   else if(newSenha === '') { /* keep existing if blank */ }
+  // Auto-repara o vínculo de dono com a conta atual (corrige casos em que o
+  // mestreId ficou de um método de login diferente do que você usa agora,
+  // pra essa checagem parar de falhar nas próximas vezes).
+  if (currentUser) { c.mestreId = currentUser.id; c.mestreUsername = currentUser.username; }
   // Atualiza no Firebase também
   if (typeof window._fbPublishCampanha === 'function') window._fbPublishCampanha(c);
   save(); closeModal('modal-edit-campanha'); renderCampanhas(); notify('// campanha atualizada!');
@@ -8976,6 +8996,9 @@ function savePlayer() {
     aparencia: document.getElementById('np-aparencia').value.trim(),
     avatar: document.getElementById('np-avatar-data').value||'',
     items: existing ? (existing.items||[]) : [],
+    // Vínculo por ID da conta (mais confiável que o texto digitado em "nome do
+    // player"). Fichas antigas sem ownerId continuam funcionando pelo nome.
+    ownerId: existing ? (existing.ownerId || (currentUser ? currentUser.id : null)) : (currentUser ? currentUser.id : null),
     criadoEm: existing ? existing.criadoEm : new Date().toLocaleDateString('pt-BR')
   };
 
@@ -9070,24 +9093,41 @@ function openFicha(id) {
 }
 
 // ===== FICHAS =====
+// Ficha é "minha" se o ownerId bater com a conta atual; fichas antigas sem
+// ownerId caem no fallback por nome digitado (e são auto-reparadas abaixo).
+function _fichaEhMinha(p) {
+  if (!currentUser) return false;
+  if (p.ownerId) return p.ownerId === currentUser.id;
+  return (p.player||'').toLowerCase() === (currentUser.username||'').toLowerCase();
+}
+
 function renderFichaSelect() {
   var sel = document.getElementById('ficha-select');
   if(!sel) return;
   var cur = sel.value;
   var list = data.players;
   if(currentUser && currentUser.role === 'player') {
+    // Auto-repara: ficha antiga sem ownerId que bate pelo nome digitado passa
+    // a ficar vinculada à conta atual, pra não depender mais do texto exato.
+    var healed = false;
+    data.players.forEach(function(p){
+      if (!p.ownerId && (p.player||'').toLowerCase() === currentUser.username.toLowerCase()) {
+        p.ownerId = currentUser.id; healed = true;
+      }
+    });
+    if (healed) save();
     // Personagens do próprio jogador
-    var myChars = data.players.filter(function(p){ return p.player.toLowerCase() === currentUser.username.toLowerCase(); });
+    var myChars = data.players.filter(_fichaEhMinha);
     // Todo mundo pode VER os personagens de quem divide a mesma campanha (só o Mestre pode editar os dos outros)
     var myCampIds = {};
     myChars.forEach(function(p){ if(p.campanha) myCampIds[p.campanha] = true; });
     list = data.players.filter(function(p){
-      return p.player.toLowerCase() === currentUser.username.toLowerCase() || (p.campanha && myCampIds[p.campanha]);
+      return _fichaEhMinha(p) || (p.campanha && myCampIds[p.campanha]);
     });
   }
   sel.innerHTML = '<option value="">Selecionar personagem...</option>' +
     list.map(function(p){
-      var mine = currentUser && p.player.toLowerCase() === currentUser.username.toLowerCase();
+      var mine = _fichaEhMinha(p);
       return '<option value="'+p.id+'">'+p.nome+' ('+p.player+')'+(mine?'':' 👁')+'</option>';
     }).join('');
   if(cur) sel.value = cur;
@@ -9109,7 +9149,7 @@ function renderFichaView() {
   var campDaFicha = p.campanha ? data.campanhas.find(function(cc){ return cc.id === p.campanha; }) : null;
   var canEdit = currentUser && (
     (campDaFicha ? isMestreDa(campDaFicha) : (currentUser.role === 'mestre' || currentUser.role === 'ambos')) ||
-    currentUser.username.toLowerCase() === p.player.toLowerCase() ||
+    _fichaEhMinha(p) ||
     (currentUser.authorizedFor && currentUser.authorizedFor.indexOf(p.id) !== -1)
   );
 
@@ -11688,13 +11728,37 @@ function setScreenVolume(val) {
 // ── Abre overlay ──
 function callCanStart() { return !!currentUser; }
 
+// Checa se o USUÁRIO ATUAL pertence a alguma campanha (é dono de uma, ou tem
+// uma ficha numa) — ANTES isso checava só se existia ALGUMA campanha no
+// sistema inteiro, então qualquer conta via "você não está em uma campanha"
+// mesmo tendo uma, sempre que outra pessoa também tinha campanhas salvas.
+function _userTemCampanha() {
+  if (!currentUser || !data || !data.campanhas || !data.campanhas.length) return false;
+  var mestreDeAlguma = data.campanhas.some(function(c){ return isMestreDa(c); });
+  if (mestreDeAlguma) return true;
+  var minhasFichas = (data.players||[]).filter(function(p){ return _fichaEhMinha(p); });
+  return minhasFichas.some(function(p){
+    return p.campanha && data.campanhas.some(function(c){ return c.id === p.campanha; });
+  });
+}
+
 function _syncCallEntryBtn() {
   var btn = document.getElementById('call-open-btn');
   var notice = document.getElementById('call-no-perm-notice');
   if (!currentUser || !btn) return;
 
+  // Enquanto os dados ainda não terminaram de sincronizar com o Firebase,
+  // não afirma "você não está em campanha nenhuma" — isso pode estar errado,
+  // é só a sincronização que ainda não chegou.
+  if (typeof window._dataSyncSeeded !== 'undefined' && !window._dataSyncSeeded) {
+    btn.style.opacity = '.4';
+    btn.title = 'Sincronizando dados...';
+    if (notice) { notice.style.display=''; notice.textContent='⏳ Sincronizando seus dados, aguarde um instante...'; }
+    return;
+  }
+
   var isMestre = currentUser.role==='mestre' || currentUser.role==='ambos';
-  var temCampanha = data && data.campanhas && data.campanhas.length > 0;
+  var temCampanha = _userTemCampanha();
   var hasPerm = callState.callPermissions.indexOf(currentUser.id) !== -1;
   var callAtiva = callState.active;
 
@@ -11726,9 +11790,10 @@ function openCallOverlay() {
 
   var isMestre = currentUser.role==='mestre' || currentUser.role==='ambos';
 
-  // Guarda 1: precisa estar em alguma campanha
-  if (!data || !data.campanhas || data.campanhas.length === 0) {
-    showToast('⚠ Crie uma campanha antes de usar a call','warn'); return;
+  // Guarda 1: precisa estar em alguma campanha (checagem por usuário, não
+  // "existe alguma campanha no sistema inteiro")
+  if (!_userTemCampanha()) {
+    showToast('⚠ Crie ou entre em uma campanha antes de usar a call','warn'); return;
   }
 
   // Guarda 2: player precisa de autorização do mestre
@@ -14052,6 +14117,8 @@ const _sharedDataRef = ref(db, 'sharedData');
 let _lastSyncedDataStr = null;
 let _dataPushTimer = null;
 let _dataSyncSeeded = false;
+window._dataSyncSeeded = false; // espelho público — usado por _syncCallEntryBtn/_userTemCampanha pra saber se já é seguro afirmar "você não está em nenhuma campanha"
+function _setDataSyncSeeded(v) { _dataSyncSeeded = v; window._dataSyncSeeded = v; }
 
 function _fbPushDataNow() {
   try {
@@ -14104,10 +14171,11 @@ onValue(_sharedDataRef, function(snap) {
     // locais atuais (se houver) como semente, pra não perder o que já
     // existia no dispositivo antes dessa sincronização existir.
     if (isFirstSync) {
-      _dataSyncSeeded = true;
+      _setDataSyncSeeded(true);
       if (data && ((data.campanhas||[]).length || (data.players||[]).length)) {
         _fbPushDataNow();
       }
+      if (typeof _syncCallEntryBtn === 'function') try{ _syncCallEntryBtn(); }catch(e){}
     }
     return;
   }
@@ -14116,7 +14184,7 @@ onValue(_sharedDataRef, function(snap) {
   var remoteStr = JSON.stringify(remote);
 
   if (isFirstSync) {
-    _dataSyncSeeded = true;
+    _setDataSyncSeeded(true);
     // Proteção contra corrupção/perda: se na PRIMEIRA sincronização o
     // Firebase vier com MENOS campanhas/fichas do que este dispositivo já
     // tem localmente (ex.: nó ainda incompleto, ou corrompido por um bug
@@ -14140,7 +14208,8 @@ onValue(_sharedDataRef, function(snap) {
   console.warn('[dataSync] onValue falhou (offline ou sem permissão):', err.code || err.message);
   // Libera o push mesmo assim (modo degradado: só localStorage), senão
   // fica travado pra sempre esperando uma leitura que nunca vai chegar.
-  _dataSyncSeeded = true;
+  _setDataSyncSeeded(true);
+  if (typeof _syncCallEntryBtn === 'function') try{ _syncCallEntryBtn(); }catch(e){}
 });
 
 // ── Presença online ──
