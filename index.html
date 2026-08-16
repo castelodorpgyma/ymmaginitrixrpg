@@ -31,7 +31,7 @@
      no painel de Áudio Ambiente (play/pause/stop/volume/loop), que antes só
      mexiam no player de arquivo local e não tinham nenhum efeito sobre o
      vídeo embutido do YouTube. -->
-<script src="https://www.youtube.com/iframe_api" async></script>
+<script src="https://www.youtube.com/iframe_api" async onerror="window._ytApiScriptFailed=true"></script>
 
 <style>
 
@@ -4118,14 +4118,14 @@ window.authTab = function(tab) {
 @keyframes pulseSb{from{opacity:.7}to{opacity:1}}
 
 /* ── EMOJI REACTIONS na call ── */
-#call-reactions-bar{position:fixed;bottom:100px;left:50%;transform:translateX(-50%);display:none;gap:6px;z-index:9200;background:rgba(6,4,14,.9);padding:8px 12px;border-radius:40px;border:1px solid rgba(255,255,255,.08);box-shadow:0 4px 20px rgba(0,0,0,.6);}
+#call-reactions-bar{position:fixed;bottom:100px;left:50%;transform:translateX(-50%);display:none;gap:6px;z-index:9600;background:rgba(6,4,14,.9);padding:8px 12px;border-radius:40px;border:1px solid rgba(255,255,255,.08);box-shadow:0 4px 20px rgba(0,0,0,.6);}
 #call-reactions-bar.visible{display:flex;}
 .crb-emoji{font-size:1.4rem;cursor:pointer;padding:4px 6px;border-radius:8px;transition:transform .15s;user-select:none;}
 .crb-emoji:hover{transform:scale(1.3);}
 .floating-reaction{position:fixed;bottom:160px;font-size:1.8rem;z-index:9300;pointer-events:none;animation:floatUp 2.5s ease-out forwards;}
 
 /* ── SOUNDBOARD ── */
-#soundboard-panel{position:fixed;right:12px;top:50%;transform:translateY(-50%);width:180px;background:rgba(6,4,14,.97);border:1px solid rgba(245,200,58,.12);border-radius:14px;padding:10px;z-index:9050;display:none;box-shadow:0 8px 32px rgba(0,0,0,.7);max-height:60vh;overflow-y:auto;scrollbar-width:none;}
+#soundboard-panel{position:fixed;right:12px;top:50%;transform:translateY(-50%);width:180px;background:rgba(6,4,14,.97);border:1px solid rgba(245,200,58,.12);border-radius:14px;padding:10px;z-index:9600;display:none;box-shadow:0 8px 32px rgba(0,0,0,.7);max-height:60vh;overflow-y:auto;scrollbar-width:none;}
 #soundboard-panel.visible{display:block;}
 .sb-tab-btn{flex:1;padding:6px 4px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:6px;color:rgba(200,205,225,0.72);font-family:'Share Tech Mono',monospace;font-size:.46rem;cursor:pointer;letter-spacing:.02em;transition:background .15s,border-color .15s,color .15s}
 .sb-tab-btn.active{background:rgba(245,200,58,.12);border-color:rgba(245,200,58,.35);color:rgba(245,200,58,0.95)}
@@ -4135,11 +4135,11 @@ window.authTab = function(tab) {
 .sb-btn.playing{border-color:rgba(245,200,58,.6);color:var(--c-gold);animation:pulseSb .8s ease-in-out infinite alternate;}
 
 /* ── WHO IS TALKING badge ── */
-#who-is-talking{position:fixed;top:80px;left:50%;transform:translateX(-50%);background:rgba(0,200,100,.12);border:1px solid rgba(0,200,100,.3);border-radius:30px;padding:6px 14px;font-family:'Share Tech Mono',monospace;font-size:.52rem;color:rgba(0,255,140,0.8);letter-spacing:.06em;z-index:9150;display:none;backdrop-filter:blur(8px);box-shadow:0 0 20px rgba(0,200,100,.15);}
+#who-is-talking{position:fixed;top:80px;left:50%;transform:translateX(-50%);background:rgba(0,200,100,.12);border:1px solid rgba(0,200,100,.3);border-radius:30px;padding:6px 14px;font-family:'Share Tech Mono',monospace;font-size:.52rem;color:rgba(0,255,140,0.8);letter-spacing:.06em;z-index:9600;display:none;backdrop-filter:blur(8px);box-shadow:0 0 20px rgba(0,200,100,.15);}
 #who-is-talking.visible{display:block;animation:fadeInScale .2s ease-out;}
 
 /* ── QUICK DICE TRAY flutuante ── */
-#quick-dice-tray{position:fixed;bottom:85px;right:14px;z-index:9080;display:none;flex-direction:column;gap:6px;align-items:flex-end;}
+#quick-dice-tray{position:fixed;bottom:85px;right:14px;z-index:9600;display:none;flex-direction:column;gap:6px;align-items:flex-end;}
 .qdt-die{width:44px;height:44px;background:rgba(6,4,14,.94);border:1px solid rgba(210,40,40,.2);border-radius:10px;display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue',sans-serif;font-size:.85rem;color:rgba(210,40,40,0.8);cursor:pointer;transition:all .15s;box-shadow:0 2px 8px rgba(0,0,0,.5);}
 .qdt-die:hover{background:rgba(210,40,40,.15);border-color:rgba(210,40,40,.5);color:#fff;transform:scale(1.08);}
 .qdt-die:active{transform:scale(.93);}
@@ -7097,7 +7097,14 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   <div style="margin-top:8px;border-top:1px solid rgba(255,255,255,.05);padding-top:8px">
     <label class="sb-title" style="display:block;margin-bottom:5px">// ADICIONAR SOM</label>
     <input type="text" id="sb-new-name" placeholder="Nome do som..." style="width:100%;padding:5px 8px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:6px;color:rgba(200,210,230,0.8);font-family:'Share Tech Mono',monospace;font-size:.5rem;outline:none;margin-bottom:5px">
-    <input type="url" id="sb-new-url" placeholder="URL do áudio (mp3/ogg)..." style="width:100%;padding:5px 8px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:6px;color:rgba(200,210,230,0.8);font-family:'Share Tech Mono',monospace;font-size:.5rem;outline:none;margin-bottom:5px">
+    <input type="url" id="sb-new-url" placeholder="URL direta do áudio (mp3/ogg)..." oninput="if(this.value.trim())_sbClearPendingFile()" style="width:100%;padding:5px 8px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:6px;color:rgba(200,210,230,0.8);font-family:'Share Tech Mono',monospace;font-size:.5rem;outline:none;margin-bottom:5px">
+    <div id="sb-url-hint" style="font-family:'Share Tech Mono',monospace;font-size:.42rem;color:rgba(200,205,225,0.45);line-height:1.5;margin-bottom:5px">Cole o link direto do arquivo .mp3/.ogg (ex: do Pixabay, use o botão "Baixar" no site e depois selecione o arquivo abaixo — a página do Pixabay em si não funciona como link direto).</div>
+    <div style="text-align:center;font-family:'Share Tech Mono',monospace;font-size:.44rem;color:rgba(200,205,225,0.4);margin:4px 0">── OU ──</div>
+    <label style="display:flex;align-items:center;justify-content:center;gap:6px;padding:7px;background:rgba(0,200,100,.08);border:1px dashed rgba(0,200,100,.25);border-radius:6px;cursor:pointer;font-family:'Share Tech Mono',monospace;font-size:.48rem;color:rgba(100,255,180,0.8);margin-bottom:5px">
+      📂 SELECIONAR ARQUIVO DA GALERIA
+      <input type="file" id="sb-new-file" accept="audio/*" style="display:none" onchange="_sbHandleFilePick(event)">
+    </label>
+    <div id="sb-file-picked" style="display:none;font-family:'Share Tech Mono',monospace;font-size:.44rem;color:rgba(100,255,180,0.85);margin-bottom:5px;word-break:break-all"></div>
     <button onclick="addSoundboardItem()" style="width:100%;padding:6px;background:rgba(245,200,58,.08);border:1px solid rgba(245,200,58,.15);border-radius:6px;color:rgba(245,200,58,0.72);font-family:'Share Tech Mono',monospace;font-size:.5rem;cursor:pointer">+ ADICIONAR</button>
   </div>
 </div>
@@ -13037,6 +13044,24 @@ function callLoadYoutube() {
   if(nameEl && !nameEl.value.trim()) nameEl.value = 'Vídeo do YouTube';
   _updateNowPlayingLabel();
   showToast('🎬 YouTube carregado','ok');
+  // ANTES: se o script da API do YouTube fosse bloqueado (comum com Brave
+  // Shields, uBlock, adblockers e alguns modos de "proteção de rastreadores"
+  // que bloqueiam domínios do Google/YouTube) o painel ficava com uma caixa
+  // vazia pra sempre, sem nenhum aviso — parecia que o site simplesmente
+  // "quebrou". AGORA: se depois de alguns segundos o player não respondeu
+  // (nem carregou, nem deu erro específico do vídeo), avisa claramente que
+  // é provável bloqueio do navegador/extensão e mostra o botão de abrir
+  // direto no YouTube como alternativa.
+  var checkId = id, checkTs = Date.now();
+  setTimeout(function () {
+    if (checkId !== id) return; // usuário já trocou de vídeo nesse meio-tempo
+    var stillNoPlayer = !_ytPlayer || typeof _ytPlayer.getPlayerState !== 'function';
+    if (window._ytApiScriptFailed || (!_ytApiReady && stillNoPlayer)) {
+      showToast('⚠ O player do YouTube não carregou — pode ser bloqueio do navegador/extensão (ex: Brave Shields, uBlock). Tente desativar o bloqueador para este site ou use "ABRIR NO YOUTUBE".', 'err');
+      if (notice) notice.style.display = 'block';
+      if (openBtn) { openBtn.style.display = 'block'; openBtn.onclick = function () { window.open(url, '_blank'); }; }
+    }
+  }, 6000);
 }
 
 function extractYoutubeId(url) {
@@ -14957,6 +14982,20 @@ gProvider.setCustomParameters({ prompt: 'select_account' });
 //  refazer a escrita 1x antes de pedir pro usuário logar de novo — e o aviso
 //  final vem com um link clicável que já dispara o re-login.
 // ════════════════════════════════════════════════════════════════════════
+// ANTES: se várias coisas diferentes tentassem salvar ao mesmo tempo (chat +
+// fichas + catálogo, por exemplo) e todas caíssem em erro de permissão, cada
+// uma mostrava seu próprio toast — vários avisos idênticos empilhados de
+// uma vez. AGORA: o aviso de "permissão negada" é limitado a 1 vez a cada
+// 15s no total, não importa quantos pontos diferentes falharam ao mesmo tempo.
+var _fbLastPermToastAt = 0;
+function _fbShowPermToastThrottled() {
+  var now = Date.now();
+  if (now - _fbLastPermToastAt < 15000) return;
+  _fbLastPermToastAt = now;
+  if (typeof showToast === 'function') {
+    showToast('⚠ Firebase recusou salvar (permissão) — <span onclick="_forceRelogin()" style="text-decoration:underline;cursor:pointer">toque aqui para logar novamente</span>.', 'err');
+  }
+}
 function _fbHandleWriteError(e, retryFn, label) {
   var code = e && (e.code || e.message);
   console.warn('[Firebase] Falha ao salvar' + (label ? ' (' + label + ')' : '') + ':', code);
@@ -14966,16 +15005,13 @@ function _fbHandleWriteError(e, retryFn, label) {
         try { retryFn(); } catch(err) {}
       }
     }).catch(function() {
-      if (typeof showToast === 'function') {
-        showToast('⚠ Firebase recusou salvar (permissão) — <span onclick="_forceRelogin()" style="text-decoration:underline;cursor:pointer">toque aqui para logar novamente</span>.', 'err');
-      }
+      _fbShowPermToastThrottled();
     });
     return;
   }
-  if (typeof showToast !== 'function') return;
   if (e && e.code === 'PERMISSION_DENIED') {
-    showToast('⚠ Firebase recusou salvar (permissão) — <span onclick="_forceRelogin()" style="text-decoration:underline;cursor:pointer">toque aqui para logar novamente</span>.', 'err');
-  } else {
+    _fbShowPermToastThrottled();
+  } else if (typeof showToast === 'function') {
     showToast('⚠ Não foi possível sincronizar com o Firebase agora — tentando de novo...', 'warn');
   }
 }
@@ -15028,18 +15064,17 @@ function _fbPushDataNow() {
       // sozinho, sem depender de o usuário digitar/salvar de novo pra disparar o retry.
       clearTimeout(_dataPushRetryTimer);
       _dataPushRetryTimer = setTimeout(_fbPushDataNow, 5000);
-      // Erro de permissão na 1ª tentativa: pode ser só o token de login expirado
-      // (comum depois de horas com o app aberto) — tenta renovar sozinho antes
-      // de incomodar o usuário. Só mostra o aviso "faça login de novo" se isso
-      // também falhar.
+      // ANTES: cada uma das até 6 tentativas mostrava seu próprio toast — na
+      // prática isso significava um aviso novo a cada 5s por até 30s seguidos
+      // pro mesmo problema. AGORA: só avisa na 1ª falha do "surto" (dá tempo
+      // de resolver sozinho, ex.: token renovado) e na desistência final —
+      // as tentativas do meio ficam silenciosas em segundo plano.
       if (e.code === 'PERMISSION_DENIED' && _pushFailCount === 1) {
+        // Pode ser só o token de login expirado (comum depois de horas com o
+        // app aberto) — tenta renovar sozinho antes de incomodar o usuário.
         _fbHandleWriteError(e, _fbPushDataNow, 'campanhas/fichas');
-      } else if (typeof showToast === 'function') {
-        if (e.code === 'PERMISSION_DENIED') {
-          showToast('⚠ Firebase recusou salvar (permissão) — <span onclick="_forceRelogin()" style="text-decoration:underline;cursor:pointer">toque aqui para logar novamente</span>.', 'err');
-        } else {
-          showToast('⚠ Não foi possível sincronizar com o Firebase agora — tentando de novo...', 'warn');
-        }
+      } else if (_pushFailCount === 1 && typeof showToast === 'function') {
+        showToast('⚠ Não foi possível sincronizar com o Firebase agora — tentando de novo em segundo plano...', 'warn');
       }
     });
   } catch(e) { console.error('[dataSync push]', e); _pendingLocalPush = false; }
@@ -16946,28 +16981,85 @@ function playSoundboardItem(id, scope) {
   }
 }
 
+// ── Arquivo escolhido na galeria fica guardado aqui (como base64) até o
+// usuário clicar em ADICIONAR — assim dá pra usar arquivo local OU link,
+// sem precisar de dois botões diferentes.
+var _sbPendingFile = null; // { dataUrl, size, fileName }
+var _SB_MAX_FILE_BYTES = 700 * 1024; // ~700KB — soa bem pra efeitos curtos sem estourar o Firebase
+
+function _sbHandleFilePick(event) {
+  var file = event.target.files && event.target.files[0];
+  event.target.value = '';
+  if (!file) return;
+  if (!file.type || file.type.indexOf('audio') === -1) {
+    showToast('⚠ Selecione um arquivo de áudio', 'warn'); return;
+  }
+  var pickedEl = document.getElementById('sb-file-picked');
+  var urlEl = document.getElementById('sb-new-url');
+  var reader = new FileReader();
+  reader.onload = function() {
+    _sbPendingFile = { dataUrl: reader.result, size: file.size, fileName: file.name };
+    if (urlEl) urlEl.value = ''; // arquivo escolhido tem prioridade sobre a URL
+    if (pickedEl) {
+      pickedEl.style.display = 'block';
+      pickedEl.textContent = '📎 ' + file.name + ' (' + Math.round(file.size/1024) + 'KB)' +
+        (file.size > _SB_MAX_FILE_BYTES ? ' — grande demais pra aba pública, mas ok na sua aba secreta' : '');
+    }
+    var nameEl = document.getElementById('sb-new-name');
+    if (nameEl && !nameEl.value.trim()) nameEl.value = file.name.replace(/\.[^/.]+$/, '');
+  };
+  reader.onerror = function() { showToast('⚠ Não foi possível ler o arquivo', 'err'); };
+  reader.readAsDataURL(file);
+}
+window._sbHandleFilePick = _sbHandleFilePick;
+
 function addSoundboardItem() {
   var nameEl = document.getElementById('sb-new-name');
   var urlEl = document.getElementById('sb-new-url');
   if (!nameEl || !urlEl) return;
   var name = nameEl.value.trim(); var url = urlEl.value.trim();
-  if (!name || !url) { showToast('⚠ Preencha nome e URL', 'warn'); return; }
   var scope = _sbTab;
+
+  // Aviso claro pra quem cola o link da PÁGINA do Pixabay (não é um arquivo de
+  // áudio direto — o player deles não consegue tocar isso) em vez do mp3 baixado.
+  if (url && /pixabay\.com/i.test(url) && !/\.(mp3|ogg|wav)(\?|$)/i.test(url)) {
+    showToast('⚠ Esse é o link da página do Pixabay, não do arquivo — clique em "Baixar" no Pixabay e depois use "SELECIONAR ARQUIVO DA GALERIA" aqui embaixo.', 'warn');
+    return;
+  }
+
+  if (!name || (!url && !_sbPendingFile)) {
+    showToast('⚠ Preencha o nome e cole uma URL ou selecione um arquivo', 'warn');
+    return;
+  }
+
+  var finalUrl = _sbPendingFile ? _sbPendingFile.dataUrl : url;
+  var fromFile = !!_sbPendingFile;
+
   if (scope==='master') {
-    _sbMasterItems.push({ id:'sb'+Date.now(), name:name, url:url, emoji:'🎵' });
+    _sbMasterItems.push({ id:'sb'+Date.now(), name:name, url:finalUrl, emoji:'🎵' });
     _sbSaveMaster();
-    nameEl.value=''; urlEl.value=''; renderSoundboard();
+    nameEl.value=''; urlEl.value=''; _sbClearPendingFile(); renderSoundboard();
     showToast('✓ Som adicionado à sua aba secreta!', 'ok');
   } else {
+    if (fromFile && _sbPendingFile.size > _SB_MAX_FILE_BYTES) {
+      showToast('⚠ Arquivo grande demais pra compartilhar com todo mundo (limite ~700KB) — use um trecho mais curto ou adicione só na sua aba secreta.', 'err');
+      return;
+    }
     if (window.db && window._ref && window._push) {
-      window._push(window._ref(window.db, 'soundboardPublic'), { name:name, url:url, emoji:'🎵' })
+      window._push(window._ref(window.db, 'soundboardPublic'), { name:name, url:finalUrl, emoji:'🎵' })
         .catch(function(){ showToast('⚠ Não foi possível sincronizar — som salvo só aqui', 'warn'); });
     } else {
-      _sbPublicItems.push({ id:'sb'+Date.now(), name:name, url:url, emoji:'🎵' });
+      _sbPublicItems.push({ id:'sb'+Date.now(), name:name, url:finalUrl, emoji:'🎵' });
     }
-    nameEl.value=''; urlEl.value=''; renderSoundboard();
+    nameEl.value=''; urlEl.value=''; _sbClearPendingFile(); renderSoundboard();
     showToast('✓ Som adicionado pra todo mundo!', 'ok');
   }
+}
+
+function _sbClearPendingFile() {
+  _sbPendingFile = null;
+  var pickedEl = document.getElementById('sb-file-picked');
+  if (pickedEl) { pickedEl.style.display = 'none'; pickedEl.textContent = ''; }
 }
 
 function removeSoundboardItem(id, scope) {
