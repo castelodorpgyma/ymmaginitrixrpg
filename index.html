@@ -1928,6 +1928,15 @@ textarea{resize:vertical;min-height:72px;border-radius:var(--r-sm)}
   color:rgba(100,255,180,0.72);
 }
 .chat-channel-badge.pv{background:rgba(180,10,180,.1);border-color:rgba(200,80,200,.2);color:rgba(220,150,255,0.72)}
+/* ── AÇÕES DO HEADER (call/vídeo privados, estilo Discord) ── */
+.chat-hdr-actions{display:flex;align-items:center;gap:2px;margin-left:6px;flex-shrink:0}
+.chat-hdr-btn{
+  width:30px;height:30px;border-radius:8px;border:none;background:none;
+  color:rgba(200,205,225,0.72);display:flex;align-items:center;justify-content:center;
+  cursor:pointer;transition:all .14s;flex-shrink:0;-webkit-tap-highlight-color:transparent;
+}
+.chat-hdr-btn:hover{background:rgba(30,180,90,.15);color:rgba(100,230,150,0.95)}
+.chat-hdr-btn .ct-icon-svg{width:16px;height:16px}
 /* ── TABS ── */
 .chat-tab-bar{
   display:flex;align-items:center;gap:2px;padding:6px 8px 0;
@@ -2227,15 +2236,17 @@ textarea{resize:vertical;min-height:72px;border-radius:var(--r-sm)}
   position:absolute;bottom:58px;left:8px;right:8px;
   background:rgba(8,4,16,.97);border:1px solid rgba(255,255,255,.1);
   border-radius:14px;padding:12px;z-index:10;
-  box-shadow:0 -8px 32px rgba(0,0,0,.7);max-height:200px;overflow-y:auto;display:none;
+  box-shadow:0 -8px 32px rgba(0,0,0,.7);max-height:280px;overflow-y:auto;display:none;
 }
 .sticker-panel.open{display:block}
 .sticker-panel::-webkit-scrollbar{width:3px}
 .sticker-panel::-webkit-scrollbar-thumb{background:rgba(210,40,40,.2)}
 .sp-title{font-family:'Share Tech Mono',monospace;font-size:.46rem;color:rgba(210,40,40,0.72);letter-spacing:.18em;margin-bottom:8px}
 .sp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(52px,1fr));gap:7px;margin-bottom:8px}
-.sp-tabs{display:flex;gap:4px;margin-bottom:8px}
-.sp-tab{flex:1;padding:6px 4px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:6px;color:rgba(200,205,225,0.72);font-family:'Share Tech Mono',monospace;font-size:.6rem;letter-spacing:.04em;cursor:pointer;transition:all .15s}
+.sp-grid-emoji{grid-template-columns:repeat(auto-fill,minmax(38px,1fr));gap:4px;max-height:150px;overflow-y:auto}
+.sp-grid-emoji .sp-item{font-size:1.35rem;aspect-ratio:1}
+.sp-tabs{display:flex;gap:4px;margin-bottom:8px;background:rgba(0,0,0,.22);padding:3px;border-radius:9px}
+.sp-tab{flex:1;padding:6px 4px;background:none;border:1px solid transparent;border-radius:6px;color:rgba(200,205,225,0.72);font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.68rem;letter-spacing:.02em;cursor:pointer;transition:all .15s}
 .sp-tab:hover{background:rgba(255,255,255,.06)}
 .sp-tab.active{background:rgba(210,40,40,.18);border-color:rgba(210,40,40,.4);color:#fff}
 .sp-tenor-search{width:100%;box-sizing:border-box;margin-bottom:8px;padding:7px 10px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.1);border-radius:6px;color:#fff;font-family:'Share Tech Mono',monospace;font-size:.7rem}
@@ -2563,6 +2574,29 @@ textarea{resize:vertical;min-height:72px;border-radius:var(--r-sm)}
 .call-overlay.open{transform:translateY(0)}
 .call-overlay::before{content:'';position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(0,0,0,.06) 0,rgba(0,0,0,.06) 1px,transparent 1px,transparent 5px);z-index:0}
 .call-header{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 18px;background:rgba(0,0,0,.45);border-bottom:1px solid rgba(87,242,135,.07);flex-shrink:0;position:relative;z-index:2}
+/* chamada privada (1:1) — leve toque azul pra diferenciar da call de grupo (verde) */
+.call-overlay.private-call .call-header{border-bottom-color:rgba(90,170,255,.28)}
+.call-overlay.private-call .call-live-dot{background:#5aa9ff;box-shadow:0 0 12px rgba(90,170,255,.9)}
+/* ── AVISO DE CHAMADA PRIVADA RECEBIDA ("tocando") ── */
+.dm-call-invite-banner{
+  display:none;align-items:center;gap:12px;
+  position:fixed;top:16px;left:50%;transform:translateX(-50%) translateY(-140%);
+  z-index:9999;background:rgba(8,10,20,.97);border:1px solid rgba(90,170,255,.35);
+  border-radius:16px;padding:12px 14px;box-shadow:0 12px 40px rgba(0,0,0,.8);
+  backdrop-filter:blur(20px);max-width:calc(100vw - 32px);width:340px;
+  transition:transform .3s cubic-bezier(.22,1,.36,1);
+}
+.dm-call-invite-banner.show{display:flex;transform:translateX(-50%) translateY(0)}
+.dmci-ring-icon{font-size:1.5rem;animation:dmciRing 1s infinite}
+@keyframes dmciRing{0%,100%{transform:rotate(0)}20%{transform:rotate(-18deg)}40%{transform:rotate(14deg)}60%{transform:rotate(-10deg)}80%{transform:rotate(6deg)}}
+.dmci-info{flex:1;min-width:0}
+.dmci-label{font-family:'Share Tech Mono',monospace;font-size:.44rem;letter-spacing:.14em;color:rgba(90,170,255,0.8)}
+.dmci-name{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.92rem;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+.dmci-btn{width:36px;height:36px;border-radius:50%;border:none;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:transform .12s}
+.dmci-btn:hover{transform:scale(1.08)}
+.dmci-accept{background:#57f287;color:#0a1f10}
+.dmci-decline{background:#da373c;color:#fff}
+.dmci-btn .ct-icon-svg{width:16px;height:16px}
 .call-header-title{font-family:'Orbitron',sans-serif;font-size:.78rem;font-weight:700;color:#f2f3f5;letter-spacing:.14em;display:flex;align-items:center;gap:10px;min-width:0;flex:1 1 auto;overflow:hidden}
 .call-header-title .chdr-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 .call-live-dot{width:8px;height:8px;border-radius:50%;background:#57f287;box-shadow:0 0 12px rgba(87,242,135,.9);animation:callDotPulse 1.5s infinite;flex-shrink:0}
@@ -5819,6 +5853,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
             <div class="chat-channel-icon">💬</div>
             <span class="chat-channel-name" id="chat-channel-name">GERAL</span>
             <span class="chat-channel-badge" id="chat-channel-badge">PÚBLICO</span>
+            <div class="chat-hdr-actions" id="chat-hdr-actions" style="display:none">
+              <button class="chat-hdr-btn" id="chat-call-btn" title="Chamada de voz privada" onclick="_chatHdrCall(false)"><i data-lucide="phone" class="ct-icon-svg"></i></button>
+              <button class="chat-hdr-btn" id="chat-video-btn" title="Chamada de vídeo privada" onclick="_chatHdrCall(true)"><i data-lucide="video" class="ct-icon-svg"></i></button>
+            </div>
           </div>
           <!-- Tabs -->
           <div class="chat-tab-bar" id="chat-tab-bar">
@@ -5845,8 +5883,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
           <!-- Sticker panel -->
           <div class="sticker-panel" id="sticker-panel">
             <div class="sp-tabs">
-              <button class="sp-tab active" id="sp-tab-my-" onclick="switchStickerSrc('my','')">// FIGURINHAS</button>
-              <button class="sp-tab" id="sp-tab-tenor-" onclick="switchStickerSrc('tenor','')">🔎 GIFs (Tenor)</button>
+              <button class="sp-tab" id="sp-tab-tenor-" onclick="switchStickerSrc('tenor','')">🔎 GIFs</button>
+              <button class="sp-tab active" id="sp-tab-my-" onclick="switchStickerSrc('my','')">🖼 Figurinhas</button>
+              <button class="sp-tab" id="sp-tab-emoji-" onclick="switchStickerSrc('emoji','')">😀 Emoji</button>
             </div>
             <div id="sp-my-wrap-">
               <div class="sp-grid" id="sp-grid"></div>
@@ -5856,8 +5895,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
               <input type="file" id="sp-upload-input" accept="image/*" multiple="" style="display:none" onchange="addStickers(event)">
             </div>
             <div id="sp-tenor-wrap-" style="display:none">
-              <input type="text" class="sp-tenor-search" id="sp-tenor-q-" placeholder="Buscar GIFs no Tenor..." oninput="_tenorSearchDebounced('', this.value)">
+              <input type="text" class="sp-tenor-search" id="sp-tenor-q-" placeholder="🔎 Buscar GIFs..." oninput="_tenorSearchDebounced('', this.value)">
               <div class="sp-grid" id="sp-grid-tenor-"></div>
+            </div>
+            <div id="sp-emoji-wrap-" style="display:none">
+              <div class="sp-grid sp-grid-emoji" id="sp-grid-emoji-"></div>
             </div>
           </div>
           <!-- Input area -->
@@ -6025,6 +6067,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
       <div class="chat-channel-icon">💬</div>
       <span class="chat-channel-name" id="chat-channel-name-ov">GERAL</span>
       <span class="chat-channel-badge" id="chat-channel-badge-ov">PÚBLICO</span>
+      <div class="chat-hdr-actions" id="chat-hdr-actions-ov" style="display:none">
+        <button class="chat-hdr-btn" id="chat-call-btn-ov" title="Chamada de voz privada" onclick="_chatHdrCall(false)"><i data-lucide="phone" class="ct-icon-svg"></i></button>
+        <button class="chat-hdr-btn" id="chat-video-btn-ov" title="Chamada de vídeo privada" onclick="_chatHdrCall(true)"><i data-lucide="video" class="ct-icon-svg"></i></button>
+      </div>
     </div>
     <div class="chat-tab-bar" id="chat-tab-bar-ov">
       <div class="chat-tab-pill active" id="ctab-geral-ov" onclick="openChatTab('geral')"># GERAL</div>
@@ -6045,8 +6091,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     <div class="chat-typing" id="chat-typing-ov"></div>
     <div class="sticker-panel" id="sticker-panel-ov">
       <div class="sp-tabs">
-        <button class="sp-tab active" id="sp-tab-my-ov" onclick="switchStickerSrc('my','ov')">// FIGURINHAS</button>
-        <button class="sp-tab" id="sp-tab-tenor-ov" onclick="switchStickerSrc('tenor','ov')">🔎 GIFs (Tenor)</button>
+        <button class="sp-tab" id="sp-tab-tenor-ov" onclick="switchStickerSrc('tenor','ov')">🔎 GIFs</button>
+        <button class="sp-tab active" id="sp-tab-my-ov" onclick="switchStickerSrc('my','ov')">🖼 Figurinhas</button>
+        <button class="sp-tab" id="sp-tab-emoji-ov" onclick="switchStickerSrc('emoji','ov')">😀 Emoji</button>
       </div>
       <div id="sp-my-wrap-ov">
         <div class="sp-grid" id="sp-grid-ov"></div>
@@ -6054,8 +6101,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
         <input type="file" id="sp-upload-ov" accept="image/*" multiple="" style="display:none" onchange="addStickers(event)">
       </div>
       <div id="sp-tenor-wrap-ov" style="display:none">
-        <input type="text" class="sp-tenor-search" id="sp-tenor-q-ov" placeholder="Buscar GIFs no Tenor..." oninput="_tenorSearchDebounced('ov', this.value)">
+        <input type="text" class="sp-tenor-search" id="sp-tenor-q-ov" placeholder="🔎 Buscar GIFs..." oninput="_tenorSearchDebounced('ov', this.value)">
         <div class="sp-grid" id="sp-grid-tenor-ov"></div>
+      </div>
+      <div id="sp-emoji-wrap-ov" style="display:none">
+        <div class="sp-grid sp-grid-emoji" id="sp-grid-emoji-ov"></div>
       </div>
     </div>
     <div class="chat-input-area">
@@ -6382,7 +6432,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   <div class="call-header">
     <div class="call-header-title">
       <span class="call-live-dot"></span>
-      <span class="chdr-label">CALL EM ANDAMENTO</span>
+      <span class="chdr-label" id="call-header-label">CALL EM ANDAMENTO</span>
       <span class="call-timer" id="call-timer">00:00</span>
     </div>
     <div class="call-header-controls">
@@ -11520,8 +11570,19 @@ var callState = {
   micState: 'idle',   // idle | requesting | active | muted | denied
   camState: 'idle',   // idle | requesting | active | denied
   screenState: 'idle', // idle | requesting | active
-  forceMuted: false   // true quando o Mestre/permissão silenciou este usuário à força
+  forceMuted: false,   // true quando o Mestre/permissão silenciou este usuário à força
+  privateWith: null,       // id do player em chamada privada (null = call de grupo normal)
+  privateWithName: null    // nome de exibição do player da chamada privada
 };
+
+// ── Sala privada (1:1) entre dois usuários — sempre o mesmo id pros dois lados ──
+function _privateCallRoomId(idA, idB) {
+  return 'dm_' + [idA, idB].sort().join('_');
+}
+// ── Sala de call que está ativa AGORA (grupo 'main' ou privada de um DM) ──
+function _curCallRoom() {
+  return window._activeCallRoomId || 'main';
+}
 
 // ── Verifica suporte real a mediaDevices ──
 function _mediaAvailable() {
@@ -11837,18 +11898,89 @@ function openCallOverlay() {
     }
   }
 
+  // Se estava numa chamada PRIVADA e o usuário pediu a call de grupo, sai da
+  // sala privada primeiro (as duas chamadas nunca coexistem).
+  if (callState.active && callState.privateWith) {
+    try { window._leaveCallRoom(_curCallRoom()); } catch(e){}
+    callState.active = false;
+    clearInterval(callState.timerInterval); callState.timerInterval = null;
+    callState.privateWith = null; callState.privateWithName = null;
+    window._activeCallRoomId = 'main';
+  }
+
   // Mostrar banner se file://
   var warn = document.getElementById('call-file-warn');
   if (warn) warn.style.display = (location.protocol === 'file:') ? 'block' : 'none';
   var _cov=document.getElementById('call-overlay');
   if(_cov){
     _cov.classList.remove('floating'); // se estava minimizada (flutuante), volta pra tela cheia
+    _cov.classList.remove('private-call');
     _cov.classList.add('open');
   }
   var _ub=document.getElementById('user-bar'); if(_ub) _ub.classList.add('call-hidden');
   if (!callState.active) _startCall();
   _syncScreenAreaVisibility();
   if (typeof _syncCallVoiceStatus === 'function') _syncCallVoiceStatus();
+  _updatePrivateCallBanner();
+}
+
+// ── Chamada PRIVADA: só entre você e um player específico (não é a call de grupo) ──
+// Usa uma sala própria (dm_<idA>_<idB>) então ninguém mais do grupo participa dela.
+function startPrivateCall(peerId, withVideo) {
+  if (!currentUser) { showToast('⚠ Faça login primeiro','warn'); return; }
+  if (!peerId) return;
+  if (!_userTemCampanha()) {
+    showToast('⚠ Crie ou entre em uma campanha antes de usar a call','warn'); return;
+  }
+  var peer = (authUsers||[]).find(function(u){ return u.id === peerId; });
+  if (!peer) { showToast('⚠ Não foi possível encontrar esse jogador','warn'); return; }
+
+  // Se já tem uma call de GRUPO rolando, sai dela antes de abrir a privada
+  if (callState.active && !callState.privateWith) {
+    try { window._leaveCallRoom(_curCallRoom()); } catch(e){}
+    callState.active = false;
+    clearInterval(callState.timerInterval); callState.timerInterval = null;
+  }
+
+  callState.privateWith = peerId;
+  callState.privateWithName = peer.username || peer.nome || 'Player';
+
+  var warn = document.getElementById('call-file-warn');
+  if (warn) warn.style.display = (location.protocol === 'file:') ? 'block' : 'none';
+  var _cov = document.getElementById('call-overlay');
+  if (_cov) { _cov.classList.remove('floating'); _cov.classList.add('open'); _cov.classList.add('private-call'); }
+  var _ub = document.getElementById('user-bar'); if (_ub) _ub.classList.add('call-hidden');
+  if (!callState.active || _curCallRoom() !== _privateCallRoomId(currentUser.id, peerId)) _startCall();
+  _syncScreenAreaVisibility();
+  if (typeof _syncCallVoiceStatus === 'function') _syncCallVoiceStatus();
+  _updatePrivateCallBanner();
+  if (withVideo) setTimeout(function(){ if (callState.camState !== 'active') callToggleCam(); }, 400);
+  showToast('📞 Chamando '+callState.privateWithName+'...', 'ok');
+
+  // "Toca" no aparelho do outro player, senão ele nunca saberia que tem uma
+  // chamada privada esperando (a sala em si já existe, mas ninguém entrou nela ainda).
+  if (window.db && window._ref && window._set) {
+    try {
+      window._set(window._ref(window.db, 'dmCalls/' + peerId), {
+        from: currentUser.id,
+        fromName: currentUser.username || currentUser.nome || 'Alguém',
+        video: !!withVideo,
+        room: _privateCallRoomId(currentUser.id, peerId),
+        ts: Date.now()
+      });
+    } catch(e) { console.warn('[Call] Não foi possível notificar o player', e); }
+  }
+}
+
+// ── Atualiza o cabeçalho do overlay de call pra deixar claro quando é privada ──
+function _updatePrivateCallBanner() {
+  var label = document.getElementById('call-header-label');
+  if (!label) return;
+  if (callState.privateWith) {
+    label.textContent = '🔒 CHAMADA PRIVADA COM ' + (callState.privateWithName||'').toUpperCase();
+  } else {
+    label.textContent = 'CALL EM ANDAMENTO';
+  }
 }
 
 function closeCallOverlay() {
@@ -12417,7 +12549,7 @@ function _callRefreshAvatarPreview() {
 function _callSyncCustomAvatarToRoom(dataUrl) {
   try {
     if (window._ref && window._set && window.db && window._myCallId && callState && callState.active) {
-      window._set(window._ref(window.db, 'calls/main/members/'+window._myCallId+'/customAvatar'), dataUrl || null);
+      window._set(window._ref(window.db, 'calls/'+_curCallRoom()+'/members/'+window._myCallId+'/customAvatar'), dataUrl || null);
     }
   } catch(e) { /* offline ou fora da call — tudo bem, fica só local */ }
 }
@@ -12463,7 +12595,7 @@ window.callGetCustomChar = function() {
 function _callSyncCustomCharToRoom(charObj) {
   try {
     if (window._ref && window._set && window.db && window._myCallId && callState && callState.active) {
-      window._set(window._ref(window.db, 'calls/main/members/'+window._myCallId+'/customChar'), charObj || null);
+      window._set(window._ref(window.db, 'calls/'+_curCallRoom()+'/members/'+window._myCallId+'/customChar'), charObj || null);
     }
   } catch(e) { /* offline ou fora da call — tudo bem, fica só local */ }
 }
@@ -12561,7 +12693,7 @@ function renderCallParticipants() {
   // CORRIGIDO: era callState.callActive (não existe) → callState.active
   // CORRIGIDO: usa window._ref / window._onValue (não acessíveis fora do módulo)
   if (callState.active && window._ref && window._onValue && window.db) {
-    var membersRef = window._ref(window.db, 'calls/main/members');
+    var membersRef = window._ref(window.db, 'calls/'+_curCallRoom()+'/members');
     window._onValue(membersRef, function(snap) {
       if (!snap.exists()) return;
       var isMestreLocal = currentUser && (currentUser.role === 'mestre' || currentUser.role === 'ambos');
@@ -12716,7 +12848,7 @@ function callForceMuteToggle(uid) {
   var canModerate = isMestreLocal || (callState.callPermissions.indexOf(currentUser && currentUser.id) !== -1);
   if (!canModerate) { showToast('⚠ Apenas o Mestre ou quem tem permissão pode silenciar participantes','warn'); return; }
   if (!window._ref || !window._set || !window.db) return;
-  var fmRef = window._ref(window.db, 'calls/main/members/'+uid+'/forceMuted');
+  var fmRef = window._ref(window.db, 'calls/'+_curCallRoom()+'/members/'+uid+'/forceMuted');
   // Lê estado atual via a lista já renderizada (data-uid) para decidir o toggle
   var card = document.querySelector('.call-participant[data-uid="'+uid+'"]');
   var currentlyMuted = card && card.querySelector('.call-part-mute-btn.is-muted');
@@ -13163,7 +13295,19 @@ function _updateChatHeader() {
     if(ic) ic.textContent = icon;
     var inp = document.getElementById('chat-inp'+s);
     if(inp) inp.placeholder = 'Mensagem em #'+name.toLowerCase()+'...';
+    // Ícones de chamada (call/vídeo) — só fazem sentido numa conversa privada
+    var actions = document.getElementById('chat-hdr-actions'+s);
+    if(actions) actions.style.display = isGeral ? 'none' : 'flex';
   });
+}
+
+// ── Clique nos botões 📞/🎥 do cabeçalho da conversa: liga pro player da aba aberta ──
+function _chatHdrCall(withVideo) {
+  if (chatState.activeTab === 'geral') return;
+  startPrivateCall(chatState.activeTab, !!withVideo);
+  // Se a call foi aberta a partir do chat flutuante, fecha o overlay de chat pra não sobrepor
+  var chatOv = document.getElementById('chat-overlay');
+  if (chatOv && chatOv.classList.contains('open')) toggleChatOverlay();
 }
 
 // ── Send media (image/video) ──
@@ -13257,18 +13401,42 @@ function switchStickerSrc(mode, suffix) {
   var s = suffix || '';
   var tabMy = document.getElementById('sp-tab-my-'+s);
   var tabTenor = document.getElementById('sp-tab-tenor-'+s);
+  var tabEmoji = document.getElementById('sp-tab-emoji-'+s);
   var wrapMy = document.getElementById('sp-my-wrap-'+s);
   var wrapTenor = document.getElementById('sp-tenor-wrap-'+s);
+  var wrapEmoji = document.getElementById('sp-emoji-wrap-'+s);
   if(!tabMy || !tabTenor || !wrapMy || !wrapTenor) return;
-  var isTenor = mode === 'tenor';
-  tabMy.classList.toggle('active', !isTenor);
-  tabTenor.classList.toggle('active', isTenor);
-  wrapMy.style.display = isTenor ? 'none' : '';
-  wrapTenor.style.display = isTenor ? '' : 'none';
-  if(isTenor) {
+  tabMy.classList.toggle('active', mode==='my');
+  tabTenor.classList.toggle('active', mode==='tenor');
+  if(tabEmoji) tabEmoji.classList.toggle('active', mode==='emoji');
+  wrapMy.style.display = mode==='my' ? '' : 'none';
+  wrapTenor.style.display = mode==='tenor' ? '' : 'none';
+  if(wrapEmoji) wrapEmoji.style.display = mode==='emoji' ? '' : 'none';
+  if(mode==='tenor') {
     var grid = document.getElementById('sp-grid-tenor-'+s);
     if(grid && !grid.dataset.loaded) { grid.dataset.loaded = '1'; _tenorFetch(s, ''); } // carrega "em alta" na primeira vez
   }
+  if(mode==='emoji') renderEmojiGrid(s);
+}
+// ── Aba de Emoji do seletor (igual GIF/Figurinha, mas insere no campo de texto) ──
+var _CHAT_EMOJIS = ['😀','😂','🥹','😍','😎','🤔','😭','😡','🥳','😱','🤝','👍','👎','👏','🙏','💪','🔥','✨','🎲','⚔️','🛡️','🏹','💀','👑','❤️','💔','⭐','🎉','🎂','☕','🍺','🌙','☀️','⚡','💤','👻','🐉','🗡️','📜','🔮'];
+function renderEmojiGrid(suffix) {
+  var s = suffix || '';
+  var grid = document.getElementById('sp-grid-emoji-'+s);
+  if(!grid || grid.dataset.built) return;
+  grid.dataset.built = '1';
+  grid.innerHTML = _CHAT_EMOJIS.map(function(e){
+    return '<div class="sp-item" onclick="insertChatEmoji(\''+e+'\',\''+s+'\')">'+e+'</div>';
+  }).join('');
+}
+function insertChatEmoji(emoji, suffix) {
+  var inp = document.getElementById(suffix==='ov' ? 'chat-inp-ov' : 'chat-inp');
+  if(!inp) return;
+  var start = inp.selectionStart || inp.value.length, end = inp.selectionEnd || inp.value.length;
+  inp.value = inp.value.slice(0,start) + emoji + inp.value.slice(end);
+  inp.focus();
+  var pos = start + emoji.length;
+  inp.setSelectionRange(pos,pos);
 }
 var _tenorDebounceTimers = {};
 function _tenorSearchDebounced(suffix, q) {
@@ -13344,6 +13512,17 @@ function initCallCard() {
     letter-spacing:.08em;padding:8px 14px;cursor:pointer;white-space:nowrap">INSTALAR</button>
   <button onclick="pwaDismiss()" style="background:none;border:none;color:rgba(255,255,255,0.72);
     font-size:1.1rem;cursor:pointer;padding:2px 4px;line-height:1">✕</button>
+</div>
+
+<!-- Aviso de chamada privada recebida (estilo "tocando", como no Discord) -->
+<div id="dm-call-invite-banner" class="dm-call-invite-banner">
+  <div class="dmci-ring-icon">📞</div>
+  <div class="dmci-info">
+    <div class="dmci-label">CHAMADA PRIVADA</div>
+    <div class="dmci-name" id="dmci-name">Alguém</div>
+  </div>
+  <button class="dmci-btn dmci-accept" onclick="answerIncomingPrivateCall()" title="Atender"><i data-lucide="phone" class="ct-icon-svg"></i></button>
+  <button class="dmci-btn dmci-decline" onclick="declineIncomingPrivateCall()" title="Recusar"><i data-lucide="phone-off" class="ct-icon-svg"></i></button>
 </div>
 
 <script>
@@ -15028,10 +15207,66 @@ const RTC_CONFIG = {
 function _initWebRTC(profile) {
   _myCallId = profile.id;
   window._myCallId = profile.id;
+  _subscribeCallRoomExtras('main');
+  _watchIncomingPrivateCalls(profile.id);
+}
+
+// ── "Toca" no outro lado de uma chamada privada: escuta convites endereçados
+//    a este usuário em dmCalls/<meuId> e mostra um aviso pra atender/recusar.
+//    Sem isso a call privada existiria mas o outro player nunca saberia que
+//    está sendo chamado. ──
+var _dmCallUnsub = null;
+function _watchIncomingPrivateCalls(myId) {
+  if (_dmCallUnsub) { try { _dmCallUnsub(); } catch(e){} }
+  var invRef = ref(db, 'dmCalls/' + myId);
+  _dmCallUnsub = onValue(invRef, function(snap) {
+    var inv = snap.val();
+    if (!inv || !inv.from) { _hideIncomingCallBanner(); return; }
+    // Ignora convites velhos (ex: sobrou de uma sessão anterior / recarregou a página)
+    if (Date.now() - (inv.ts || 0) > 30000) { return; }
+    // Já estou nessa mesma call privada? não precisa avisar de novo
+    if (callState.privateWith === inv.from) { _hideIncomingCallBanner(); return; }
+    _showIncomingCallBanner(inv.from, inv.fromName || 'Alguém', !!inv.video);
+  });
+}
+function _showIncomingCallBanner(fromId, fromName, video) {
+  var b = document.getElementById('dm-call-invite-banner');
+  if (!b) return;
+  b.dataset.fromId = fromId;
+  b.dataset.video = video ? '1' : '';
+  var nameEl = document.getElementById('dmci-name');
+  if (nameEl) nameEl.textContent = fromName + (video ? ' (vídeo)' : '');
+  b.classList.add('show');
+}
+function _hideIncomingCallBanner() {
+  var b = document.getElementById('dm-call-invite-banner');
+  if (b) b.classList.remove('show');
+}
+function answerIncomingPrivateCall() {
+  var b = document.getElementById('dm-call-invite-banner');
+  if (!b || !b.dataset.fromId) return;
+  var fromId = b.dataset.fromId, video = !!b.dataset.video;
+  _hideIncomingCallBanner();
+  if (currentUser) { try { remove(ref(db, 'dmCalls/' + currentUser.id)); } catch(e){} }
+  startPrivateCall(fromId, video);
+}
+window.answerIncomingPrivateCall = answerIncomingPrivateCall;
+function declineIncomingPrivateCall() {
+  _hideIncomingCallBanner();
+  if (currentUser) { try { remove(ref(db, 'dmCalls/' + currentUser.id)); } catch(e){} }
+}
+window.declineIncomingPrivateCall = declineIncomingPrivateCall;
+
+// ── (Re)assina os listeners de tela-compartilhada e mute-forçado para a sala
+//    informada. Chamada tanto no login (sala 'main') quanto toda vez que se
+//    entra numa sala diferente (ex: chamada privada), pra nunca ficar ouvindo
+//    o mute/tela da sala errada. ──
+function _subscribeCallRoomExtras(roomId) {
+  roomId = roomId || 'main';
 
   // ── Observa transmissão de tela: quem NÃO está transmitindo recebe um convite opt-in ──
   if (_screenShareUnsub) { try { _screenShareUnsub(); } catch(e){} }
-  _screenShareUnsub = onValue(ref(db, 'calls/main/screenShare'), function(snap) {
+  _screenShareUnsub = onValue(ref(db, 'calls/' + roomId + '/screenShare'), function(snap) {
     var v = snap.val() || { active:false };
     _screenShareInfo = v;
     if (v.active && v.by && v.by !== _myCallId) {
@@ -15053,7 +15288,7 @@ function _initWebRTC(profile) {
 
   // ── Observa se o Mestre/permissão me silenciou à força ──
   if (_ownMuteUnsub) { try { _ownMuteUnsub(); } catch(e){} }
-  _ownMuteUnsub = onValue(ref(db, 'calls/main/members/' + _myCallId + '/forceMuted'), function(snap) {
+  _ownMuteUnsub = onValue(ref(db, 'calls/' + roomId + '/members/' + _myCallId + '/forceMuted'), function(snap) {
     var forced = !!snap.val();
     callState.forceMuted = forced;
     if (forced && callState.micState === 'active') {
@@ -15084,6 +15319,8 @@ function _cleanupWebRTC() {
 window._joinCallRoom = async function(roomId) {
   if (!_myCallId) { showToast('⚠ Faça login primeiro', 'warn'); return; }
   roomId = roomId || 'main';
+  window._activeCallRoomId = roomId;
+  _subscribeCallRoomExtras(roomId);
   _callRoomRef = ref(db, 'calls/' + roomId);
 
   // Anuncia presença na call
@@ -15525,12 +15762,23 @@ window._leaveCallRoom = function(roomId) {
 const _origStartCall = window._startCall;
 window._startCall = function() {
   if (_origStartCall) _origStartCall();
-  window._joinCallRoom('main');
+  var room = callState.privateWith ? _privateCallRoomId(currentUser.id, callState.privateWith) : 'main';
+  window._joinCallRoom(room);
 };
 
 const _origEndCall = window.endCall;
 window.endCall = function() {
-  window._leaveCallRoom('main');
+  window._leaveCallRoom(_curCallRoom());
+  // Limpa qualquer convite de chamada privada pendente (meu ou do outro lado)
+  if (currentUser) {
+    try { remove(ref(db, 'dmCalls/' + currentUser.id)); } catch(e){}
+    if (callState.privateWith) { try { remove(ref(db, 'dmCalls/' + callState.privateWith)); } catch(e){} }
+  }
+  callState.privateWith = null; callState.privateWithName = null;
+  window._activeCallRoomId = 'main';
+  var cov = document.getElementById('call-overlay');
+  if (cov) cov.classList.remove('private-call');
+  _updatePrivateCallBanner();
   if (_origEndCall) _origEndCall();
 };
 
@@ -15588,14 +15836,14 @@ function _notifyMediaTransmission(gmName, mediaType) {
         });
       });
       _screenTrackId = null;
-      if (_myCallId) set(ref(db, 'calls/main/screenShare'), { active: false, ts: Date.now() });
+      if (_myCallId) set(ref(db, 'calls/'+_curCallRoom()+'/screenShare'), { active: false, ts: Date.now() });
     } else if (callState.screenState === 'active' && callState.screenStream) {
       // Acabamos de COMEÇAR a compartilhar — a prévia local já foi mostrada pela função original
       var track = callState.screenStream.getVideoTracks()[0];
       _screenTrackId = track ? track.id : null;
       window._rtcAddMediaTrack(callState.screenStream);
       if (_myCallId) {
-        set(ref(db, 'calls/main/screenShare'), {
+        set(ref(db, 'calls/'+_curCallRoom()+'/screenShare'), {
           active: true,
           by: _myCallId,
           name: (currentUser && currentUser.username) || 'Alguém',
@@ -15619,7 +15867,7 @@ function _notifyMediaTransmission(gmName, mediaType) {
       });
     });
     _screenTrackId = null;
-    if (_myCallId) set(ref(db, 'calls/main/screenShare'), { active: false, ts: Date.now() });
+    if (_myCallId) set(ref(db, 'calls/'+_curCallRoom()+'/screenShare'), { active: false, ts: Date.now() });
     if (typeof _origStopScreenStream === 'function') _origStopScreenStream();
   };
 })();
