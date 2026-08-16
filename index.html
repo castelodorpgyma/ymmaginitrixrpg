@@ -11513,6 +11513,7 @@ function saveProfInfo() {
   var idx = authUsers.findIndex(function(u){ return u.id === currentUser.id; });
   if (idx !== -1) { authUsers[idx].bio = bio; authUsers[idx].status = currentUser.status; }
   saveUsers();
+  if (typeof window._fbSyncProfile === 'function') window._fbSyncProfile(currentUser);
   showToast('✓ Perfil salvo', 'ok');
 }
 
@@ -11625,7 +11626,6 @@ function saveUsername() {
     return u.id !== currentUser.id && (u.username || '').toLowerCase() === novo.toLowerCase();
   });
   if (jaExiste) { showToast('✕ Esse nome de usuário já está em uso', 'err'); return; }
-  var antigo = currentUser.username;
   currentUser.username = novo;
   var idx = authUsers.findIndex(function(u){ return u.id === currentUser.id; });
   if (idx !== -1) authUsers[idx].username = novo;
@@ -11638,7 +11638,11 @@ function saveUsername() {
   var ubName = document.getElementById('ub-username');
   if (ubName) ubName.textContent = novo;
   showToast('✓ Nome de usuário atualizado', 'ok');
-  if (typeof window._fbUpdateUsername === 'function') { try { window._fbUpdateUsername(currentUser.id, novo, antigo); } catch(e){} }
+  // ANTES: chamava window._fbUpdateUsername, uma função que nunca existia
+  // em lugar nenhum do código — a troca de nome nunca ia pro Firebase,
+  // então voltava ao normal depois de um F5. Corrigido pra usar o sync
+  // de perfil de verdade.
+  if (typeof window._fbSyncProfile === 'function') window._fbSyncProfile(currentUser);
 }
 
 function closeProfileModal() {
@@ -11654,6 +11658,7 @@ function updateProfileAvatar(e) {
     var idx = authUsers.findIndex(function(u){ return u.id === currentUser.id; });
     if (idx !== -1) authUsers[idx].avatar = currentUser.avatar;
     saveUsers();
+    if (typeof window._fbSyncProfile === 'function') window._fbSyncProfile(currentUser);
     // Atualiza na topbar
     var ubav = document.getElementById('ub-avatar-wrap');
     if (ubav) ubav.innerHTML = '<img src="'+currentUser.avatar+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%">';
@@ -11674,6 +11679,7 @@ function updateProfileBanner(e) {
     var idx = authUsers.findIndex(function(u){ return u.id === currentUser.id; });
     if (idx !== -1) authUsers[idx].banner = currentUser.banner;
     saveUsers();
+    if (typeof window._fbSyncProfile === 'function') window._fbSyncProfile(currentUser);
     var img = document.getElementById('prof-banner-img');
     if (img) { img.src = currentUser.banner; img.style.display = 'block'; }
     showToast('✓ Banner atualizado', 'ok');
@@ -15331,6 +15337,32 @@ function _rolePickerCard(role, icon, label, desc, resolve, ov) {
     + '<div style="font-family:\'Rajdhani\',sans-serif;font-size:.72rem;color:rgba(200,210,230,0.72)">' + desc + '</div>'
     + '</div>';
 }
+
+// ══════════════════════════════════════════════════════════════════
+//  SYNC DO PERFIL (avatar/banner/nome/bio/status) COM O FIREBASE
+//  ------------------------------------------------------------------------
+//  BUG ENCONTRADO: updateProfileAvatar, updateProfileBanner, saveUsername
+//  e saveProfInfo só chamavam saveUsers() — que grava em localStorage,
+//  ou seja, só no navegador atual. O nó "users/<uid>" no Firebase (de
+//  onde o perfil é recarregado a cada F5/sessão restaurada, veja
+//  onAuthStateChanged abaixo) NUNCA era atualizado com essas edições.
+//  Resultado: ao dar F5, onAuthStateChanged buscava a cópia antiga no
+//  Firebase e SOBRESCREVIA o avatar/nome/banner editados localmente —
+//  por isso a edição "sumia" ao recarregar a página.
+//  AGORA: toda edição de perfil também grava em users/<uid>, então o
+//  F5 recarrega a versão certa.
+// ══════════════════════════════════════════════════════════════════
+window._fbSyncProfile = function(profile) {
+  if (!profile || !profile.id) return;
+  if (!(auth && auth.currentUser)) return; // conta local/convidado sem sessão Firebase — nada a sincronizar
+  try {
+    set(ref(db, 'users/' + profile.id), profile).catch(function(e) {
+      if (typeof _fbHandleWriteError === 'function') {
+        _fbHandleWriteError(e, function(){ window._fbSyncProfile(profile); }, 'perfil');
+      }
+    });
+  } catch(e) { console.warn('[_fbSyncProfile]', e); }
+};
 
 // ── Finaliza login Google (salva perfil, sync local, loginSuccess) ──
 async function _completeGoogleLogin(fbUser, profile, isNew) {
