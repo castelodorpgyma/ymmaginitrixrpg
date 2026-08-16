@@ -1892,11 +1892,26 @@ textarea{resize:vertical;min-height:72px;border-radius:var(--r-sm)}
 ══════════════════════════════════════ */
 .chat-box{
   display:flex;flex-direction:column;
-  height:560px;border-radius:16px;overflow:hidden;
+  height:100%;
+  border-radius:16px;overflow:hidden;
   border:1px solid rgba(255,255,255,.07);
   background:rgba(6,4,14,.98);
   box-shadow:0 24px 80px rgba(0,0,0,.85),inset 0 1px 0 rgba(255,255,255,.04);
   position:relative;
+}
+/* A versão PRINCIPAL (dentro do card "Chat", não a flutuante) é maior e
+   redimensionável — arraste o cantinho inferior direito pra ajustar. */
+#chat-box{
+  height:720px;min-height:360px;max-height:88vh;
+  resize:vertical;
+}
+/* alça de redimensionar mais visível/fácil de pegar (a nativa do "resize" é minúscula) */
+#chat-box::before{
+  content:'';position:absolute;right:3px;bottom:3px;width:14px;height:14px;z-index:5;
+  pointer-events:none;
+  background:
+    linear-gradient(135deg,transparent 0,transparent 40%,rgba(255,255,255,.35) 40%,rgba(255,255,255,.35) 55%,transparent 55%),
+    linear-gradient(135deg,transparent 0,transparent 65%,rgba(255,255,255,.35) 65%,rgba(255,255,255,.35) 80%,transparent 80%);
 }
 /* scanline sutil */
 .chat-box::after{
@@ -9207,6 +9222,15 @@ function renderFichaSelect() {
     list = data.players.filter(function(p){
       return _fichaEhMinha(p) || (p.campanha && myCampIds[p.campanha]);
     });
+    // Nunca deixa a ficha que já estava ABERTA na tela sumir do seletor por
+    // causa de um filtro de campanha/dono momentaneamente incompleto (ex.:
+    // resync do Firebase no meio do caminho) — senão ela "some" da view e só
+    // volta se o usuário escolher de novo manualmente. Se ela ainda existe
+    // em data.players, ela continua aparecendo (só não seria "editável").
+    if (cur && !list.some(function(p){ return p.id === cur; })) {
+      var stillExists = data.players.find(function(p){ return p.id === cur; });
+      if (stillExists) list = list.concat([stillExists]);
+    }
   }
   sel.innerHTML = '<option value="">Selecionar personagem...</option>' +
     list.map(function(p){
@@ -14328,27 +14352,56 @@ gProvider.setCustomParameters({ prompt: 'select_account' });
 const _sharedDataRef = ref(db, 'sharedData');
 let _lastSyncedDataStr = null;
 let _dataPushTimer = null;
+let _dataPushRetryTimer = null;
 let _dataSyncSeeded = false;
 window._dataSyncSeeded = false; // espelho público — usado por _syncCallEntryBtn/_userTemCampanha pra saber se já é seguro afirmar "você não está em nenhuma campanha"
 function _setDataSyncSeeded(v) { _dataSyncSeeded = v; window._dataSyncSeeded = v; }
+// true enquanto uma alteração local (ex.: banner novo, ficha editada) ainda
+// não foi confirmada como salva no Firebase — trava a aplicação de dados
+// remotos nesse meio-tempo, senão uma leitura desatualizada de OUTRO
+// dispositivo podia chegar antes da nossa gravação e apagar de volta o que
+// a gente acabou de salvar (era esse o motivo de banners/fichas "sumirem"
+// mesmo depois de terem sido salvos com sucesso localmente).
+let _pendingLocalPush = false;
+let _pushFailCount = 0;
 
 function _fbPushDataNow() {
   try {
     var str = JSON.stringify(data);
-    if (str === _lastSyncedDataStr) return; // nada mudou desde o último envio — evita eco/gravação redundante
+    if (str === _lastSyncedDataStr) { _pendingLocalPush = false; return; } // nada mudou desde o último envio — evita eco/gravação redundante
+    _pendingLocalPush = true;
     _lastSyncedDataStr = str;
-    set(_sharedDataRef, data).catch(function(e) {
+    set(_sharedDataRef, data).then(function() {
+      _pendingLocalPush = false;
+      _pushFailCount = 0;
+    }).catch(function(e) {
       console.warn('[dataSync] Falha ao salvar no Firebase:', e.code || e.message);
-      _lastSyncedDataStr = null; // não marca como "enviado" já que falhou — tenta de novo no próximo save()
+      _lastSyncedDataStr = null; // não marca como "enviado" já que falhou — tenta de novo
+      _pushFailCount++;
+      // Depois de várias tentativas seguidas falhando (ex.: banner grande
+      // demais, ou offline por muito tempo), desiste de travar a leitura
+      // remota — senão o app ficaria surdo pra sempre às mudanças de outros
+      // dispositivos. Perde-se a alteração local nesse caso, mas com aviso
+      // claro em vez de sumir silenciosamente.
+      if (_pushFailCount >= 6) {
+        _pendingLocalPush = false;
+        _pushFailCount = 0;
+        if (typeof showToast === 'function') showToast('✕ Não foi possível salvar no Firebase depois de várias tentativas — verifique sua internet ou reduza o tamanho das imagens (banner/ficha).', 'err');
+        return;
+      }
+      // mantém _pendingLocalPush=true (segue travado) e reagenda uma nova tentativa
+      // sozinho, sem depender de o usuário digitar/salvar de novo pra disparar o retry.
+      clearTimeout(_dataPushRetryTimer);
+      _dataPushRetryTimer = setTimeout(_fbPushDataNow, 5000);
       if (typeof showToast === 'function') {
         if (e.code === 'PERMISSION_DENIED') {
           showToast('⚠ Firebase recusou salvar (permissão). Faça login novamente.', 'err');
         } else {
-          showToast('⚠ Não foi possível sincronizar com o Firebase agora: ' + (e.code || e.message), 'warn');
+          showToast('⚠ Não foi possível sincronizar com o Firebase agora — tentando de novo...', 'warn');
         }
       }
     });
-  } catch(e) { console.error('[dataSync push]', e); }
+  } catch(e) { console.error('[dataSync push]', e); _pendingLocalPush = false; }
 }
 // Exposta pro save() (que roda num <script> normal, fora do módulo) chamar.
 // Debounce de 700ms pra não disparar uma escrita no Firebase a cada tecla digitada.
@@ -14360,6 +14413,7 @@ function _fbPushDataNow() {
 // banners sumirem depois da sincronização entrar no ar.
 window._fbPushData = function() {
   if (!_dataSyncSeeded) return;
+  _pendingLocalPush = true; // já marca aqui — protege mesmo durante os 700ms de debounce
   clearTimeout(_dataPushTimer);
   _dataPushTimer = setTimeout(_fbPushDataNow, 700);
 };
@@ -14414,6 +14468,18 @@ onValue(_sharedDataRef, function(snap) {
   }
 
   if (remoteStr === _lastSyncedDataStr) return; // é eco do que a gente mesmo acabou de mandar
+
+  // Ainda temos uma alteração local pendente de confirmação (ex.: acabamos
+  // de salvar um banner e o envio falhou/está tentando de novo)? Então essa
+  // leitura remota é, por definição, mais VELHA que o que temos na tela —
+  // ignora, senão ela apaga a alteração que ainda nem terminou de subir.
+  // Quando o push finalmente confirmar (_pendingLocalPush volta a false),
+  // o próximo onValue já vai refletir o que a gente mandou.
+  if (_pendingLocalPush) {
+    console.warn('[dataSync] Atualização remota ignorada — ainda há uma alteração local pendente de sincronizar.');
+    return;
+  }
+
   _lastSyncedDataStr = remoteStr;
   _applyRemoteData(remote);
 }, function(err) {
