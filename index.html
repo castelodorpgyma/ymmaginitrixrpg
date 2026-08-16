@@ -7592,7 +7592,35 @@ function _googleLocalFallback() {
   showToast('✓ Conta Google local criada! Edite seu nome no perfil.', 'ok');
 }
 
+// CORRIGIDO: doGuestLogin() era 100% local — nunca tocava no Firebase, então
+// convidados ficavam invisíveis pro resto da campanha (não apareciam pra
+// ninguém, não conseguiam ligar nem receber call). Agora tenta primeiro o
+// login anônimo de verdade do Firebase (window._fbGuestLogin, no módulo lá
+// embaixo) — e só cai pro modo antigo (100% local, invisível) se o Firebase
+// não tiver carregado ainda ou estiver indisponível.
 function doGuestLogin() {
+  if (window._fbReady && typeof window._fbGuestLogin === 'function') {
+    window._fbGuestLogin();
+    return;
+  }
+  var _att = 0;
+  var _waitFb = setInterval(function() {
+    _att++;
+    if (window._fbReady && typeof window._fbGuestLogin === 'function') {
+      clearInterval(_waitFb);
+      window._fbGuestLogin();
+    } else if (_att >= 16) {
+      clearInterval(_waitFb);
+      window._fbGuestLoginFallback();
+      showToast('⚠ Firebase não respondeu — entrando só localmente (outros jogadores não vão te ver)', 'warn');
+    }
+  }, 500);
+}
+
+// Modo antigo: convidado 100% local, sem sessão no Firebase. Usado só como
+// último recurso (Firebase indisponível), pra não deixar o app inutilizável
+// offline — mas essa conta continua invisível pra outros dispositivos.
+window._fbGuestLoginFallback = function() {
   var guest = {
     id: 'guest_' + Date.now(),
     username: 'convidado_' + Math.floor(Math.random()*9999),
@@ -7606,8 +7634,7 @@ function doGuestLogin() {
   saveUsers();
   localStorage.setItem(SESSION_KEY, guest.id);
   loginSuccess(guest);
-  showToast('👻 Entrou como convidado — dados salvos localmente', 'ok');
-}
+};
 
 function toggleEye(id, btn) {
   var inp = document.getElementById(id);
@@ -15142,7 +15169,7 @@ window.onerror = function(msg, url, line, col, error) {
 import { initializeApp }            from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword,
          signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider,
-         signOut, onAuthStateChanged, updateProfile }
+         signInAnonymously, signOut, onAuthStateChanged, updateProfile }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { getDatabase, ref, set, get, push, onValue, off, remove, serverTimestamp, onDisconnect }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
@@ -15611,6 +15638,59 @@ window._fbSyncProfile = function(profile) {
     });
   } catch(e) { console.warn('[_fbSyncProfile]', e); }
 };
+
+// ── Login como convidado — ACHADO O BUG REAL: "Entrar como convidado" nunca
+//    tocava no Firebase. Criava um usuário 100% local (id "guest_"+timestamp,
+//    sem sessão de auth, sem gravar em users/, sem chamar _initWebRTC nem
+//    _startRealtimeSync). Isso significa que QUALQUER pessoa que entrasse
+//    pelo botão de convidado — o caminho mais fácil na tela de login, bem do
+//    lado do login de verdade — ficava permanentemente invisível pros outros
+//    dispositivos: não aparecia na campanha, não recebia nem fazia call, não
+//    sincronizava fichas. Se o Mestre ou qualquer jogador estava usando esse
+//    botão, TUDO que parecia "quebrado" no site na verdade nunca tinha
+//    chance de funcionar, porque a conta nunca existia pro Firebase.
+//    Agora o convidado usa Login Anônimo de verdade do Firebase — ganha um
+//    uid real, aparece em users/, entra no sync ao vivo e na call, igual a
+//    qualquer outra conta. Continua sem precisar de email/senha.
+async function _fbGuestLogin() {
+  try {
+    window._fbCreatingUser = true; // trava onAuthStateChanged pra não processar este login duas vezes
+    const cred = await signInAnonymously(auth);
+    var existing = null;
+    try {
+      const snap = await get(ref(db, 'users/' + cred.user.uid));
+      if (snap.exists()) existing = snap.val();
+    } catch(_e) {}
+    var profile = existing || {
+      id: cred.user.uid,
+      username: 'convidado_' + Math.floor(Math.random()*9999),
+      email: '',
+      role: 'mestre',
+      avatar: '',
+      criadoEm: new Date().toLocaleDateString('pt-BR'),
+      isGuest: true
+    };
+    await set(ref(db, 'users/' + cred.user.uid), profile);
+    var idx = authUsers.findIndex(function(u){ return u.id === profile.id; });
+    if (idx === -1) authUsers.push(profile); else authUsers[idx] = profile;
+    saveUsers();
+    window._fbCreatingUser = false;
+    _setupPresence(cred.user.uid, profile.username);
+    loginSuccess(profile);
+    _startRealtimeSync();
+    _initWebRTC(profile);
+    showToast('👻 Entrou como convidado — agora visível pro resto da campanha', 'ok');
+  } catch(e) {
+    window._fbCreatingUser = false;
+    console.warn('[_fbGuestLogin] Falhou, caindo pro modo 100% local (invisível pros outros):', e.code || e.message);
+    // Se o login anônimo estiver desabilitado no console do Firebase (Authentication →
+    // Sign-in method → Anonymous), ou estiver offline, cai pro comportamento antigo —
+    // pelo menos continua jogável sozinho, mas avisa que ninguém mais vai ver essa conta.
+    if (typeof window._fbGuestLoginFallback === 'function') window._fbGuestLoginFallback();
+    showToast('⚠ Não foi possível criar convidado sincronizado — entrando só localmente (outros jogadores não vão te ver)', 'warn');
+  }
+}
+window._fbGuestLogin = _fbGuestLogin;
 
 // ── Finaliza login Google (salva perfil, sync local, loginSuccess) ──
 async function _completeGoogleLogin(fbUser, profile, isNew) {
