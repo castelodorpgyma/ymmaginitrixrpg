@@ -12814,6 +12814,8 @@ function callSetMusicVol(el) {
   // no que veio por padrão, então esse controle parecia "quebrado" sempre
   // que a música tocando era do YouTube (o caso mais comum).
   if(_ytPlayer && typeof _ytPlayer.setVolume==='function'){ try{ _ytPlayer.setVolume(val); }catch(e){} }
+  // Modo simples (fallback, sem a lib bloqueada) — volume também via postMessage.
+  if(_musicActiveSource==='youtube-fallback'){ _ytFallbackPost(null,'setVolume',[val]); }
 }
 
 // ── Nome do áudio tocando (rótulo opcional que o usuário pode colar) ──
@@ -13099,12 +13101,23 @@ function callLoadYoutube() {
       // mas o vídeo passa a tocar de verdade em vez de ficar em branco.
       var iframe = document.getElementById('call-yt-iframe');
       if (iframe) {
-        iframe.src = 'https://www.youtube-nocookie.com/embed/' + id + '?autoplay=1&rel=0&playsinline=1';
+        // enablejsapi=1 + origin permitem controlar esse iframe via postMessage
+        // MESMO sem o script externo (que foi o que travou) — o player que já
+        // roda dentro do iframe entende esses comandos nativamente.
+        iframe.src = 'https://www.youtube-nocookie.com/embed/' + id +
+          '?autoplay=1&rel=0&playsinline=1&enablejsapi=1&origin=' + encodeURIComponent(location.origin);
         _musicActiveSource = 'youtube-fallback';
+        _ytFallbackSubscribed = false;
+        iframe.onload = function () {
+          // Assina os eventos de mudança de estado (necessário pro loop manual
+          // funcionar nesse modo) e confirma que o iframe está pronto pra
+          // receber comandos de play/pause/stop/volume.
+          setTimeout(function () { _ytFallbackPost(iframe, 'addEventListener', ['onStateChange']); _ytFallbackSubscribed = true; }, 300);
+        };
       }
       if (notice) {
         notice.style.display = 'block';
-        notice.innerHTML = '⚠ O player avançado do YouTube não respondeu (provável bloqueio do navegador/extensão, ex: Brave Shields, uBlock). Ativamos o modo simples abaixo — use os controles dentro do próprio vídeo (nossos botões de play/pause/volume não funcionam nesse modo).';
+        notice.innerHTML = '⚠ O player avançado do YouTube não respondeu (provável bloqueio do navegador/extensão, ex: Brave Shields, uBlock). Ativamos o modo simples — os botões de play/pause/stop/volume/loop abaixo continuam funcionando normalmente.';
       }
       if (openBtn) { openBtn.style.display = 'block'; openBtn.onclick = function () { window.open(url, '_blank'); }; }
       showToast('⚠ Player avançado bloqueado — usando modo simples de vídeo', 'warn');
@@ -13136,14 +13149,45 @@ function callLoadLocalAudio(event) {
   showToast('🎵 Carregado: '+file.name,'ok');
 }
 
+// ── Controle do modo simples (fallback) via postMessage ──
+// Mesmo sem a lib JS oficial (bloqueada), o player que já roda DENTRO do
+// iframe do YouTube entende comandos via postMessage nativamente, desde que
+// o embed tenha sido carregado com enablejsapi=1. Isso nos dá play/pause/
+// stop/volume/loop de verdade sem depender do script externo que travou.
+var _ytFallbackSubscribed = false;
+function _ytFallbackPost(iframeEl, func, args) {
+  try {
+    var iframe = iframeEl || document.getElementById('call-yt-iframe');
+    if (!iframe || !iframe.contentWindow) return;
+    iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: func, args: args || [] }), '*');
+  } catch (e) { /* iframe cross-origin ainda não carregou — ignora */ }
+}
+// Escuta os eventos que o player manda de volta (precisamos disso só pro
+// loop manual: quando o vídeo termina, o player avisa via onStateChange).
+window.addEventListener('message', function (e) {
+  if (!/youtube(-nocookie)?\.com$/.test((function(){try{return new URL(e.origin).hostname;}catch(x){return '';}})())) return;
+  var data;
+  try { data = JSON.parse(e.data); } catch (err) { return; }
+  if (data && data.event === 'onStateChange' && data.info === 0 && _musicLoopEnabled && _musicActiveSource === 'youtube-fallback') {
+    _ytFallbackPost(null, 'seekTo', [0, true]);
+    _ytFallbackPost(null, 'playVideo', []);
+  }
+});
+
 function callAudioControl(action) {
   var audio=document.getElementById('call-local-audio');
   var usingYt = _musicActiveSource==='youtube' && _ytPlayer;
-  // Modo fallback (embed simples sem API JS) — nossos botões não têm como
-  // controlar esse iframe. Avisa em vez de fingir que fez algo.
-  if (_musicActiveSource === 'youtube-fallback' && (action==='play'||action==='pause'||action==='stop')) {
-    showToast('ℹ Nesse modo simples, use os controles dentro do próprio vídeo do YouTube', 'info');
-    return;
+  var usingYtFallback = _musicActiveSource === 'youtube-fallback';
+  if (usingYtFallback) {
+    if (action==='play') { _ytFallbackPost(null,'playVideo'); return; }
+    if (action==='pause') { _ytFallbackPost(null,'pauseVideo'); return; }
+    if (action==='stop') { _ytFallbackPost(null,'stopVideo'); return; }
+    if (action==='loop') {
+      _musicLoopEnabled=!_musicLoopEnabled;
+      var lb=document.getElementById('call-loop-btn'); if(lb) lb.textContent='🔁 Loop:'+(_musicLoopEnabled?'ON':'OFF');
+      showToast(_musicLoopEnabled?'🔁 Loop ativado':'Loop desativado', _musicLoopEnabled?'ok':'info');
+      return;
+    }
   }
   if(action==='play'){
     if(usingYt && typeof _ytPlayer.playVideo==='function'){ try{ _ytPlayer.playVideo(); }catch(e){} }
