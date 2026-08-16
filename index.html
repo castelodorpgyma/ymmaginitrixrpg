@@ -12901,6 +12901,13 @@ function callSetOutVol(el) {
   var val=parseInt(el.value); callState.outVol=val/100;
   var ve=document.getElementById('call-out-vol-val'); if(ve) ve.textContent=val+'%';
   el.style.setProperty('--p',(val/2)+'%');
+  // CORRIGIDO: o slider só atualizava callState.outVol, mas nada aplicava
+  // esse valor no <audio> de cada participante remoto — o volume real
+  // ficava sempre travado no padrão do navegador (100%), então mexer no
+  // controle não tinha nenhum efeito audível.
+  if (typeof _remoteAudioEls !== 'undefined') {
+    Object.values(_remoteAudioEls).forEach(function(a){ a.volume = callState.outVol; });
+  }
 }
 function callSetMusicVol(el) {
   var val=parseInt(el.value);
@@ -13476,40 +13483,45 @@ function renderCallParticipants() {
     if (localVid) { localVid.srcObject = savedCamStream; localVid.style.display = 'block'; localVid.play().catch(function(){}); }
   }
 
-  // CORRIGIDO: era callState.callActive (não existe) → callState.active
-  // CORRIGIDO: usa window._ref / window._onValue (não acessíveis fora do módulo)
-  if (callState.active && window._ref && window._onValue && window.db) {
-    var membersRef = window._ref(window.db, 'calls/'+_curCallRoom()+'/members');
-    window._onValue(membersRef, function(snap) {
-      if (!snap.exists()) return;
-      var isMestreLocal = currentUser && (currentUser.role === 'mestre' || currentUser.role === 'ambos');
-      var canModerate = isMestreLocal || (callState.callPermissions.indexOf(currentUser && currentUser.id) !== -1);
-      var html = buildParticipantCard(user, true, window._myCallId || 'local', false);
-      snap.forEach(function(child) {
-        var uid = child.key;
-        var memberData = child.val();
-        if (uid !== window._myCallId) {
-          html += buildParticipantCard({
-            id: uid,
-            username: memberData.username || 'Usuário',
-            role: memberData.role || 'player',
-            avatar: memberData.customAvatar || null,
-            customChar: memberData.customChar || null,
-            forceMuted: !!memberData.forceMuted
-          }, false, uid, canModerate);
-        }
-      });
-      area.innerHTML = html;
-      _freezeAnimatedAvatars(area);
-      if (window.lucide) lucide.createIcons();
-      // Reanexa câmera novamente após rebuild remoto
-      if (callState.camState === 'active' && callState.camStream) {
-        var vid = document.getElementById('call-part-local-vid');
-        if (vid) { vid.srcObject = callState.camStream; vid.style.display = 'block'; vid.play().catch(function(){}); }
+  // CORRIGIDO: esta função chamava onValue(..., {onlyOnce:true}) TODA VEZ que
+  // era invocada — e ela é chamada de vários lugares (trocar avatar/ficha,
+  // ligar câmera, etc), além de já ser chamada pelo listener AO VIVO dos
+  // membros da call em window._joinCallRoom. Isso empilhava buscas
+  // avulsas e concorrentes com dados desatualizados por cima da lista já
+  // atualizada ao vivo, fazendo o grid "piscar" de volta pra mostrar só
+  // você mesmo (ou ficar com gente faltando) sempre que qualquer coisa não
+  // ligada à entrada/saída de membros disparava um re-render. Agora ela só
+  // LÊ a lista de membros já mantida em cache por window._joinCallRoom
+  // (window._callMembersCache), que é a mesma fonte que fica ao vivo —
+  // sem nenhuma busca nova ao Firebase aqui.
+  if (callState.active) {
+    var isMestreLocal = currentUser && (currentUser.role === 'mestre' || currentUser.role === 'ambos');
+    var canModerate = isMestreLocal || (callState.callPermissions.indexOf(currentUser && currentUser.id) !== -1);
+    var html = buildParticipantCard(user, true, window._myCallId || 'local', false);
+    var membersCache = window._callMembersCache || {};
+    Object.keys(membersCache).forEach(function(uid) {
+      var memberData = membersCache[uid];
+      if (uid !== window._myCallId) {
+        html += buildParticipantCard({
+          id: uid,
+          username: memberData.username || 'Usuário',
+          role: memberData.role || 'player',
+          avatar: memberData.customAvatar || null,
+          customChar: memberData.customChar || null,
+          forceMuted: !!memberData.forceMuted
+        }, false, uid, canModerate);
       }
-      // Reanexa qualquer vídeo remoto de câmera já recebido antes deste rebuild
-      if (typeof window._reattachKnownRemoteVideos === 'function') window._reattachKnownRemoteVideos();
-    }, { onlyOnce: true });
+    });
+    area.innerHTML = html;
+    _freezeAnimatedAvatars(area);
+    if (window.lucide) lucide.createIcons();
+    // Reanexa câmera novamente após rebuild remoto
+    if (callState.camState === 'active' && callState.camStream) {
+      var vid = document.getElementById('call-part-local-vid');
+      if (vid) { vid.srcObject = callState.camStream; vid.style.display = 'block'; vid.play().catch(function(){}); }
+    }
+    // Reanexa qualquer vídeo remoto de câmera já recebido antes deste rebuild
+    if (typeof window._reattachKnownRemoteVideos === 'function') window._reattachKnownRemoteVideos();
   }
 }
 
@@ -16342,6 +16354,7 @@ function _cleanupWebRTC() {
   _callRoomRef = null;
   _myCallId = null;
   window._myCallId = null;
+  window._callMembersCache = {};
   _pendingScreenStream = null; _screenPreviewOk = false; _screenTrackId = null;
   if (typeof window.hideScreenInvite === 'function') window.hideScreenInvite();
 }
@@ -16389,15 +16402,22 @@ window._joinCallRoom = async function(roomId) {
   const membersRef = ref(db, 'calls/' + roomId + '/members');
   _membersUnsub = () => off(membersRef);
   onValue(membersRef, async (snap) => {
-    if (!snap.exists()) return;
-    snap.forEach(child => {
-      const uid = child.key;
-      // Regra de polidez: quem tem o UID "menor" inicia a oferta para evitar colisões (glare)
-      if (uid !== _myCallId && !_peers[uid] && _myCallId < uid) {
-        console.log('[WebRTC] Iniciando oferta para:', uid);
-        _createOffer(roomId, uid);
-      }
-    });
+    // Mantém um cache local da lista de membros — é a ÚNICA fonte que
+    // renderCallParticipants() lê agora (ver comentário lá), então zera o
+    // cache também quando a sala fica vazia (snap não existe mais).
+    const cache = {};
+    if (snap.exists()) {
+      snap.forEach(child => {
+        cache[child.key] = child.val();
+        const uid = child.key;
+        // Regra de polidez: quem tem o UID "menor" inicia a oferta para evitar colisões (glare)
+        if (uid !== _myCallId && !_peers[uid] && _myCallId < uid) {
+          console.log('[WebRTC] Iniciando oferta para:', uid);
+          _createOffer(roomId, uid);
+        }
+      });
+    }
+    window._callMembersCache = cache;
     // Redesenha o card de cada participante (entrada/saída, avatar, cargo)
     // toda vez que a lista de membros da sala mudar — não só na entrada.
     if (typeof renderCallParticipants === 'function') renderCallParticipants();
@@ -16456,6 +16476,23 @@ function _createPeerConn(roomId, peerUid) {
     // Reproduz áudio/vídeo remoto
     console.log('[WebRTC] Recebendo track de:', peerUid, e.streams[0]);
     _attachRemoteStream(peerUid, e.streams[0]);
+  };
+
+  // CORRIGIDO: quando o mic/câmera é ligado DEPOIS de já estar na call,
+  // window._rtcAddMediaTrack() chama pc.addTrack() nos peers já conectados —
+  // mas addTrack() sozinho não manda a trilha pro outro lado, ele só
+  // sinaliza que uma renegociação é necessária (evento "negotiationneeded").
+  // Como não existia handler pra esse evento, a trilha nova nunca saía do
+  // navegador: o outro participante nunca recebia oferta/resposta SDP
+  // atualizada, então o áudio/vídeo simplesmente não chegava do outro lado
+  // (conexão ficava "muda"), mesmo com o microfone visivelmente ativo.
+  pc.onnegotiationneeded = async () => {
+    try {
+      if (pc.signalingState !== 'stable') return; // evita ofertas colidindo (glare)
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      _sendSignal(roomId, peerUid, { type: 'offer', sdp: offer.sdp, from: _myCallId });
+    } catch(e) { console.warn('[WebRTC] Erro ao renegociar com', peerUid, ':', e); }
   };
 
   pc.onconnectionstatechange = () => {
@@ -16573,6 +16610,7 @@ function _attachRemoteStream(uid, stream) {
     _remoteAudioEls[uid] = el;
   }
   el.srcObject = stream;
+  el.volume = (typeof callState !== 'undefined' && callState.outVol != null) ? callState.outVol : 1.0;
   if (typeof _applyDeafenToStream === 'function') _applyDeafenToStream(uid);
   if (typeof _startRemoteSpeakingDetector === 'function') _startRemoteSpeakingDetector(uid, stream);
   
@@ -16802,6 +16840,7 @@ window._leaveCallRoom = function(roomId) {
   Object.keys(_remoteAudioEls).forEach(k => delete _remoteAudioEls[k]);
   if (_callSignalUnsub) { _callSignalUnsub(); _callSignalUnsub = null; }
   if (_membersUnsub) { _membersUnsub(); _membersUnsub = null; }
+  window._callMembersCache = {};
 };
 
 // (o hook antigo que ficava aqui duplicava o _joinCallRoom — a própria
