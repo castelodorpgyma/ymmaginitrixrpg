@@ -5912,7 +5912,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
             <div id="sp-tenor-wrap-" style="display:none">
               <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px">
                 <input type="text" class="sp-tenor-search" id="sp-tenor-q-" placeholder="🔎 Buscar GIFs..." oninput="_tenorSearchDebounced('', this.value)" style="flex:1;margin-bottom:0">
-                <button type="button" title="Configurar chave do Tenor" onclick="_tenorPromptKey('')" style="flex-shrink:0;background:none;border:1px solid rgba(255,255,255,.1);border-radius:6px;color:rgba(255,255,255,0.72);padding:7px 9px;cursor:pointer;font-size:.85rem">⚙</button>
+                <button type="button" title="Configurar chave do GIPHY" onclick="_tenorPromptKey('')" style="flex-shrink:0;background:none;border:1px solid rgba(255,255,255,.1);border-radius:6px;color:rgba(255,255,255,0.72);padding:7px 9px;cursor:pointer;font-size:.85rem">⚙</button>
               </div>
               <div class="sp-grid" id="sp-grid-tenor-"></div>
             </div>
@@ -6121,7 +6121,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
       <div id="sp-tenor-wrap-ov" style="display:none">
         <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px">
           <input type="text" class="sp-tenor-search" id="sp-tenor-q-ov" placeholder="🔎 Buscar GIFs..." oninput="_tenorSearchDebounced('ov', this.value)" style="flex:1;margin-bottom:0">
-          <button type="button" title="Configurar chave do Tenor" onclick="_tenorPromptKey('ov')" style="flex-shrink:0;background:none;border:1px solid rgba(255,255,255,.1);border-radius:6px;color:rgba(255,255,255,0.72);padding:7px 9px;cursor:pointer;font-size:.85rem">⚙</button>
+          <button type="button" title="Configurar chave do GIPHY" onclick="_tenorPromptKey('ov')" style="flex-shrink:0;background:none;border:1px solid rgba(255,255,255,.1);border-radius:6px;color:rgba(255,255,255,0.72);padding:7px 9px;cursor:pointer;font-size:.85rem">⚙</button>
         </div>
         <div class="sp-grid" id="sp-grid-tenor-ov"></div>
       </div>
@@ -13435,23 +13435,29 @@ function sendSticker(id) {
 // ══════════════════════════════════════════════════════════════════
 // TENOR — busca e envio de GIFs/figurinhas animadas direto no chat
 // ══════════════════════════════════════════════════════════════════
-// Chave da API do Tenor. A antiga chave pública "de demonstração" era da
-// API v1 e a Tenor não aceita mais ela na v2 — por isso a busca de GIFs
-// sempre falhava (erro 403), em qualquer dispositivo/rede. Agora, sem uma
-// chave própria configurada, a busca nem tenta e já orienta a pessoa a
-// pegar uma (gratuita) e colar direto pela interface, sem precisar de console.
-var TENOR_DEMO_KEY = ''; // não existe mais chave de demo funcional pra v2
+// ── BUSCA DE GIFs — GIPHY ──────────────────────────────────────────────
+// ANTES usava a API do Tenor, mas o Google DESLIGOU a API pública do Tenor
+// de vez em 30/06/2026 (fechou até pra apps grandes tipo WhatsApp, X e
+// Discord — não é algo que dá pra contornar com chave nova, o serviço não
+// existe mais). Trocado pra GIPHY, que é o mesmo substituto que WhatsApp e
+// X adotaram, e que ainda libera chave de API gratuita normalmente.
+// Chave padrão do GIPHY (Beta Key do projeto). Fica embutida aqui pra
+// ninguém precisar colar chave nenhuma — só cai pro prompt manual se essa
+// aqui parar de funcionar (expirar/for revogada) ou se a pessoa preferir
+// colar uma chave própria, que sempre tem prioridade sobre esta.
+var _TENOR_DEFAULT_KEY = 'sqglliedlApNpYMDLXDKSRVPZmXmfhsJ';
 function _tenorApiKey() {
-  return localStorage.getItem('ymm_tenor_key') || TENOR_DEMO_KEY;
+  // Prioridade: chave própria salva no navegador > chave padrão do projeto.
+  return localStorage.getItem('ymm_gif_key') || _TENOR_DEFAULT_KEY;
 }
 function _tenorPromptKey(suffix) {
-  var atual = localStorage.getItem('ymm_tenor_key') || '';
-  var nova = prompt('Cole sua chave de API do Tenor (gratuita, pegue em tenor.com/developer/keyregistration):', atual);
+  var atual = localStorage.getItem('ymm_gif_key') || '';
+  var nova = prompt('Cole sua chave de API do GIPHY (gratuita, pegue em developers.giphy.com):', atual);
   if (nova === null) return;
   nova = nova.trim();
-  if (!nova) { localStorage.removeItem('ymm_tenor_key'); showToast('🔑 Chave do Tenor removida', 'warn'); return; }
-  localStorage.setItem('ymm_tenor_key', nova);
-  showToast('✓ Chave do Tenor salva — buscando GIFs...', 'ok');
+  if (!nova) { localStorage.removeItem('ymm_gif_key'); showToast('🔑 Chave do GIPHY removida', 'warn'); return; }
+  localStorage.setItem('ymm_gif_key', nova);
+  showToast('✓ Chave do GIPHY salva — buscando GIFs...', 'ok');
   var grid = document.getElementById('sp-grid-tenor-'+(suffix||''));
   if (grid) grid.dataset.loaded = '';
   _tenorFetch(suffix || '', '');
@@ -13509,28 +13515,29 @@ function _tenorFetch(suffix, q) {
   if(!grid) return;
   var key = _tenorApiKey();
   if (!key) {
-    grid.innerHTML = '<div class="sp-tenor-msg">🔑 Busca de GIFs precisa de uma chave grátis do Tenor.<br><span style="text-decoration:underline;cursor:pointer" onclick="_tenorPromptKey(\''+s+'\')">Toque aqui pra configurar</span> (leva 1 minuto).</div>';
+    grid.innerHTML = '<div class="sp-tenor-msg">🔑 Busca de GIFs precisa de uma chave grátis do GIPHY.<br><span style="text-decoration:underline;cursor:pointer" onclick="_tenorPromptKey(\''+s+'\')">Toque aqui pra configurar</span> (leva 1 minuto).</div>';
     return;
   }
   grid.innerHTML = '<div class="sp-tenor-msg">Buscando...</div>';
+  // GIPHY: /search precisa de "q"; sem busca (aba recém aberta), usa /trending
   var endpoint = q && q.trim()
-    ? 'https://tenor.googleapis.com/v2/search?q='+encodeURIComponent(q.trim())+'&key='+key+'&client_key=ymmaginitrix&limit=24&media_filter=tinygif,gif&contentfilter=medium'
-    : 'https://tenor.googleapis.com/v2/featured?key='+key+'&client_key=ymmaginitrix&limit=24&media_filter=tinygif,gif&contentfilter=medium';
+    ? 'https://api.giphy.com/v1/gifs/search?q='+encodeURIComponent(q.trim())+'&api_key='+encodeURIComponent(key)+'&limit=24&rating=pg-13&lang=pt'
+    : 'https://api.giphy.com/v1/gifs/trending?api_key='+encodeURIComponent(key)+'&limit=24&rating=pg-13';
   fetch(endpoint).then(function(r){ if(!r.ok) { var err = new Error('http '+r.status); err.status = r.status; throw err; } return r.json(); }).then(function(data){
-    var results = data && data.results || [];
+    var results = (data && data.data) || [];
     if(!results.length) { grid.innerHTML = '<div class="sp-tenor-msg">Nenhum GIF encontrado.</div>'; return; }
     grid.innerHTML = results.map(function(r){
-      var mf = r.media_formats || {};
-      var thumb = (mf.tinygif && mf.tinygif.url) || (mf.gif && mf.gif.url) || '';
-      var full = (mf.gif && mf.gif.url) || thumb;
+      var imgs = r.images || {};
+      var thumb = (imgs.fixed_width_small && imgs.fixed_width_small.url) || (imgs.fixed_height_small && imgs.fixed_height_small.url) || (imgs.original && imgs.original.url) || '';
+      var full = (imgs.downsized && imgs.downsized.url) || (imgs.original && imgs.original.url) || thumb;
       if(!thumb) return '';
       return '<div class="sp-tenor-item" data-full="'+encodeURIComponent(full)+'" onclick="_sendTenorGif(this,\''+s+'\')" style="cursor:pointer;border-radius:4px;overflow:hidden;background:rgba(255,255,255,.04);aspect-ratio:1;border:1px solid transparent" onmouseover="this.style.borderColor=\'var(--c-accent)\'" onmouseout="this.style.borderColor=\'transparent\'"><img class="sp-tenor-gif" src="'+thumb+'" loading="lazy"></div>';
     }).join('');
   }).catch(function(err){
-    console.error('[Tenor]', err);
+    console.error('[GIPHY]', err);
     // 401/403 = chave inválida/expirada — orienta a trocar em vez de dar erro genérico
     if (err && (err.status === 401 || err.status === 403)) {
-      grid.innerHTML = '<div class="sp-tenor-msg">🔑 Chave do Tenor inválida ou expirada.<br><span style="text-decoration:underline;cursor:pointer" onclick="_tenorPromptKey(\''+s+'\')">Toque aqui pra configurar uma nova</span>.</div>';
+      grid.innerHTML = '<div class="sp-tenor-msg">🔑 Chave do GIPHY inválida ou expirada.<br><span style="text-decoration:underline;cursor:pointer" onclick="_tenorPromptKey(\''+s+'\')">Toque aqui pra configurar uma nova</span>.</div>';
     } else {
       grid.innerHTML = '<div class="sp-tenor-msg">⚠ Não foi possível buscar GIFs agora.<br>Verifique sua conexão ou tente de novo em instantes.</div>';
     }
