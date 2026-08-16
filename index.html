@@ -13558,21 +13558,29 @@ function renderCallParticipants() {
 
 function buildParticipantCard(user, isLocal, uid, canModerate) {
   var name=user.username||user.nome||'Usuário';
-  var role=user.role==='mestre'?'🗡 MESTRE':'⚔ PLAYER';
+  var role=user.role==='mestre'?'🗡 MESTRE':(user.role==='ambos'?'🗡⚔ MESTRE & PLAYER':'⚔ PLAYER');
 
   // Ficha de personagem vinculada a esta conta — usada para exibir avatar
   // customizado (imagem ou GIF), nome do personagem e status vitais na call.
+  // CORRIGIDO: quem é MESTRE puro (não "ambos") nunca deve puxar uma ficha
+  // vinculada — antes, se QUALQUER personagem da campanha tivesse o campo
+  // "player" coincidindo com o username do mestre (ex: uma ficha de NPC
+  // criada usando o nome do mestre como dono), o card do mestre na call
+  // passava a mostrar o nome e as barras de vida/sanidade/estamina daquele
+  // personagem, como se o mestre estivesse jogando com ele.
   var linkedChar = null;
-  try {
-    var uUsername = (user.username||'').toLowerCase();
-    var uId = (user.id||uid||'');
-    linkedChar = (data && data.players || []).find(function(x){
-      if (!x) return false;
-      if (x.player && uUsername && x.player.toLowerCase() === uUsername) return true;
-      if (x.player && x.player === uId) return true;
-      return false;
-    }) || null;
-  } catch(e){}
+  if (user.role !== 'mestre') {
+    try {
+      var uUsername = (user.username||'').toLowerCase();
+      var uId = (user.id||uid||'');
+      linkedChar = (data && data.players || []).find(function(x){
+        if (!x) return false;
+        if (x.player && uUsername && x.player.toLowerCase() === uUsername) return true;
+        if (x.player && x.player === uId) return true;
+        return false;
+      }) || null;
+    } catch(e){}
+  }
 
   var customCallAvatar = isLocal ? (window.callGetCustomAvatar ? window.callGetCustomAvatar() : null) : (user.avatar||null);
   var charAvatar = customCallAvatar || (linkedChar && linkedChar.avatar) || (user.avatar||null);
@@ -16499,7 +16507,17 @@ window._joinCallRoom = async function(roomId) {
   var _savedCallAvatar = null, _savedCallChar = null;
   try { _savedCallAvatar = window.callGetCustomAvatar ? window.callGetCustomAvatar() : null; } catch(e){}
   try { _savedCallChar = window.callGetCustomChar ? window.callGetCustomChar() : null; } catch(e){}
-  await set(mySlotRef, { uid: _myCallId, username: currentUser.username, role: currentUser.role, joinedAt: Date.now(), customAvatar: _savedCallAvatar || null, customChar: _savedCallChar || null });
+  // CORRIGIDO: se este set() falhar (ex: regra de segurança do Firebase
+  // negando a escrita, token expirado, offline), a função inteira parava
+  // aqui em silêncio — o usuário via "conectando peers..." e nada mais
+  // acontecia, sem nenhuma pista do motivo. Agora o erro é mostrado.
+  try {
+    await set(mySlotRef, { uid: _myCallId, username: currentUser.username, role: currentUser.role, joinedAt: Date.now(), customAvatar: _savedCallAvatar || null, customChar: _savedCallChar || null });
+  } catch (e) {
+    console.error('[WebRTC] Falha ao anunciar presença na call:', e);
+    showToast('✕ Não foi possível entrar na call (' + (e && e.code || e) + ')', 'err');
+    throw e;
+  }
   onDisconnect(mySlotRef).remove();
 
   // Escuta sinalização
@@ -16624,6 +16642,14 @@ function _createPeerConn(roomId, peerUid) {
 
   pc.onconnectionstatechange = () => {
     console.log('[WebRTC] Estado da conexão com', peerUid, ':', pc.connectionState);
+    // CORRIGIDO: quando o ICE não achava caminho entre os dois lados
+    // (ex: TURN indisponível, firewall bloqueando UDP/TCP), a conexão só
+    // aparecia como 'failed' no console — pra quem está jogando isso é só
+    // "a call não funciona", sem nenhum aviso na tela. Agora avisa.
+    if (pc.connectionState === 'failed') {
+      var nm = (window._callMembersCache && window._callMembersCache[peerUid] && window._callMembersCache[peerUid].username) || 'participante';
+      showToast('✕ Falha ao conectar com ' + nm + ' (rede/firewall)', 'err');
+    }
     if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed' || pc.connectionState === 'closed') {
       try { pc.close(); } catch(e){}
       delete _peers[peerUid];
