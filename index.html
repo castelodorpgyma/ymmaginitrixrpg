@@ -33,15 +33,15 @@
         escuro junto do nome/cargo. -->
 
 <!-- PWA -->
-<link rel="manifest" href="/manifest.json">
+<link rel="manifest" href="manifest.json">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Ymmaginitrix">
 <meta name="theme-color" content="#d62828">
-<link rel="apple-touch-icon" href="/icon-192.png">
-<link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
-<link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Share+Tech+Mono&family=Rajdhani:wght@400;600;700&family=Orbitron:wght@400;600;700;900&family=Exo+2:wght@300;400;600;700&family=Audiowide&family=Major+Mono+Display&family=Recursive:wght@400;700&family=Cinzel:wght@400;600;700&family=Black+Ops+One&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/lucide/dist/umd/lucide.min.js"></script>
@@ -5144,7 +5144,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   <button class="nav-btn" onclick="showView('habilidades');renderHabilidades()"><i data-lucide="zap" class="ni-icon"></i>Habilidades</button>
   <button class="nav-btn" onclick="showView('referencia')"><i data-lucide="library" class="ni-icon"></i>Referência</button>
   <div class="nav-section">// sessão</div>
-  <button class="nav-btn" onclick="showView('sessao')"><i data-lucide="broadcast" class="ni-icon"></i>Sessão<span class="nav-shortcut">^8</span></button>
+  <button class="nav-btn" onclick="showView('sessao')"><i data-lucide="radio-tower" class="ni-icon"></i>Sessão<span class="nav-shortcut">^8</span></button>
   <button class="nav-btn" onclick="toggleChatOverlay()"><i data-lucide="message-circle" class="ni-icon"></i>Conversas</button>
   <div class="sidebar-footer"><div id="_session-timer" title="Tempo de sessão">00:00:00</div><div id="_sb-clock" style="font-family:'Share Tech Mono',monospace;font-size:.6rem;color:rgba(200,205,225,0.72);letter-spacing:.1em;margin-bottom:4px"></div>YMMAGINITRIX · v12<br>BUILD 07/03/2026<br><span id="_conn-badge" style="font-size:.44rem;letter-spacing:.1em;transition:color .3s">● ONLINE</span><br><span id="_last-save-info" style="font-size:.4rem;opacity:.5;letter-spacing:.06em"></span>
     <button id="_sidebar-save-btn" onclick="saveHtmlFile()" style="display:block;margin-top:10px;width:100%;background:rgba(210,40,40,.14);border:1px solid rgba(210,40,40,.38);border-radius:6px;color:rgba(255,120,120,0.9);font-family:'Share Tech Mono',monospace;font-size:.52rem;letter-spacing:.1em;padding:9px;cursor:pointer;transition:all .15s" onmouseover="this.style.background='rgba(210,40,40,.3)';this.style.color='#fff'" onmouseout="this.style.background='rgba(210,40,40,.14)';this.style.color='rgba(255,120,120,.9)'">💾 SALVAR ARQUIVO</button>
@@ -5806,7 +5806,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 
   <!-- TOPBAR -->
   <div class="topbar">
-    <h1><i data-lucide="broadcast" style="width:22px;height:22px;vertical-align:-4px;margin-right:6px;color:var(--c-accent)"></i><span>Sessão</span></h1>
+    <h1><i data-lucide="radio-tower" style="width:22px;height:22px;vertical-align:-4px;margin-right:6px;color:var(--c-accent)"></i><span>Sessão</span></h1>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <div id="live-status-badge" class="live-badge">
         <span class="live-dot"></span>
@@ -7192,14 +7192,18 @@ function _getSeed() {
 }
 
 // ===== DATA =====
-var data = { campanhas:[], players:[], customItems:[], customOrigens:[], customHabilidades:[] };
+var _DATA_DEFAULTS = { campanhas:[], players:[], customItems:[], customOrigens:[], customHabilidades:[] };
+var data = Object.assign({}, _DATA_DEFAULTS);
 (function(){
   var seed = _getSeed();
   try {
     var ls = JSON.parse(localStorage.getItem('ymm_data') || 'null');
-    if(ls && (ls.campanhas||[]).length) { data = ls; return; }
+    // Object.assign garante que qualquer chave ausente (ex.: "players" que
+    // ficou vazia e nunca foi salva, ou dado antigo de antes dela existir)
+    // volte com o valor padrão em vez de undefined.
+    if(ls && (ls.campanhas||[]).length) { data = Object.assign({}, _DATA_DEFAULTS, ls); return; }
   } catch(e){}
-  if(seed.data && (seed.data.campanhas||[]).length) data = JSON.parse(JSON.stringify(seed.data));
+  if(seed.data && (seed.data.campanhas||[]).length) data = Object.assign({}, _DATA_DEFAULTS, JSON.parse(JSON.stringify(seed.data)));
 })();
 
 function save() {
@@ -15648,7 +15652,16 @@ window._fbPushData = function() {
 };
 
 function _applyRemoteData(remote) {
-  data = remote;
+  // O Firebase Realtime Database omite chaves cujo valor é array/objeto
+  // vazio — então "players", "campanhas" etc. podem simplesmente não vir
+  // no snapshot remoto mesmo que já tenham existido antes. Sem esse
+  // fallback, "data.players" (ou outra chave) vira undefined e qualquer
+  // "data.players.length" pelo app quebra a tela (foi isso que causou os
+  // erros "Cannot read properties of undefined (reading 'length')").
+  data = Object.assign(
+    { campanhas:[], players:[], customItems:[], customOrigens:[], customHabilidades:[] },
+    remote
+  );
   try { localStorage.setItem('ymm_data', JSON.stringify(data)); } catch(e){}
   // Re-renderiza qualquer tela visível que dependa de "data"
   if (typeof renderCampanhas === 'function') try{ renderCampanhas(); }catch(e){}
