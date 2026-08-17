@@ -12076,6 +12076,7 @@ var callState = {
   timerInterval: null,
   timerSecs: 0,
   callPermissions: [],
+  groupLive: false,    // true quando o Firebase confirma que o Mestre tem a call de grupo ativa (sincronizado entre TODOS os navegadores/contas)
   micState: 'idle',   // idle | requesting | active | muted | denied
   camState: 'idle',   // idle | requesting | active | denied
   screenState: 'idle', // idle | requesting | active
@@ -12366,7 +12367,7 @@ function _syncCallEntryBtn() {
   var isMestre = currentUser.role==='mestre' || currentUser.role==='ambos';
   var temCampanha = _userTemCampanha();
   var hasPerm = callState.callPermissions.indexOf(currentUser.id) !== -1;
-  var callAtiva = callState.active;
+  var callAtiva = callState.active; // usado só para o texto do botão do PRÓPRIO mestre (voltar/iniciar)
 
   if (!temCampanha) {
     btn.style.opacity = '.4';
@@ -12380,7 +12381,12 @@ function _syncCallEntryBtn() {
     btn.title = '';
     if (notice) notice.style.display = 'none';
     btn.innerHTML = '<span class="call-dot"></span>&nbsp;' + (callAtiva ? 'VOLTAR PARA CALL' : '[ INICIAR CALL ]');
-  } else if (callAtiva || hasPerm) {
+  } else if (callState.groupLive || hasPerm) {
+    // groupLive vem do Firebase (calls/main/access) — é a informação REAL de
+    // que o mestre tem a call de grupo ao vivo agora, sincronizada entre
+    // todas as contas/navegadores (antes usava callState.active, que só
+    // existe localmente no navegador de quem clicou, então nunca ficava
+    // sabendo que o mestre tinha iniciado a call).
     btn.style.opacity = '';
     btn.title = '';
     if (notice) notice.style.display = 'none';
@@ -12405,7 +12411,9 @@ function openCallOverlay() {
   // Guarda 2: player precisa de autorização do mestre
   if (!isMestre) {
     var hasPerm = callState.callPermissions.indexOf(currentUser.id) !== -1;
-    if (!callState.active && !hasPerm) {
+    if (!callState.groupLive && !hasPerm) {
+      // groupLive = estado real sincronizado via Firebase (calls/main/access),
+      // não o callState.active local de quem está clicando.
       showToast('⚠ Aguarde o mestre iniciar e autorizar sua entrada na call','warn'); return;
     }
   }
@@ -12504,10 +12512,28 @@ function closeCallOverlay() {
   if (typeof _syncCallVoiceStatus === 'function') _syncCallVoiceStatus();
 }
 
+// ── Publica no Firebase que a call de GRUPO está ativa (ou não) e quais uids
+// o Mestre autorizou. Só o Mestre chama isto — é o que faz os outros
+// navegadores/contas saberem que a call começou (antes ficava só local).
+function _fbPublishCallAccess(active) {
+  if (!currentUser || !(currentUser.role==='mestre'||currentUser.role==='ambos')) return;
+  if (callState.privateWith) return; // chamada privada não usa esse mecanismo
+  if (!(window.db && window._ref && window._set)) return;
+  try {
+    window._set(window._ref(window.db, 'calls/main/access'), {
+      active: !!active,
+      permissions: active ? callState.callPermissions : [],
+      by: currentUser.id,
+      ts: Date.now()
+    });
+  } catch(e) { console.warn('[Call] Erro ao publicar acesso da call:', e); }
+}
+
 // ── Inicia call ──
 function _startCall() {
   callState.active = true;
   callState.timerSecs = 0;
+  _fbPublishCallAccess(true);
 
   // Chip de status
   var chip = document.getElementById('call-status-chip');
@@ -12596,6 +12622,7 @@ function endCall() {
   // Limpa permissões (mestre fecha a call pra todos)
   if (currentUser && (currentUser.role==='mestre'||currentUser.role==='ambos')) {
     callState.callPermissions = [];
+    _fbPublishCallAccess(false); // avisa todo mundo (via Firebase) que a call de grupo acabou
   }
 
   // Sincroniza botão de entrada
@@ -13937,6 +13964,7 @@ function callTogglePerm(uid) {
   var idx=callState.callPermissions.indexOf(uid);
   if(idx===-1) callState.callPermissions.push(uid); else callState.callPermissions.splice(idx,1);
   renderCallPermList();
+  _fbPublishCallAccess(callState.active); // sincroniza a lista atualizada pro Firebase
   showToast('🔑 Permissão atualizada','ok');
 }
 
@@ -16292,6 +16320,20 @@ onValue(gcRef, function(snap) {
   var countEl = document.getElementById('cat-count');
   if (countEl) countEl.textContent = '// ' + _catalogoCampanhas.length + ' campanha(s) encontrada(s)';
   if (typeof _syncCallEntryBtn === 'function') try{ _syncCallEntryBtn(); }catch(e){}
+});
+
+// Escuta em tempo real se a call de GRUPO está ativa e quem está autorizado —
+// SEMPRE, independente de estar com o overlay de call aberto. É isto que
+// avisa os players (em qualquer conta/navegador) que o Mestre iniciou a call,
+// sem precisar dar F5. Antes essa informação (callState.active/callPermissions)
+// só existia na memória do navegador de quem clicou, nunca chegava aos outros.
+const callAccessRef = ref(db, 'calls/main/access');
+onValue(callAccessRef, function(snap) {
+  var val = snap.exists() ? snap.val() : null;
+  callState.groupLive = !!(val && val.active);
+  callState.callPermissions = (val && Array.isArray(val.permissions)) ? val.permissions : [];
+  if (typeof _syncCallEntryBtn === 'function') try{ _syncCallEntryBtn(); }catch(e){}
+  if (typeof renderCallPermList === 'function' && callState.active) try{ renderCallPermList(); }catch(e){}
 });
 
 // ────────────────────────────────────────────────────────────────────────
