@@ -6560,6 +6560,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
       <span class="call-live-dot"></span>
       <span class="chdr-label" id="call-header-label">CALL EM ANDAMENTO</span>
       <span class="call-timer" id="call-timer">00:00</span>
+      <span class="call-timer" id="call-participant-count" title="Quantas pessoas o app está detectando nesta call, incluindo você">👥 1</span>
     </div>
     <div class="call-header-controls">
       <!-- Permissões (só mestre vê) -->
@@ -6573,6 +6574,17 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   <div id="call-file-warn" style="display:none;padding:9px 16px;background:rgba(220,140,0,.13);border-bottom:1px solid rgba(220,140,0,.22);font-family:'Share Tech Mono',monospace;font-size:.54rem;color:rgba(255,190,80,0.8);line-height:1.7;text-align:center">
     ⚠ Arquivo aberto pelo Chrome via <b>file://</b> — mic/câmera são bloqueados pelo Chrome neste modo.<br>
     Use <b>Firefox</b> (funciona direto) ou abra via <b>Live Server</b> no VSCode. Ou habilite em: <code>chrome://flags/#unsafely-treat-insecure-origin-as-secure</code>
+  </div>
+
+  <!-- Banner persistente: Firebase negou a leitura de calls/*/members (regra de -->
+  <!-- segurança do projeto) — SEM ISSO ninguém mais aparece no grid pra você,   -->
+  <!-- mesmo que já esteja tudo certo do lado do código (a call/WebRTC nunca nem -->
+  <!-- tenta conectar com quem não consegue enxergar). Diferente do toast (que   -->
+  <!-- some sozinho em alguns segundos), este banner fica visível até a leitura  -->
+  <!-- funcionar de verdade, pra não parecer que "sumiu o problema" quando na    -->
+  <!-- real ele só saiu da tela. -->
+  <div id="call-members-perm-banner" style="display:none;padding:10px 16px;background:rgba(220,40,40,.14);border-bottom:1px solid rgba(220,40,40,.3);font-family:'Share Tech Mono',monospace;font-size:.56rem;color:rgba(255,170,170,0.92);line-height:1.7;text-align:center">
+    ⚠ O Firebase está bloqueando a leitura de quem está na call (regra de segurança do projeto). Por isso só você aparece aqui, mesmo com outras pessoas conectadas. Peça pra quem administra o projeto no Firebase liberar a leitura do nó <code>calls</code> pra qualquer usuário autenticado.
   </div>
 
   <!-- Convite opt-in: ver ou não a transmissão de tela de outro participante -->
@@ -13804,6 +13816,8 @@ function renderCallParticipants() {
     area.innerHTML = html;
     _freezeAnimatedAvatars(area);
     if (window.lucide) lucide.createIcons();
+    var _cnt = document.getElementById('call-participant-count');
+    if (_cnt) _cnt.textContent = '👥 ' + (1 + Object.keys(membersCache).filter(function(k){ return k !== window._myCallId; }).length);
     // Reanexa câmera novamente após rebuild remoto
     if (callState.camState === 'active' && callState.camStream) {
       var vid = document.getElementById('call-part-local-vid');
@@ -15564,6 +15578,20 @@ function _fbReadErrHandler(label) {
 // avisar quando uma leitura compartilhada é negada pela regra do Firebase.
 window._fbReadErrHandler = _fbReadErrHandler;
 
+// Banner fixo (não some sozinho) dentro do overlay de call, especificamente
+// para quando a leitura de "calls/*/members" é negada — ver uso em
+// window._joinCallRoom. Fica ligado até uma leitura desse mesmo nó dar certo.
+function _showCallMembersPermBanner() {
+  var b = document.getElementById('call-members-perm-banner');
+  if (b) b.style.display = 'block';
+}
+function _hideCallMembersPermBanner() {
+  var b = document.getElementById('call-members-perm-banner');
+  if (b) b.style.display = 'none';
+}
+window._showCallMembersPermBanner = _showCallMembersPermBanner;
+window._hideCallMembersPermBanner = _hideCallMembersPermBanner;
+
 const _sharedDataRef = ref(db, 'sharedData');
 let _lastSyncedDataStr = null;
 let _dataPushTimer = null;
@@ -16951,6 +16979,10 @@ window._joinCallRoom = async function(roomId) {
   const membersRef = ref(db, 'calls/' + roomId + '/members');
   _membersUnsub = () => off(membersRef);
   onValue(membersRef, async (snap) => {
+    // Uma leitura bem-sucedida chegou — se o banner de "sem permissão" estava
+    // visível (de uma tentativa anterior que falhou), esconde: a leitura já
+    // está funcionando de verdade.
+    if (typeof _hideCallMembersPermBanner === 'function') _hideCallMembersPermBanner();
     // Mantém um cache local da lista de membros — é a ÚNICA fonte que
     // renderCallParticipants() lê agora (ver comentário lá), então zera o
     // cache também quando a sala fica vazia (snap não existe mais).
@@ -16970,7 +17002,15 @@ window._joinCallRoom = async function(roomId) {
     // Redesenha o card de cada participante (entrada/saída, avatar, cargo)
     // toda vez que a lista de membros da sala mudar — não só na entrada.
     if (typeof renderCallParticipants === 'function') renderCallParticipants();
-  }, _fbReadErrHandler('calls/'+roomId+'/members (participantes da call)'));
+  }, function(err) {
+    // Além do toast padrão (que some sozinho), acende o banner fixo dentro
+    // do overlay de call — é especificamente ESTE nó (calls/*/members) que,
+    // se bloqueado, explica sozinho "só eu apareço na call, ninguém mais".
+    _fbReadErrHandler('calls/'+roomId+'/members (participantes da call)')(err);
+    if (err && err.code === 'PERMISSION_DENIED' && typeof _showCallMembersPermBanner === 'function') {
+      _showCallMembersPermBanner();
+    }
+  });
 
   showToast('📡 Entrou na call — conectando peers...', 'ok');
 };
@@ -17466,6 +17506,7 @@ window._leaveCallRoom = function(roomId) {
   if (_callSignalUnsub) { _callSignalUnsub(); _callSignalUnsub = null; }
   if (_membersUnsub) { _membersUnsub(); _membersUnsub = null; }
   window._callMembersCache = {};
+  if (typeof _hideCallMembersPermBanner === 'function') _hideCallMembersPermBanner();
 };
 
 // (o hook antigo que ficava aqui duplicava o _joinCallRoom — a própria
