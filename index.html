@@ -12979,6 +12979,10 @@ function callSetMusicVol(el) {
   if(_ytPlayer && typeof _ytPlayer.setVolume==='function'){ try{ _ytPlayer.setVolume(val); }catch(e){} }
   // Modo simples (fallback, sem a lib bloqueada) — volume também via postMessage.
   if(_musicActiveSource==='youtube-fallback'){ _ytFallbackPost(null,'setVolume',[val]); }
+  // Áudio ambiente de OUTRA pessoa chegando por WebRTC (ver _attachRemoteStream) —
+  // esse controle também precisa afetar o volume do que estou recebendo, não só
+  // do que eu mesmo estou tocando.
+  var remoteMusic=document.getElementById('call-remote-music-audio'); if(remoteMusic) remoteMusic.volume=val/100;
 }
 
 // ── Nome do áudio tocando (rótulo opcional que o usuário pode colar) ──
@@ -12988,6 +12992,7 @@ function _updateNowPlayingLabel() {
   if(!lbl) return;
   var name=nameEl?nameEl.value.trim():'';
   _musicTrackName=name;
+  lbl.dataset.remote=''; // isto é o MEU áudio, não um espelhamento do de outra pessoa
   if(name){ lbl.style.display='block'; lbl.textContent='♪ Tocando: '+name; }
   else{ lbl.style.display='none'; lbl.textContent=''; }
 }
@@ -13149,6 +13154,126 @@ var _ytPlayerReady = false; // vira true só quando onReady do player realmente 
 var _musicActiveSource = null; // 'youtube' | 'local'
 var _musicLoopEnabled = false;
 var _musicTrackName = '';
+// Trava de reentrância (evita eco: eu aplico o estado de música de outra
+// pessoa → dispararia meus próprios listeners de player → tentaria
+// rebroadcastar como se fosse meu) e o MediaStream capturado do <audio>
+// local quando EU estou transmitindo um arquivo pra call. Ficam em
+// `window.` (não var/let local) porque o código WebRTC que efetivamente
+// manda essa trilha pros peers mora no outro <script> (o módulo do
+// Firebase, mais abaixo no arquivo) — sem isso, aquele código nunca
+// enxergaria o stream capturado aqui.
+window._applyingRemoteMusic = false;
+window._ambientAudioStream = null;
+
+// ══════════════════════════════════════════════════════════════════
+// SINCRONIZAÇÃO DO ÁUDIO AMBIENTE ENTRE TODOS OS PARTICIPANTES
+// ------------------------------------------------------------------
+// ANTES: o painel de Áudio Ambiente (YouTube ou arquivo local) só tocava
+// no dispositivo de quem clicou "TOCAR" — nenhum outro participante da
+// call ouvia nada disso, mesmo estando dentro da mesma chamada. Ou seja:
+// "a música que a pessoa coloca na call" nunca chegava a ninguém além de
+// quem escolheu a faixa. Agora:
+//  • YouTube: o estado (vídeo, tocando/pausado, posição) é sincronizado
+//    via Firebase — cada participante carrega o MESMO vídeo no seu
+//    próprio player, na posição certa, sem precisar mandar áudio pela
+//    rede (mais leve, e cada um pode ajustar o próprio volume).
+//  • Arquivo local: como o arquivo só existe no dispositivo de quem
+//    escolheu (é um Blob local, ninguém mais tem acesso a ele), o áudio
+//    de fato é capturado (captureStream) e enviado como uma trilha extra
+//    pela MESMA conexão WebRTC da call de voz — assim quem não pode ou
+//    não quer abrir o YouTube também ouve a trilha, sem precisar baixar
+//    nada. Isso depende do navegador suportar captureStream() em <audio>
+//    (Chrome/Firefox/Edge sim; Safari não — nesse caso avisamos e a
+//    faixa continua tocando só localmente, como antes).
+// ══════════════════════════════════════════════════════════════════
+function _musicFbRefs() {
+  if (!(window.db && window._ref)) return null;
+  return { db: window.db, ref: window._ref };
+}
+// Escreve o estado atual (o que EU estou tocando) no Firebase pra todo
+// mundo na mesma sala de call replicar. Ignorado se o estado que estamos
+// aplicando agora veio de um remoto (evita eco: eu aplico o que o outro
+// tocou → dispararia onStateChange → tentaria rebroadcastar como se
+// fosse meu).
+function _broadcastMusicState(patch) {
+  if (window._applyingRemoteMusic) return;
+  if (typeof window._myCallId !== 'string' || !window._myCallId) return; // não estou numa call
+  var fb = _musicFbRefs(); if (!fb) return;
+  var base = {
+    active: true,
+    by: window._myCallId,
+    byName: (typeof currentUser !== 'undefined' && currentUser && (currentUser.username || currentUser.nome)) || 'Alguém',
+    type: _musicActiveSource === 'local' ? 'localfile' : 'youtube',
+    name: _musicTrackName || '',
+    loop: _musicLoopEnabled,
+    ts: Date.now()
+  };
+  var payload = Object.assign(base, patch || {});
+  var room = (typeof _curCallRoom === 'function') ? _curCallRoom() : 'main';
+  try {
+    window._set(fb.ref(fb.db, 'calls/' + room + '/music'), payload);
+  } catch (e) { console.warn('[Música] Falha ao sincronizar estado:', e); }
+}
+function _broadcastMusicStop() {
+  if (window._applyingRemoteMusic) return;
+  if (typeof window._myCallId !== 'string' || !window._myCallId) return;
+  var fb = _musicFbRefs(); if (!fb) return;
+  var room = (typeof _curCallRoom === 'function') ? _curCallRoom() : 'main';
+  try { window._set(fb.ref(fb.db, 'calls/' + room + '/music'), { active:false, by: window._myCallId, ts: Date.now() }); } catch(e){}
+}
+
+// ── Aplica o estado de música RECEBIDO de outro participante (chamado
+//    pelo listener em _subscribeCallRoomExtras). Só toca a parte de
+//    YOUTUBE aqui — o áudio de arquivo local chega sozinho via WebRTC
+//    (ver _attachRemoteStream) e só precisamos atualizar o rótulo. ──
+window._applyRemoteMusicState = function(v) {
+  var lbl = document.getElementById('call-audio-nowplaying');
+  if (!v || !v.active) {
+    if (lbl && lbl.dataset.remote === '1') { lbl.style.display = 'none'; lbl.textContent = ''; lbl.dataset.remote = ''; }
+    // Se era um vídeo do YouTube de outra pessoa que eu estava espelhando, para também.
+    if (_musicActiveSource === 'youtube-remote' && _ytPlayer && typeof _ytPlayer.stopVideo === 'function') {
+      try { _ytPlayer.stopVideo(); } catch(e){}
+      _musicActiveSource = null;
+    }
+    // Se era áudio de arquivo local de outra pessoa chegando por WebRTC,
+    // limpa o elemento dedicado (ver _attachRemoteStream) pra não ficar
+    // com o último frame de áudio "preso"/travado tocando em loop de silêncio.
+    var mElStop = document.getElementById('call-remote-music-audio');
+    if (mElStop) { try { mElStop.srcObject = null; } catch(e){} }
+    return;
+  }
+  if (v.type === 'youtube' && v.videoId) {
+    window._applyingRemoteMusic = true;
+    try {
+      var elapsed = Math.max(0, (v.playing ? (Date.now() - (v.startedAt || Date.now())) / 1000 : 0) + (v.posAtPause || 0));
+      if (!_ytApiReady && typeof YT !== 'undefined' && YT.Player) _ytApiReady = true;
+      var wrap = document.getElementById('call-yt-wrap'); if (wrap) wrap.style.display = 'block';
+      var applySeekPlay = function () {
+        try {
+          if (v.playing) { _ytPlayer.seekTo(elapsed, true); _ytPlayer.playVideo(); }
+          else { _ytPlayer.seekTo(v.posAtPause || 0, true); _ytPlayer.pauseVideo(); }
+        } catch (e) {}
+      };
+      var curId = null;
+      try { curId = _ytPlayer && typeof _ytPlayer.getVideoData === 'function' ? _ytPlayer.getVideoData().video_id : null; } catch (e) {}
+      if (_ytApiReady) {
+        if (curId !== v.videoId) { _ytCreatePlayer(v.videoId); setTimeout(applySeekPlay, 700); }
+        else { applySeekPlay(); }
+        _musicActiveSource = 'youtube-remote';
+      } else {
+        _ytPendingId = v.videoId;
+        setTimeout(applySeekPlay, 1200);
+      }
+    } finally {
+      setTimeout(function () { window._applyingRemoteMusic = false; }, 150);
+    }
+  }
+  if (lbl) {
+    lbl.style.display = 'block';
+    lbl.dataset.remote = '1';
+    lbl.textContent = '♪ ' + (v.byName || 'Alguém') + ' está tocando: ' + (v.name || (v.type === 'youtube' ? 'um vídeo do YouTube' : 'uma faixa de áudio'));
+  }
+};
 
 window.onYouTubeIframeAPIReady = function () {
   _ytApiReady = true;
@@ -13236,6 +13361,9 @@ function callLoadYoutube() {
   if(nameEl && !nameEl.value.trim()) nameEl.value = 'Vídeo do YouTube';
   _updateNowPlayingLabel();
   showToast('🎬 YouTube carregado','ok');
+  // Compartilha com todo mundo na call: cada participante carrega o MESMO
+  // vídeo, começando do zero, no próprio player (ver window._applyRemoteMusicState).
+  _broadcastMusicState({ type:'youtube', videoId:id, playing:true, startedAt:Date.now(), posAtPause:0, name:_musicTrackName||'Vídeo do YouTube' });
   // ANTES: se o script da API do YouTube fosse bloqueado (comum com Brave
   // Shields, uBlock, adblockers e alguns modos de "proteção de rastreadores"
   // que bloqueiam domínios do Google/YouTube) o painel ficava com uma caixa
@@ -13310,6 +13438,52 @@ function callLoadLocalAudio(event) {
   if(nameEl && !nameEl.value.trim()) nameEl.value = file.name.replace(/\.[^/.]+$/, '');
   _updateNowPlayingLabel();
   showToast('🎵 Carregado: '+file.name,'ok');
+  _startAmbientAudioBroadcast(audio, nameEl ? nameEl.value : file.name);
+}
+
+// ══════════════════════════════════════════════════════════════════
+// TRANSMITE O ARQUIVO LOCAL PRA TODO MUNDO NA CALL (WebRTC)
+// ------------------------------------------------------------------
+// Um arquivo escolhido pelo <input type=file> só existe como Blob no
+// navegador de quem escolheu — não tem como "compartilhar o link" com
+// os outros. A saída é capturar o próprio ÁUDIO DE SAÍDA do elemento
+// <audio> (captureStream) e mandar essa trilha extra pelas conexões
+// WebRTC já abertas da call de voz — assim todo participante ouve a
+// MESMA reprodução, no tempo real, sem precisar do arquivo.
+// ══════════════════════════════════════════════════════════════════
+function _stopAmbientAudioBroadcast() {
+  if (!window._ambientAudioStream) return;
+  if (typeof window._rtcRemoveMediaTrack === 'function') window._rtcRemoveMediaTrack(window._ambientAudioStream);
+  try { window._ambientAudioStream.getTracks().forEach(function(t){ t.stop(); }); } catch(e){}
+  window._ambientAudioStream = null;
+}
+// Exposta em window: _cleanupWebRTC() (no outro <script>, o módulo do
+// Firebase) precisa poder encerrar a transmissão de música quando a call
+// inteira termina, mesmo sem acesso direto a esta função.
+window._stopAmbientAudioBroadcast = _stopAmbientAudioBroadcast;
+function _startAmbientAudioBroadcast(audioEl, trackName) {
+  _stopAmbientAudioBroadcast();
+  var capture = audioEl.captureStream || audioEl.mozCaptureStream;
+  if (typeof capture !== 'function') {
+    showToast('⚠ Este navegador não permite transmitir esse áudio para os outros participantes — ele toca só no seu aparelho. Use o YouTube para compartilhar música com todo mundo.', 'warn');
+    _broadcastMusicState({ type:'localfile', name: trackName||'', playing:true, streamId:null });
+    return;
+  }
+  var stream;
+  try { stream = capture.call(audioEl); } catch(e) { console.warn('[Áudio ambiente] captureStream falhou:', e); return; }
+  if (!stream || !stream.getAudioTracks().length) return;
+  window._ambientAudioStream = stream;
+  // Manda a trilha pelos peers já conectados agora...
+  if (typeof window._rtcAddMediaTrack === 'function') window._rtcAddMediaTrack(stream);
+  // ...e avisa a sala (via Firebase) qual streamId corresponde à música, pra
+  // quem RECEBER essa trilha (_attachRemoteStream) saber que é música
+  // ambiente e não o microfone da pessoa (senão tocaria certo, mas tocaria
+  // como se fosse a "voz" dela, disparando o indicador de "falando").
+  _broadcastMusicState({ type:'localfile', name: trackName||'', playing:true, streamId: stream.id });
+  // Se o arquivo termina sozinho (sem loop), avisa que parou.
+  audioEl.onended = function() {
+    if (!audioEl.loop) { _stopAmbientAudioBroadcast(); _broadcastMusicStop(); }
+  };
 }
 
 // ── Controle do modo simples (fallback) via postMessage ──
@@ -13339,12 +13513,16 @@ window.addEventListener('message', function (e) {
 
 function callAudioControl(action) {
   var audio=document.getElementById('call-local-audio');
-  var usingYt = _musicActiveSource==='youtube' && _ytPlayer;
+  // 'youtube-remote' = estou só espelhando o vídeo de outra pessoa; ainda
+  // assim os botões devem funcionar (qualquer um pode retomar o controle —
+  // ao clicar, a ação vira o novo estado "oficial" compartilhado).
+  var usingYt = (_musicActiveSource==='youtube' || _musicActiveSource==='youtube-remote') && _ytPlayer;
   var usingYtFallback = _musicActiveSource === 'youtube-fallback';
+  var nameEl = document.getElementById('call-audio-name');
   if (usingYtFallback) {
     if (action==='play') { _ytFallbackPost(null,'playVideo'); return; }
     if (action==='pause') { _ytFallbackPost(null,'pauseVideo'); return; }
-    if (action==='stop') { _ytFallbackPost(null,'stopVideo'); return; }
+    if (action==='stop') { _ytFallbackPost(null,'stopVideo'); _broadcastMusicStop(); return; }
     if (action==='loop') {
       _musicLoopEnabled=!_musicLoopEnabled;
       var lb=document.getElementById('call-loop-btn'); if(lb) lb.textContent='🔁 Loop:'+(_musicLoopEnabled?'ON':'OFF');
@@ -13353,21 +13531,42 @@ function callAudioControl(action) {
     }
   }
   if(action==='play'){
-    if(usingYt && typeof _ytPlayer.playVideo==='function'){ try{ _ytPlayer.playVideo(); }catch(e){} }
-    else if(audio && audio.src){ audio.play().catch(function(){}); }
+    if(usingYt && typeof _ytPlayer.playVideo==='function'){
+      try{ _ytPlayer.playVideo(); }catch(e){}
+      _musicActiveSource = 'youtube'; // assumo o controle — agora sou eu quem transmite o estado
+      var vid = null; try { vid = _ytPlayer.getVideoData().video_id; } catch(e){}
+      var pos = 0; try { pos = _ytPlayer.getCurrentTime() || 0; } catch(e){}
+      if (vid) _broadcastMusicState({ type:'youtube', videoId:vid, playing:true, startedAt: Date.now() - pos*1000, posAtPause:0, name:(nameEl&&nameEl.value)||_musicTrackName||'' });
+    }
+    else if(audio && audio.src){
+      audio.play().catch(function(){});
+      if (!window._ambientAudioStream) _startAmbientAudioBroadcast(audio, (nameEl&&nameEl.value)||_musicTrackName||'');
+      else _broadcastMusicState({ type:'localfile', playing:true, streamId: window._ambientAudioStream.id, name:(nameEl&&nameEl.value)||_musicTrackName||'' });
+    }
   }
   else if(action==='pause'){
-    if(usingYt && typeof _ytPlayer.pauseVideo==='function'){ try{ _ytPlayer.pauseVideo(); }catch(e){} }
-    else if(audio){ audio.pause(); }
+    if(usingYt && typeof _ytPlayer.pauseVideo==='function'){
+      var pos2 = 0; try { pos2 = _ytPlayer.getCurrentTime() || 0; } catch(e){}
+      try{ _ytPlayer.pauseVideo(); }catch(e){}
+      var vid2 = null; try { vid2 = _ytPlayer.getVideoData().video_id; } catch(e){}
+      if (vid2) _broadcastMusicState({ type:'youtube', videoId:vid2, playing:false, posAtPause:pos2, name:(nameEl&&nameEl.value)||_musicTrackName||'' });
+    }
+    else if(audio){
+      audio.pause();
+      if (window._ambientAudioStream) _broadcastMusicState({ type:'localfile', playing:false, streamId: window._ambientAudioStream.id, name:(nameEl&&nameEl.value)||_musicTrackName||'' });
+    }
   }
   else if(action==='stop'){
     if(usingYt && typeof _ytPlayer.stopVideo==='function'){ try{ _ytPlayer.stopVideo(); }catch(e){} }
     if(audio){ audio.pause(); audio.currentTime=0; }
+    _stopAmbientAudioBroadcast();
+    _broadcastMusicStop();
+    _musicActiveSource = null;
   }
   else if(action==='loop'){
     _musicLoopEnabled=!_musicLoopEnabled;
     if(audio) audio.loop=_musicLoopEnabled;
-    var lb=document.getElementById('call-loop-btn'); if(lb) lb.textContent='🔁 Loop:'+(_musicLoopEnabled?'ON':'OFF');
+    var lb2=document.getElementById('call-loop-btn'); if(lb2) lb2.textContent='🔁 Loop:'+(_musicLoopEnabled?'ON':'OFF');
     showToast(_musicLoopEnabled?'🔁 Loop ativado':'Loop desativado', _musicLoopEnabled?'ok':'info');
   }
 }
@@ -15294,6 +15493,45 @@ window._forceRelogin = function() {
   if (typeof showToast === 'function') showToast('🔄 Sessão encerrada — faça login novamente.', 'warn');
 };
 
+// ════════════════════════════════════════════════════════════════════════
+//  TRATAMENTO CENTRAL DE ERROS DE LEITURA (onValue) NO FIREBASE
+//  ------------------------------------------------------------------------
+//  ANTES: quase todo onValue() de call (lista de membros da sala, convites
+//  de call privada, transmissão de tela, mute forçado, efeitos sonoros,
+//  aviso de "alguém entrou na call de grupo"...) não tinha um segundo
+//  argumento (callback de erro). Quando a REGRA DE SEGURANÇA do Realtime
+//  Database do projeto Firebase nega a leitura desses nós pra quem não é
+//  o dono (ex.: regra "auth.uid === $uid" aplicada também em nós que
+//  PRECISAM ser lidos por todo mundo, como "calls/main/members"), esses
+//  listeners falhavam 100% do tempo, 100% em silêncio — nada aparecia na
+//  tela (ninguém no grid de participantes, nenhum ícone/avatar, nenhuma
+//  notificação de call, nenhum áudio — já que sem saber quem está na sala
+//  o navegador nunca nem tenta abrir a conexão WebRTC com essa pessoa) e
+//  NENHUMA pista aparecia sobre o motivo. Só o listener de "users/" tinha
+//  esse tratamento. Agora todo onValue relacionado a call também avisa,
+//  usando o mesmo aviso (limitado a 1x a cada 15s no total, mesmo que
+//  vários listeners falhem ao mesmo tempo, pra não empilhar toasts iguais).
+// ════════════════════════════════════════════════════════════════════════
+var _fbLastReadPermToastAt = 0;
+function _fbShowReadPermToastThrottled(label) {
+  var now = Date.now();
+  if (now - _fbLastReadPermToastAt < 15000) return;
+  _fbLastReadPermToastAt = now;
+  if (typeof showToast === 'function') {
+    showToast('⚠ Sem permissão para ler "'+label+'" (regra do Firebase) — a call pode ficar incompleta (sem ver quem entrou, sem áudio, sem notificação). Peça pra quem administra o projeto no Firebase liberar a leitura desse nó pra todo usuário autenticado.', 'err');
+  }
+}
+function _fbReadErrHandler(label) {
+  return function(err) {
+    console.warn('[Firebase onValue] Falha ao ler "'+label+'":', err && (err.code || err.message));
+    if (err && err.code === 'PERMISSION_DENIED') _fbShowReadPermToastThrottled(label);
+  };
+}
+// Exposto em window: outros <script> fora deste módulo (ex.: o soundboard,
+// que já chama Firebase via window._onValue/window._ref) também precisam
+// avisar quando uma leitura compartilhada é negada pela regra do Firebase.
+window._fbReadErrHandler = _fbReadErrHandler;
+
 const _sharedDataRef = ref(db, 'sharedData');
 let _lastSyncedDataStr = null;
 let _dataPushTimer = null;
@@ -16114,6 +16352,7 @@ onAuthStateChanged(auth, async (fbUser) => {
     currentUser = null;
     _stopRealtimeSync();
     _cleanupWebRTC();
+    _clearCallIdentity(); // aqui sim: deslogou de verdade, ninguém autenticado
     var authScreen = document.getElementById('auth-screen');
     if (authScreen) authScreen.classList.remove('gone');
     var userBar = document.getElementById('user-bar');
@@ -16373,6 +16612,26 @@ let _screenTrackId     = null;    // id da track de tela que EU estou enviando (
 let _screenShareUnsub  = null;
 let _ownMuteUnsub       = null;
 
+// ── Estado do ÁUDIO AMBIENTE (música/YouTube) compartilhado na call ──
+// ANTES: o painel "Áudio Ambiente" (YouTube ou arquivo local) só tocava no
+// dispositivo de quem clicou — nada disso chegava aos outros participantes
+// da call, então "a música que a pessoa coloca" nunca era realmente ouvida
+// por ninguém além de quem escolheu a faixa. Agora o estado (o quê, tocando
+// ou pausado, em que posição) é sincronizado pelo Firebase pra todo mundo
+// na mesma sala tocar o MESMO vídeo do YouTube junto (cada um no seu
+// player), e o áudio de arquivo local é de fato transmitido por WebRTC
+// (a mesma conexão de voz), pra quem não pode/quer abrir o YouTube também
+// ouvir a trilha.
+let _musicShareInfo   = { active:false, by:null, byName:null, type:null, videoId:null, streamId:null, startedAt:null, posAtPause:0, loop:false, vol:60 };
+let _musicShareUnsub  = null;
+// _applyingRemoteMusic e _ambientAudioStream vivem no <script> NÃO-module
+// (junto do resto do painel de Áudio Ambiente, que usa window.db/_ref/_set
+// em vez de importar o SDK direto) — expostas via window para que o
+// código WebRTC aqui embaixo (_createOffer/_handleSignal/_attachRemoteStream)
+// consiga anexar/reconhecer a trilha de música nos peers. Ver painel de
+// música (função _startAmbientAudioBroadcast) pra onde window._ambientAudioStream
+// é de fato preenchida.
+
 // IMPORTANTE: só STUN não é suficiente pra conectar duas pessoas em redes
 // diferentes (ex: um jogador no wifi de casa, outro no 4G/outra operadora,
 // ou atrás de CGNAT/firewall corporativo — que é o caso mais comum). Sem um
@@ -16434,7 +16693,7 @@ function _watchGroupCallActivity(myId) {
       });
     }
     _knownGroupCallMembers = current;
-  });
+  }, _fbReadErrHandler('calls/main/members (aviso de call de grupo)'));
 }
 
 // ── "Toca" no outro lado de uma chamada privada: escuta convites endereçados
@@ -16453,7 +16712,7 @@ function _watchIncomingPrivateCalls(myId) {
     // Já estou nessa mesma call privada? não precisa avisar de novo
     if (callState.privateWith === inv.from) { _hideIncomingCallBanner(); return; }
     _showIncomingCallBanner(inv.from, inv.fromName || 'Alguém', !!inv.video);
-  });
+  }, _fbReadErrHandler('dmCalls/'+myId+' (convites de call privada)'));
 }
 function _showIncomingCallBanner(fromId, fromName, video) {
   var b = document.getElementById('dm-call-invite-banner');
@@ -16510,7 +16769,7 @@ function _subscribeCallRoomExtras(roomId) {
         if (vid) { try { vid.srcObject = null; } catch(e){} }
       }
     }
-  });
+  }, _fbReadErrHandler('calls/'+roomId+'/screenShare'));
 
   // ── Observa se o Mestre/permissão me silenciou à força ──
   if (_ownMuteUnsub) { try { _ownMuteUnsub(); } catch(e){} }
@@ -16525,7 +16784,20 @@ function _subscribeCallRoomExtras(roomId) {
     }
     var btn = document.getElementById('ctrl-mic');
     if (btn) btn.classList.toggle('force-muted', forced);
-  });
+  }, _fbReadErrHandler('calls/'+roomId+'/members/'+_myCallId+'/forceMuted'));
+
+  // ── Observa o ÁUDIO AMBIENTE (música/YouTube) compartilhado na sala ──
+  // Ver bloco "SINCRONIZAÇÃO DO ÁUDIO AMBIENTE" no painel de música (outro
+  // <script>, fora deste módulo) pra entender o formato de `v` e por que
+  // isso existe — resumo: antes, música tocada por alguém na call nunca
+  // chegava aos outros participantes; isso corrige.
+  if (_musicShareUnsub) { try { _musicShareUnsub(); } catch(e){} }
+  _musicShareUnsub = onValue(ref(db, 'calls/' + roomId + '/music'), function(snap) {
+    var v = snap.val() || { active:false };
+    _musicShareInfo = v;
+    if (v.by === _myCallId) return; // é o meu próprio estado ecoando de volta — ignora
+    if (typeof window._applyRemoteMusicState === 'function') window._applyRemoteMusicState(v);
+  }, _fbReadErrHandler('calls/'+roomId+'/music (áudio ambiente compartilhado)'));
 }
 
 function _cleanupWebRTC() {
@@ -16535,12 +16807,40 @@ function _cleanupWebRTC() {
   if (_membersUnsub) { try { _membersUnsub(); } catch(e){} _membersUnsub = null; }
   if (_screenShareUnsub) { try { _screenShareUnsub(); } catch(e){} _screenShareUnsub = null; }
   if (_ownMuteUnsub) { try { _ownMuteUnsub(); } catch(e){} _ownMuteUnsub = null; }
+  if (_musicShareUnsub) { try { _musicShareUnsub(); } catch(e){} _musicShareUnsub = null; }
+  _musicShareInfo = { active:false, by:null, byName:null, type:null, videoId:null, streamId:null, startedAt:null, posAtPause:0, loop:false, vol:60 };
+  // Se EU estava transmitindo áudio ambiente (arquivo local), encerra a
+  // captura também — não faz sentido continuar mandando essa trilha depois
+  // que a call em si acabou.
+  if (typeof window._stopAmbientAudioBroadcast === 'function') { try { window._stopAmbientAudioBroadcast(); } catch(e){} }
   _callRoomRef = null;
-  _myCallId = null;
-  window._myCallId = null;
+  // CORRIGIDO — ESTA ERA A CAUSA RAIZ DE "NÃO CONSIGO MAIS IR CALL":
+  // _myCallId/window._myCallId identificam VOCÊ (é só o seu profile.id, setado
+  // uma única vez em _initWebRTC() no login) — não é um estado "desta call
+  // específica" que deva ser zerado quando você sai/encerra uma chamada.
+  // Antes, toda vez que _cleanupWebRTC() rodava (ex.: endCall(), ou logout),
+  // essas duas variáveis eram zeradas para null. window._joinCallRoom()
+  // começa com "if (!_myCallId) { mostra 'Faça login primeiro' e desiste }" —
+  // então, depois da PRIMEIRA call encerrada, _myCallId ficava null pra
+  // sempre (nada além do login/F5 seta ele de novo) e TODA tentativa
+  // seguinte de entrar em qualquer call (de grupo OU privada) morria nesse
+  // "if" sem nem tentar conectar, mesmo com o usuário logado normalmente —
+  // e sem nenhum erro claro (só o aviso enganoso de "faça login"). Isso
+  // explicava sozinho boa parte de "não consigo ir call com ninguém",
+  // "não consigo ir call privada", já que basta ter encerrado UMA call
+  // antes para travar todas as próximas. Agora só o estado desta call em
+  // específico é limpo; a identidade do usuário permanece intacta durante
+  // toda a sessão.
   window._callMembersCache = {};
   _pendingScreenStream = null; _screenPreviewOk = false; _screenTrackId = null;
   if (typeof window.hideScreenInvite === 'function') window.hideScreenInvite();
+}
+
+// Chamado só no LOGOUT de fato (ver onAuthStateChanged) — aí sim a
+// identidade precisa ser limpa, já que ninguém está autenticado.
+function _clearCallIdentity() {
+  _myCallId = null;
+  window._myCallId = null;
 }
 
 // Chamado quando usuário clica "Entrar na Call"
@@ -16584,7 +16884,7 @@ window._joinCallRoom = async function(roomId) {
       await _handleSignal(roomId, sig);
       remove(ref(db, 'calls/' + roomId + '/signals/' + _myCallId + '/' + sig.key));
     }
-  });
+  }, _fbReadErrHandler('calls/'+roomId+'/signals/'+_myCallId+' (sinalização WebRTC)'));
 
   // Escuta novos membros para iniciar conexão E manter o grid de participantes
   // atualizado ao vivo. Antes o grid (renderCallParticipants) só buscava a
@@ -16615,7 +16915,7 @@ window._joinCallRoom = async function(roomId) {
     // Redesenha o card de cada participante (entrada/saída, avatar, cargo)
     // toda vez que a lista de membros da sala mudar — não só na entrada.
     if (typeof renderCallParticipants === 'function') renderCallParticipants();
-  });
+  }, _fbReadErrHandler('calls/'+roomId+'/members (participantes da call)'));
 
   showToast('📡 Entrou na call — conectando peers...', 'ok');
 };
@@ -16628,6 +16928,13 @@ async function _createOffer(roomId, targetUid) {
   }
   if (callState.camStream) {
     callState.camStream.getTracks().forEach(t => pc.addTrack(t, callState.camStream));
+  }
+  // Se eu já estava transmitindo áudio ambiente (música de arquivo local)
+  // ANTES dessa pessoa entrar na call, ela também precisa receber essa
+  // trilha — senão só quem já estava conectado no momento em que cliquei
+  // "play" ouviria a música, e quem chegasse depois ficaria em silêncio.
+  if (window._ambientAudioStream) {
+    window._ambientAudioStream.getTracks().forEach(t => pc.addTrack(t, window._ambientAudioStream));
   }
   const offer = await pc.createOffer();
   await pc.setLocalDescription(offer);
@@ -16642,6 +16949,7 @@ async function _handleSignal(roomId, sig) {
     const pc = _createPeerConn(roomId, fromUid);
     if (callState.micStream) callState.micStream.getTracks().forEach(t => pc.addTrack(t, callState.micStream));
     if (callState.camStream) callState.camStream.getTracks().forEach(t => pc.addTrack(t, callState.camStream));
+    if (window._ambientAudioStream) window._ambientAudioStream.getTracks().forEach(t => pc.addTrack(t, window._ambientAudioStream));
     await pc.setRemoteDescription({ type: 'offer', sdp: sig.sdp });
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
@@ -16801,6 +17109,44 @@ function _attachRemoteStream(uid, stream) {
     return; // não trata como câmera do participante
   }
 
+  // ── É o ÁUDIO AMBIENTE (música de arquivo local) que alguém está
+  //    compartilhando? (mesmo esquema do screen share: identificado pelo
+  //    streamId sincronizado via Firebase). Se for, NÃO trata como a voz
+  //    dessa pessoa: usa um elemento de áudio próprio (senão substituiria
+  //    o <audio> do microfone dela, silenciando a voz) e não dispara o
+  //    indicador de "falando" (senão o avatar dela ficaria piscando toda
+  //    vez que a música tivesse um pico de volume).
+  //  Obs: além de checar o Firebase, também trata como música qualquer
+  //  SEGUNDA trilha de áudio (sem vídeo) vinda do mesmo uid, diferente da
+  //  primeira que já tínhamos — porque o aviso do Firebase e a chegada da
+  //  trilha por WebRTC andam em conexões separadas e podem chegar fora de
+  //  ordem; sem esse reforço, numa corrida perdida essa trilha extra
+  //  substituiria (e silenciaria) o áudio do microfone da pessoa. Como
+  //  ninguém aqui manda uma terceira trilha de áudio, esse é um sinal
+  //  seguro por si só. ──
+  var existingMicEl = _remoteAudioEls[uid];
+  var isSecondDistinctAudioStream = existingMicEl && existingMicEl.dataset.streamId &&
+    existingMicEl.dataset.streamId !== stream.id && stream.getVideoTracks().length === 0;
+  var isAmbientMusic = isSecondDistinctAudioStream || (_musicShareInfo && _musicShareInfo.active && _musicShareInfo.type === 'localfile' &&
+    _musicShareInfo.by === uid && _musicShareInfo.streamId && stream.id === _musicShareInfo.streamId);
+
+  if (isAmbientMusic) {
+    var mEl = document.getElementById('call-remote-music-audio');
+    if (!mEl) {
+      mEl = document.createElement('audio');
+      mEl.id = 'call-remote-music-audio';
+      mEl.autoplay = true;
+      mEl.playsinline = true;
+      mEl.style.display = 'none';
+      document.body.appendChild(mEl);
+    }
+    mEl.srcObject = stream;
+    var volSlider = document.getElementById('call-music-vol');
+    mEl.volume = volSlider ? (parseInt(volSlider.value, 10) / 100) : 0.6;
+    mEl.muted = !!(typeof callState !== 'undefined' && callState.deafened);
+    return; // não é voz de ninguém — não cria elemento de mic nem vídeo
+  }
+
   // Áudio
   let el = _remoteAudioEls[uid];
   if (!el) {
@@ -16812,6 +17158,7 @@ function _attachRemoteStream(uid, stream) {
     _remoteAudioEls[uid] = el;
   }
   el.srcObject = stream;
+  el.dataset.streamId = stream.id; // usado acima pra reconhecer uma 2ª trilha de áudio como música, não como um novo "microfone"
   el.volume = (typeof callState !== 'undefined' && callState.outVol != null) ? callState.outVol : 1.0;
   if (typeof _applyDeafenToStream === 'function') _applyDeafenToStream(uid);
   if (typeof _startRemoteSpeakingDetector === 'function') _startRemoteSpeakingDetector(uid, stream);
@@ -17031,6 +17378,23 @@ window._rtcAddMediaTrack = function(stream) {
     });
   });
 };
+// ── Contrapartida de _rtcAddMediaTrack: remove dos peers as trilhas de um
+//    stream (usada para parar de transmitir o áudio ambiente local sem
+//    derrubar a conexão inteira). Exposta em window pelo mesmo motivo do
+//    _rtcAddMediaTrack: o painel de Áudio Ambiente mora no outro <script>
+//    (fora deste módulo) e não tem acesso direto a `_peers`. ──
+window._rtcRemoveMediaTrack = function(stream) {
+  if (!stream) return;
+  Object.values(_peers).forEach(function(pc){
+    try {
+      pc.getSenders().forEach(function(sender){
+        if (sender.track && stream.getTracks().some(function(t){ return t.id === sender.track.id; })) {
+          try { pc.removeTrack(sender); } catch(e){}
+        }
+      });
+    } catch(e){}
+  });
+};
 
 // ── Sai da call ──
 window._leaveCallRoom = function(roomId) {
@@ -17040,6 +17404,10 @@ window._leaveCallRoom = function(roomId) {
   _peers = {};
   Object.values(_remoteAudioEls).forEach(el => { el.srcObject = null; el.remove(); });
   Object.keys(_remoteAudioEls).forEach(k => delete _remoteAudioEls[k]);
+  // Áudio ambiente que EU estava recebendo de outra pessoa (ver _attachRemoteStream) —
+  // não faz sentido continuar tocando depois que saí da sala.
+  var remMusicEl = document.getElementById('call-remote-music-audio');
+  if (remMusicEl) { try { remMusicEl.srcObject = null; } catch(e){} }
   if (_callSignalUnsub) { _callSignalUnsub(); _callSignalUnsub = null; }
   if (_membersUnsub) { _membersUnsub(); _membersUnsub = null; }
   window._callMembersCache = {};
@@ -17712,7 +18080,7 @@ function _sbStartListening() {
       if (window._myCallId && v.by === window._myCallId) return;
       _sbPlayLocal(v);
     });
-  });
+  }, typeof window._fbReadErrHandler === 'function' ? window._fbReadErrHandler('calls/'+_curCallRoom()+'/sfx (efeitos sonoros)') : undefined);
   _sbSfxOff = function(){ try{ window._off(sfxRef); }catch(e){} };
 }
 function _sbStopListening() {
