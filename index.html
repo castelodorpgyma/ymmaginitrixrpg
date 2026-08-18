@@ -12415,7 +12415,23 @@ function _syncCallEntryBtn() {
   }
 }
 
+// v202608181817 — Blindado com try/catch: se QUALQUER coisa aqui dentro
+// quebrar (erro de JS), antes o clique simplesmente "não fazia nada" pro
+// jogador — sem toast, sem overlay abrindo, nada visível — só um erro no
+// console (F12) que ninguém enxerga durante o jogo. Isso deixava "não
+// consigo entrar na call" impossível de diagnosticar a distância. Agora,
+// se acontecer de novo, aparece um aviso na tela em vez de silêncio total.
 function openCallOverlay() {
+  try {
+    _openCallOverlayImpl();
+  } catch (e) {
+    console.error('[Call] openCallOverlay falhou:', e);
+    if (typeof showToast === 'function') {
+      showToast('✕ Erro ao abrir a call: ' + (e && e.message ? e.message : 'erro desconhecido') + ' — manda um print do console (F12) pro mestre/dev', 'err');
+    }
+  }
+}
+function _openCallOverlayImpl() {
   if (!currentUser) { showToast('⚠ Faça login primeiro','warn'); return; }
 
   var isMestre = currentUser.role==='mestre' || currentUser.role==='ambos';
@@ -12461,6 +12477,7 @@ function openCallOverlay() {
   if (typeof _syncCallVoiceStatus === 'function') _syncCallVoiceStatus();
   _updatePrivateCallBanner();
 }
+
 
 // ── Chamada PRIVADA: só entre você e um player específico (não é a call de grupo) ──
 // Usa uma sala própria (dm_<idA>_<idB>) então ninguém mais do grupo participa dela.
