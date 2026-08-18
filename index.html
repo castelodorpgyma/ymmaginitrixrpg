@@ -16826,46 +16826,77 @@ let _musicShareUnsub  = null;
 // indistinguível de HTTPS normal). iceCandidatePoolSize>0 faz o navegador
 // já começar a juntar candidatos ANTES da oferta ser criada, o que acelera
 // a conexão inicial.
-// v202608181732 — TURN dinâmico com API key, além do fallback estático
+// v202608181742 — Vários relays gratuitos SEM precisar criar conta,
+// automáticos, + espaço opcional pra uma chave própria (Metered) depois
 // ------------------------------------------------------------------------
-// O relay público anônimo (openrelayproject/openrelayproject) abaixo tem
-// ficado cada vez mais instável — o provedor (Metered/Open Relay Project)
-// passou a exigir uma API key por conta pra dar credenciais de TURN
-// confiáveis; o par usuário/senha fixo e público que qualquer site na
-// internet usa fica sobrecarregado e cai sem aviso (foi exatamente isso
-// que o diagnóstico da tela detectou: STUN OK, TURN não respondeu).
-//
-// Pra call funcionar de forma confiável entre redes diferentes, crie uma
-// conta grátis (20GB/mês) em https://www.metered.ca/tools/openrelay/ (ou
-// https://openrelayproject.org), copie o "subdomínio" do seu app e a API
-// key no painel, e cole os dois abaixo. Sem isso preenchido, o app cai
-// automaticamente pro relay público estático (pode falhar de vez em
-// quando, mas não quebra nada — só perde a robustez extra).
+// O relay antigo (openrelayproject/openrelayproject) sozinho ficou frágil
+// demais — sobrecarrega e cai sem aviso (era o ❌ TURN do diagnóstico).
+// Em vez de depender de UM único relay público, o app agora tenta VÁRIOS
+// ao mesmo tempo (o navegador testa todos e usa o que responder primeiro):
+//   1) turn.elixir-webrtc.org — relay comunitário, credenciais obtidas na
+//      hora por uma chamada simples, SEM login, SEM conta, SEM chave.
+//      (os mantenedores avisam que é voltado a testes/dev, não a uso
+//      comercial pesado — mas para uma call de RPG entre amigos é ótimo).
+//   2) freestun.net — outro relay público com usuário/senha fixos e
+//      abertos ('free'/'free'), mesma ideia do openrelay mas em servidor
+//      diferente — se um cair, o outro pode estar de pé.
+//   3) openrelay.metered.ca — o relay antigo, mantido como reforço extra.
+// Se AINDA ASSIM a call falhar entre redes diferentes (os 3 são grátis e
+// podem ficar instáveis juntos em dias de pico), o jeito definitivo é uma
+// conta própria grátis no Metered — os campos abaixo são OPCIONAIS, preencha
+// só se quiser esse reforço extra (não é obrigatório pra call funcionar):
 var METERED_SUBDOMAIN = ''; // ex: 'suacampanha' (do painel do Metered/Open Relay)
 var METERED_API_KEY = '';   // ex: '8f2b...' (do painel do Metered/Open Relay)
 
 var _rtcDynamicIceServers = [];
-function _fetchDynamicTurnConfig() {
-  if (!METERED_SUBDOMAIN || !METERED_API_KEY) return;
-  fetch('https://' + METERED_SUBDOMAIN + '.metered.live/api/v1/turn/credentials?apiKey=' + METERED_API_KEY)
+var _elixirTurnPromise = null;
+
+// Relay comunitário sem conta — pega credenciais temporárias (validade 3h)
+// com uma chamada simples, sem nenhum login.
+function _fetchElixirTurnConfig() {
+  var user = 'ymm' + Math.random().toString(36).slice(2, 10);
+  _elixirTurnPromise = fetch('https://turn.elixir-webrtc.org/?service=turn&username=' + user, { method: 'POST' })
+    .then(function(r){ return r.json(); })
+    .then(function(res){
+      if (res && res.uris && res.uris.length) {
+        _rtcDynamicIceServers.push({ urls: res.uris, username: res.username, credential: res.password });
+        console.log('[WebRTC] TURN sem-conta (elixir-webrtc) carregado.');
+      }
+    })
+    .catch(function(e){ console.warn('[WebRTC] Relay sem-conta (elixir-webrtc) não respondeu agora — seguindo com os outros relays:', e); });
+  return _elixirTurnPromise;
+}
+// Reforço extra opcional, só entra em ação se você preencher a chave acima.
+function _fetchMeteredTurnConfig() {
+  if (!METERED_SUBDOMAIN || !METERED_API_KEY) return Promise.resolve();
+  return fetch('https://' + METERED_SUBDOMAIN + '.metered.live/api/v1/turn/credentials?apiKey=' + METERED_API_KEY)
     .then(function(r){ return r.json(); })
     .then(function(servers){
       if (Array.isArray(servers) && servers.length) {
-        _rtcDynamicIceServers = servers;
+        _rtcDynamicIceServers = _rtcDynamicIceServers.concat(servers);
         console.log('[WebRTC] TURN dinâmico (Metered) carregado: ' + servers.length + ' servidor(es).');
       }
     })
-    .catch(function(e){ console.warn('[WebRTC] Falha ao buscar TURN dinâmico (Metered) — seguindo com o relay público estático:', e); });
+    .catch(function(e){ console.warn('[WebRTC] Falha ao buscar TURN dinâmico (Metered) — seguindo com os outros relays:', e); });
+}
+function _fetchDynamicTurnConfig() {
+  _fetchElixirTurnConfig();
+  _fetchMeteredTurnConfig();
 }
 // Dispara já no carregamento — não bloqueia nada (fica em segundo plano);
 // como a call só é usada minutos depois de abrir a página, dá tempo de sobra
-// pra essa única chamada de rede terminar antes de alguém clicar "entrar".
+// pra essas chamadas de rede terminarem antes de alguém clicar "entrar".
 _fetchDynamicTurnConfig();
+// As credenciais do relay sem-conta valem só 3h — renova sozinho em segundo
+// plano de tempos em tempos pra quem deixa a página aberta a sessão inteira.
+setInterval(_fetchElixirTurnConfig, 2 * 60 * 60 * 1000);
 
 var _RTC_STATIC_ICE_SERVERS = [
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
   { urls: 'stun:stun2.l.google.com:19302' },
+  { urls: 'stun:freestun.net:3478' },
+  { urls: 'turn:freestun.net:3478', username: 'free', credential: 'free' },
   {
     urls: [
       'turn:openrelay.metered.ca:80',
@@ -16878,16 +16909,14 @@ var _RTC_STATIC_ICE_SERVERS = [
   }
 ];
 // Função (não mais uma constante fixa) — assim cada nova RTCPeerConnection
-// pega a lista mais atual: se o fetch dinâmico já respondeu, usa a API key
-// própria (credenciais válidas de verdade) primeiro, e mantém o relay
-// público estático como fallback extra, nunca como única opção se der pra
-// evitar.
+// pega a lista mais atual: entram os relays sem-conta (elixir-webrtc,
+// freestun, openrelay) juntos, + Metered também se você tiver configurado
+// a chave própria. O navegador testa todos e usa o primeiro que responder —
+// quanto mais opções, menor a chance de TODOS caírem ao mesmo tempo.
 function _getRtcConfig() {
   return {
     iceCandidatePoolSize: 4,
-    iceServers: _rtcDynamicIceServers.length
-      ? _rtcDynamicIceServers.concat(_RTC_STATIC_ICE_SERVERS)
-      : _RTC_STATIC_ICE_SERVERS
+    iceServers: _rtcDynamicIceServers.concat(_RTC_STATIC_ICE_SERVERS)
   };
 }
 
@@ -16916,6 +16945,13 @@ window.runCallDiagnostics = async function runCallDiagnostics() {
 
   var found = { host: false, srflx: false, relay: false };
   var testPc = null;
+
+  // Se a busca do relay sem-conta ainda estiver em andamento (ex.: diagnóstico
+  // clicado logo ao abrir a página), espera até 2.5s por ela — sem isso, o
+  // teste podia rodar sem esse relay só por chegar cedo demais.
+  if (_elixirTurnPromise) {
+    await Promise.race([_elixirTurnPromise, new Promise(function(r){ setTimeout(r, 2500); })]);
+  }
 
   try {
     testPc = new RTCPeerConnection(_getRtcConfig());
@@ -16970,9 +17006,7 @@ window.runCallDiagnostics = async function runCallDiagnostics() {
     box.style.background = 'rgba(28,20,4,.5)';
     box.style.border = '1px solid rgba(220,160,0,.4)';
     box.style.color = 'rgba(255,210,110,.95)';
-    lines.push('⚠ O relay TURN não respondeu. ' + (_rtcDynamicIceServers.length
-      ? 'Isso é estranho porque uma chave TURN própria está configurada — pode ser instabilidade momentânea dessa conta.'
-      : 'O app está usando só o relay público gratuito e anônimo, que fica sobrecarregado e cai sem aviso (é bem comum). A call PODE funcionar com gente da mesma rede/wifi, mas vai falhar com quem está em outro lugar.') + ' Tenta de novo em alguns minutos — se continuar assim, avisa o mestre/dev: o jeito definitivo de resolver é configurar uma chave TURN própria e grátis (Metered/Open Relay Project) no código, em vez de depender só do relay público compartilhado.');
+    lines.push('⚠ Nenhum dos relays TURN gratuitos respondeu agora (o app tenta vários ao mesmo tempo — elixir-webrtc, freestun, openrelay — e testa mais um extra próprio, se configurado). É bem raro todos caírem juntos, mas serviços grátis têm instabilidade de vez em quando. A call PODE funcionar com gente da mesma rede/wifi, mas vai falhar com quem está em outro lugar. Tenta de novo em alguns minutos — se continuar assim depois de várias tentativas, avisa o mestre/dev.');
   } else {
     box.style.background = 'rgba(28,5,5,.5)';
     box.style.border = '1px solid rgba(200,40,40,.4)';
