@@ -7555,7 +7555,7 @@ function syncGmailToUser() {
   // Campo login-user removido — sem-op mantido para compatibilidade
 }
 
-function showToast(msg, type) {
+function showToast(msg, type, durationMs) {
   var container = document.getElementById('toast-container');
   if (!container) {
     container = document.createElement('div');
@@ -7569,7 +7569,7 @@ function showToast(msg, type) {
   setTimeout(function() {
     t.style.animation = 'toastOut .2s ease-out forwards';
     setTimeout(function() { t.remove(); }, 220);
-  }, 3200);
+  }, durationMs || 3200);
 }
 
 window._tryGoogleLogin = function() {
@@ -12432,6 +12432,11 @@ function openCallOverlay() {
   }
 }
 function _openCallOverlayImpl() {
+  // v202608181822 — Confirmação IMEDIATA de que o clique foi recebido, antes
+  // de qualquer guarda/checagem. Se isso não aparecer nem no console (F12) de
+  // quem clicou, o problema não é mais o código da call — é o navegador
+  // rodando uma cópia ANTIGA/em cache do arquivo (o clique nem chega aqui).
+  console.log('[Call] openCallOverlay() chamado — build 20260818-1822');
   if (!currentUser) { showToast('⚠ Faça login primeiro','warn'); return; }
 
   var isMestre = currentUser.role==='mestre' || currentUser.role==='ambos';
@@ -16481,9 +16486,21 @@ onValue(gcRef, function(snap) {
 // sem precisar dar F5. Antes essa informação (callState.active/callPermissions)
 // só existia na memória do navegador de quem clicou, nunca chegava aos outros.
 const callAccessRef = ref(db, 'calls/main/access');
+var _groupLiveWasActive = false; // detecta a TRANSIÇÃO false→true, pra não avisar de novo a cada leitura repetida do mesmo estado
 onValue(callAccessRef, function(snap) {
   var val = snap.exists() ? snap.val() : null;
-  callState.groupLive = !!(val && val.active);
+  var isNowLive = !!(val && val.active);
+  // v202608181835 — Notificação de "call de grupo começou" pra quem NÃO
+  // está nela ainda. Antes essa mudança só atualizava um estado silencioso
+  // (callState.groupLive) — o player só saberia que a call começou se
+  // abrisse a aba de sessão por conta própria e reparasse no botão. Agora
+  // avisa ativamente, com um botão de "Entrar" direto no aviso — do mesmo
+  // jeito que já funciona pra chamada privada (dmCalls/atender-recusar).
+  if (isNowLive && !_groupLiveWasActive && currentUser && !callState.active) {
+    showToast('📞 A call de grupo começou! <button onclick="openCallOverlay()" style="margin-left:8px;padding:3px 10px;border-radius:6px;border:1px solid rgba(87,242,135,.4);background:rgba(35,165,90,.25);color:rgba(150,240,180,.95);cursor:pointer;font-family:inherit">Entrar</button>', 'ok', 12000);
+  }
+  _groupLiveWasActive = isNowLive;
+  callState.groupLive = isNowLive;
   callState.callPermissions = (val && Array.isArray(val.permissions)) ? val.permissions : [];
   if (typeof _syncCallEntryBtn === 'function') try{ _syncCallEntryBtn(); }catch(e){}
   if (typeof renderCallPermList === 'function' && callState.active) try{ renderCallPermList(); }catch(e){}
@@ -19511,7 +19528,7 @@ window.copyToClipboard = function(text, label) {
 (function(){
   var wm = document.createElement('div');
   wm.className = 'version-watermark';
-  wm.textContent = 'YMMAGINITRIX v11 · 2026';
+  wm.textContent = 'YMMAGINITRIX v11 · build 20260818-1822';
   document.body.appendChild(wm);
 })();
 
