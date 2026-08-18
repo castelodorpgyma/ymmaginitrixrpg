@@ -16826,28 +16826,74 @@ let _musicShareUnsub  = null;
 // indistinguível de HTTPS normal). iceCandidatePoolSize>0 faz o navegador
 // já começar a juntar candidatos ANTES da oferta ser criada, o que acelera
 // a conexão inicial.
-const RTC_CONFIG = {
-  iceCandidatePoolSize: 4,
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-    { urls: 'stun:stun2.l.google.com:19302' },
-    {
-      urls: [
-        'turn:openrelay.metered.ca:80',
-        'turn:openrelay.metered.ca:443',
-        'turn:openrelay.metered.ca:443?transport=tcp',
-        'turns:openrelay.metered.ca:443?transport=tcp'
-      ],
-      username: 'openrelayproject',
-      credential: 'openrelayproject'
-    }
-  ]
-};
+// v202608181732 — TURN dinâmico com API key, além do fallback estático
+// ------------------------------------------------------------------------
+// O relay público anônimo (openrelayproject/openrelayproject) abaixo tem
+// ficado cada vez mais instável — o provedor (Metered/Open Relay Project)
+// passou a exigir uma API key por conta pra dar credenciais de TURN
+// confiáveis; o par usuário/senha fixo e público que qualquer site na
+// internet usa fica sobrecarregado e cai sem aviso (foi exatamente isso
+// que o diagnóstico da tela detectou: STUN OK, TURN não respondeu).
+//
+// Pra call funcionar de forma confiável entre redes diferentes, crie uma
+// conta grátis (20GB/mês) em https://www.metered.ca/tools/openrelay/ (ou
+// https://openrelayproject.org), copie o "subdomínio" do seu app e a API
+// key no painel, e cole os dois abaixo. Sem isso preenchido, o app cai
+// automaticamente pro relay público estático (pode falhar de vez em
+// quando, mas não quebra nada — só perde a robustez extra).
+var METERED_SUBDOMAIN = ''; // ex: 'suacampanha' (do painel do Metered/Open Relay)
+var METERED_API_KEY = '';   // ex: '8f2b...' (do painel do Metered/Open Relay)
+
+var _rtcDynamicIceServers = [];
+function _fetchDynamicTurnConfig() {
+  if (!METERED_SUBDOMAIN || !METERED_API_KEY) return;
+  fetch('https://' + METERED_SUBDOMAIN + '.metered.live/api/v1/turn/credentials?apiKey=' + METERED_API_KEY)
+    .then(function(r){ return r.json(); })
+    .then(function(servers){
+      if (Array.isArray(servers) && servers.length) {
+        _rtcDynamicIceServers = servers;
+        console.log('[WebRTC] TURN dinâmico (Metered) carregado: ' + servers.length + ' servidor(es).');
+      }
+    })
+    .catch(function(e){ console.warn('[WebRTC] Falha ao buscar TURN dinâmico (Metered) — seguindo com o relay público estático:', e); });
+}
+// Dispara já no carregamento — não bloqueia nada (fica em segundo plano);
+// como a call só é usada minutos depois de abrir a página, dá tempo de sobra
+// pra essa única chamada de rede terminar antes de alguém clicar "entrar".
+_fetchDynamicTurnConfig();
+
+var _RTC_STATIC_ICE_SERVERS = [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:stun1.l.google.com:19302' },
+  { urls: 'stun:stun2.l.google.com:19302' },
+  {
+    urls: [
+      'turn:openrelay.metered.ca:80',
+      'turn:openrelay.metered.ca:443',
+      'turn:openrelay.metered.ca:443?transport=tcp',
+      'turns:openrelay.metered.ca:443?transport=tcp'
+    ],
+    username: 'openrelayproject',
+    credential: 'openrelayproject'
+  }
+];
+// Função (não mais uma constante fixa) — assim cada nova RTCPeerConnection
+// pega a lista mais atual: se o fetch dinâmico já respondeu, usa a API key
+// própria (credenciais válidas de verdade) primeiro, e mantém o relay
+// público estático como fallback extra, nunca como única opção se der pra
+// evitar.
+function _getRtcConfig() {
+  return {
+    iceCandidatePoolSize: 4,
+    iceServers: _rtcDynamicIceServers.length
+      ? _rtcDynamicIceServers.concat(_RTC_STATIC_ICE_SERVERS)
+      : _RTC_STATIC_ICE_SERVERS
+  };
+}
 
 // v202608171200 — Diagnóstico de conexão sem precisar de F12/console.
 // Cria uma RTCPeerConnection de teste com a MESMA config que a call usa
-// (RTC_CONFIG), força a coleta de candidatos ICE e classifica o que
+// (_getRtcConfig()), força a coleta de candidatos ICE e classifica o que
 // conseguiu achar:
 //   - host   → seu navegador se enxerga na rede local (quase sempre ok)
 //   - srflx  → STUN funcionou (seu roteador permite achar seu IP público)
@@ -16872,7 +16918,7 @@ window.runCallDiagnostics = async function runCallDiagnostics() {
   var testPc = null;
 
   try {
-    testPc = new RTCPeerConnection(RTC_CONFIG);
+    testPc = new RTCPeerConnection(_getRtcConfig());
     testPc.createDataChannel('diag-test');
 
     testPc.onicecandidate = function(e) {
@@ -16924,7 +16970,9 @@ window.runCallDiagnostics = async function runCallDiagnostics() {
     box.style.background = 'rgba(28,20,4,.5)';
     box.style.border = '1px solid rgba(220,160,0,.4)';
     box.style.color = 'rgba(255,210,110,.95)';
-    lines.push('⚠ O relay TURN não respondeu. Isso costuma ser o servidor TURN gratuito fora do ar temporariamente (acontece de vez em quando com serviços grátis), ou seu firewall/rede bloqueando esse tipo de tráfego. A call PODE funcionar com gente da mesma rede/wifi, mas provavelmente vai falhar com quem está em outro lugar. Tenta de novo em alguns minutos — se continuar assim, avisa o mestre/dev pra trocar o servidor TURN.');
+    lines.push('⚠ O relay TURN não respondeu. ' + (_rtcDynamicIceServers.length
+      ? 'Isso é estranho porque uma chave TURN própria está configurada — pode ser instabilidade momentânea dessa conta.'
+      : 'O app está usando só o relay público gratuito e anônimo, que fica sobrecarregado e cai sem aviso (é bem comum). A call PODE funcionar com gente da mesma rede/wifi, mas vai falhar com quem está em outro lugar.') + ' Tenta de novo em alguns minutos — se continuar assim, avisa o mestre/dev: o jeito definitivo de resolver é configurar uma chave TURN própria e grátis (Metered/Open Relay Project) no código, em vez de depender só do relay público compartilhado.');
   } else {
     box.style.background = 'rgba(28,5,5,.5)';
     box.style.border = '1px solid rgba(200,40,40,.4)';
@@ -17257,7 +17305,7 @@ async function _handleSignal(roomId, sig) {
 
 function _createPeerConn(roomId, peerUid) {
   if (_peers[peerUid]) return _peers[peerUid];
-  const pc = new RTCPeerConnection(RTC_CONFIG);
+  const pc = new RTCPeerConnection(_getRtcConfig());
   _peers[peerUid] = pc;
 
   pc.onicecandidate = (e) => {
