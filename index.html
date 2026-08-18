@@ -15617,7 +15617,79 @@ let _pushFailCount = 0;
 // grande — caso que os limites por upload não cobrem sozinhos.
 var _FB_DATA_SOFT_LIMIT_BYTES = 8 * 1024 * 1024;
 var _fbSizeWarnedAt = 0;
-function _fbPushDataNow() {
+
+// ════════════════════════════════════════════════════════════════════════
+//  MERGE ANTES DE ESCREVER — evita que uma pessoa "apague" a entrada da
+//  outra na campanha
+//  ------------------------------------------------------------------------
+//  ANTES: _fbPushDataNow() fazia set(_sharedDataRef, data) — ou seja,
+//  SOBRESCREVIA o nó "sharedData" INTEIRO com a cópia local de quem estava
+//  salvando. Como "sharedData" é um único nó compartilhado por TODO MUNDO
+//  (mestre + todos os jogadores, não só uma pessoa), se o jogador A entrava
+//  numa campanha pela senha/convite (o que muda "data" no navegador dele) e,
+//  segundos depois, o navegador do jogador B salvasse qualquer outra coisa
+//  (mesmo sem relação) com uma cópia local que ainda não tinha a entrada de
+//  A, o salvamento de B apagava silenciosamente a entrada de A do Firebase.
+//  Isso é a causa raiz de "não aparece a pessoa que entrou pela senha/
+//  código", "não aparece ninguém na call", etc. quando mais de uma pessoa
+//  usa o app ao mesmo tempo — não é o WebRTC, é a escrita dos dados base.
+//
+//  AGORA: antes de gravar, busca a versão mais recente do Firebase e faz
+//  merge (por id) das listas compartilhadas (campanhas, players/fichas,
+//  itens/origens/habilidades custom) — em vez de escolher "local ou remoto"
+//  inteiro, cada REGISTRO (campanha, ficha) que só existe em um dos lados é
+//  preservado dos dois lados. Reduz a janela de corrida de "o tempo que o
+//  navegador ficou aberto sem sincronizar" para "o tempo de ida-e-volta de
+//  uma leitura ao Firebase" (bem menor). Não é um lock perfeito (editar o
+//  MESMO registro nos dois lados ao mesmo tempo ainda pode fazer um lado
+//  prevalecer), mas resolve o caso comum descrito acima.
+// ════════════════════════════════════════════════════════════════════════
+function _mergeArrById(remoteArr, localArr, nestedArrayKeys) {
+  remoteArr = Array.isArray(remoteArr) ? remoteArr : [];
+  localArr  = Array.isArray(localArr)  ? localArr  : [];
+  var remoteMap = {};
+  remoteArr.forEach(function(it){ if (it && it.id != null) remoteMap[it.id] = it; });
+  var seen = {};
+  var merged = localArr.map(function(localIt) {
+    if (!localIt || localIt.id == null) return localIt;
+    seen[localIt.id] = true;
+    var remoteIt = remoteMap[localIt.id];
+    if (!remoteIt) return localIt; // só existe local (adição/edição daqui) — mantém
+    var out = Object.assign({}, localIt);
+    (nestedArrayKeys || []).forEach(function(k) {
+      var rArr = Array.isArray(remoteIt[k]) ? remoteIt[k] : [];
+      var lArr = Array.isArray(localIt[k]) ? localIt[k] : [];
+      if (!rArr.length && !lArr.length) return;
+      var keyOf = function(x){ return (x && typeof x === 'object') ? (x.code || x.id || JSON.stringify(x)) : x; };
+      var seenSub = {}, mergedSub = [];
+      lArr.concat(rArr).forEach(function(x) {
+        var kk = keyOf(x);
+        if (seenSub[kk]) return;
+        seenSub[kk] = true;
+        mergedSub.push(x);
+      });
+      out[k] = mergedSub;
+    });
+    return out;
+  });
+  remoteArr.forEach(function(it) {
+    if (it && it.id != null && !seen[it.id]) merged.push(it); // só existe remoto (outro dispositivo) — preserva
+  });
+  return merged;
+}
+function _mergeSharedData(remote, local) {
+  if (!remote) return local;
+  var merged = Object.assign({}, local);
+  merged.campanhas         = _mergeArrById(remote.campanhas, local.campanhas, ['convites', 'players']);
+  merged.players            = _mergeArrById(remote.players, local.players, []);
+  merged.customItems        = _mergeArrById(remote.customItems, local.customItems, []);
+  merged.customOrigens      = _mergeArrById(remote.customOrigens, local.customOrigens, []);
+  merged.customHabilidades  = _mergeArrById(remote.customHabilidades, local.customHabilidades, []);
+  return merged;
+}
+window._mergeSharedData = _mergeSharedData; // exposto pra depuração manual no console, se precisar
+
+function _fbPushDataNowRaw() {
   try {
     var str = JSON.stringify(data);
     if (str === _lastSyncedDataStr) { _pendingLocalPush = false; return; } // nada mudou desde o último envio — evita eco/gravação redundante
@@ -15665,6 +15737,27 @@ function _fbPushDataNow() {
       }
     });
   } catch(e) { console.error('[dataSync push]', e); _pendingLocalPush = false; }
+}
+function _fbPushDataNow() {
+  try {
+    get(_sharedDataRef).then(function(snap) {
+      var remote = snap.exists() ? snap.val() : null;
+      if (remote) {
+        data = _mergeSharedData(remote, data);
+        try { localStorage.setItem('ymm_data', JSON.stringify(data)); } catch(e2) {}
+        // Reflete o merge nas telas visíveis, senão quem só editou um campo
+        // pequeno não veria as campanhas/fichas que vieram de outro dispositivo
+        // até o próximo onValue() remoto.
+        if (typeof renderCampanhas === 'function') try { renderCampanhas(); } catch(e2) {}
+        if (typeof renderPlayers === 'function') try { renderPlayers(); } catch(e2) {}
+      }
+      _fbPushDataNowRaw();
+    }).catch(function() {
+      // Não conseguiu ler antes de escrever (ex.: offline momentâneo) —
+      // melhor gravar direto do que travar o salvamento por completo.
+      _fbPushDataNowRaw();
+    });
+  } catch(e) { console.error('[dataSync push/merge]', e); _fbPushDataNowRaw(); }
 }
 // Exposta pro save() (que roda num <script> normal, fora do módulo) chamar.
 // Debounce de 700ms pra não disparar uma escrita no Firebase a cada tecla digitada.
