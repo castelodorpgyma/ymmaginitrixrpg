@@ -6,7 +6,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>Ymmaginitrix — Gerenciador de Campanhas</title>
-<meta name="version" content="202608161445">
+<meta name="version" content="202608182100">
 <meta name="description" content="Ymmaginitrix — Plataforma de gerenciamento de campanhas de RPG">
 <meta name="application-name" content="Ymmaginitrix">
 <meta property="og:title" content="Ymmaginitrix — Gerenciador de Campanhas RPG">
@@ -17357,6 +17357,7 @@ async function _handleSignal(roomId, sig) {
     if (callState.camStream) callState.camStream.getTracks().forEach(t => pc.addTrack(t, callState.camStream));
     if (window._ambientAudioStream) window._ambientAudioStream.getTracks().forEach(t => pc.addTrack(t, window._ambientAudioStream));
     await pc.setRemoteDescription({ type: 'offer', sdp: sig.sdp });
+    await _flushPendingIce(pc); // v202608182100 — ver comentário na declaração de _flushPendingIce
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
     _sendSignal(roomId, fromUid, { type: 'answer', sdp: answer.sdp, from: _myCallId });
@@ -17364,10 +17365,43 @@ async function _handleSignal(roomId, sig) {
     const pc = _peers[fromUid];
     if (pc && pc.signalingState !== 'stable') {
       await pc.setRemoteDescription({ type: 'answer', sdp: sig.sdp });
+      await _flushPendingIce(pc);
     }
   } else if (sig.type === 'ice') {
+    // v202608182100 — CORRIGIDO: candidato ICE podia chegar (e chegava, com
+    // frequência, principalmente entre redes diferentes onde a coleta de
+    // candidatos TURN demora mais) ANTES de setRemoteDescription() ter
+    // rodado pro peer correspondente. addIceCandidate() nesse momento
+    // lançava erro e o catch(){} vazio engolia TUDO sem log nenhum — o
+    // candidato era descartado de vez, silenciosamente. Cada candidato
+    // perdido é um caminho de conexão a menos; perder os candidatos "relay"
+    // (TURN) especificamente é exatamente o que faz a call funcionar só
+    // entre quem está perto (host/srflx sobrevivem) e nunca com o resto da
+    // campanha (relay se perde). Agora: se a remote description ainda não
+    // está pronta, o candidato fica guardado em fila e é aplicado assim que
+    // ela for setada (ver _flushPendingIce acima, nos dois ramos de cima).
     const pc = _peers[fromUid];
-    if (pc) { try { await pc.addIceCandidate(sig.candidate); } catch(e){} }
+    if (pc) {
+      if (pc.remoteDescription && pc.remoteDescription.type) {
+        try { await pc.addIceCandidate(sig.candidate); }
+        catch(e){ console.warn('[WebRTC] addIceCandidate falhou para', fromUid, ':', e); }
+      } else {
+        if (!pc._pendingIce) pc._pendingIce = [];
+        pc._pendingIce.push(sig.candidate);
+      }
+    }
+  }
+}
+
+// v202608182100 — aplica candidatos ICE que chegaram cedo demais (ver
+// comentário grande acima, no ramo 'ice' de _handleSignal).
+async function _flushPendingIce(pc) {
+  if (!pc || !pc._pendingIce || !pc._pendingIce.length) return;
+  const queued = pc._pendingIce;
+  pc._pendingIce = [];
+  for (const cand of queued) {
+    try { await pc.addIceCandidate(cand); }
+    catch(e){ console.warn('[WebRTC] addIceCandidate (da fila) falhou:', e); }
   }
 }
 
@@ -19528,7 +19562,7 @@ window.copyToClipboard = function(text, label) {
 (function(){
   var wm = document.createElement('div');
   wm.className = 'version-watermark';
-  wm.textContent = 'YMMAGINITRIX v11 · build 20260818-1822';
+  wm.textContent = 'YMMAGINITRIX v11 · build 20260818-2100';
   document.body.appendChild(wm);
 })();
 
