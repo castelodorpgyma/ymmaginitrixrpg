@@ -6000,6 +6000,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
         </div>
         <div class="call-perm-notice" id="call-no-perm-notice" style="display:none">⚠ Apenas o Mestre ou usuários com permissão podem iniciar a call.</div>
         <button class="call-open-btn" id="call-open-btn" onclick="openCallOverlay()"><span class="call-dot"></span>&nbsp;ENTRAR NA CALL</button>
+        <button id="call-diag-btn" onclick="runCallDiagnostics()" style="display:block;width:100%;margin-top:8px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);border-radius:6px;color:rgba(255,255,255,0.65);font-family:'Share Tech Mono',monospace;font-size:.52rem;letter-spacing:.08em;padding:8px;cursor:pointer;transition:all .15s" onmouseover="this.style.background='rgba(255,255,255,.09)'" onmouseout="this.style.background='rgba(255,255,255,.04)'">🔧 TESTAR CONEXÃO (sem precisar do F12)</button>
+        <div id="call-diag-result" style="display:none;margin-top:8px;padding:10px 12px;border-radius:6px;font-family:'Share Tech Mono',monospace;font-size:.56rem;line-height:1.8;white-space:pre-wrap"></div>
       </div>
 
       <!-- STATUS DOS PLAYERS AO VIVO -->
@@ -16724,21 +16726,121 @@ let _musicShareUnsub  = null;
 // Servidor TURN público de fallback (openrelay) foi adicionado — para uso
 // em produção com muitos usuários simultâneos, o ideal é trocar por um TURN
 // próprio (ex: coturn, Twilio, Metered.ca com chave paga).
+// v202608171200 — TURN mais redundante: além do UDP/TCP normal na 80/443,
+// adicionado também 'turns:' (TURN sobre TLS) na 443, que é o que sobrevive
+// a firewalls corporativos com deep packet inspection (o transporte TCP puro
+// na 443 às vezes ainda é identificado e bloqueado, mas TLS na 443 é
+// indistinguível de HTTPS normal). iceCandidatePoolSize>0 faz o navegador
+// já começar a juntar candidatos ANTES da oferta ser criada, o que acelera
+// a conexão inicial.
 const RTC_CONFIG = {
+  iceCandidatePoolSize: 4,
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
     {
       urls: [
         'turn:openrelay.metered.ca:80',
         'turn:openrelay.metered.ca:443',
-        'turn:openrelay.metered.ca:443?transport=tcp'
+        'turn:openrelay.metered.ca:443?transport=tcp',
+        'turns:openrelay.metered.ca:443?transport=tcp'
       ],
       username: 'openrelayproject',
       credential: 'openrelayproject'
     }
   ]
 };
+
+// v202608171200 — Diagnóstico de conexão sem precisar de F12/console.
+// Cria uma RTCPeerConnection de teste com a MESMA config que a call usa
+// (RTC_CONFIG), força a coleta de candidatos ICE e classifica o que
+// conseguiu achar:
+//   - host   → seu navegador se enxerga na rede local (quase sempre ok)
+//   - srflx  → STUN funcionou (seu roteador permite achar seu IP público)
+//   - relay  → TURN funcionou (ESSENCIAL pra falar com gente de outra rede/
+//              provedor; sem isso a call só funciona entre pessoas na MESMA
+//              rede local, o que bate com o sintoma "só funciona com quem
+//              está do meu lado")
+// O resultado aparece direto na tela, em português simples, pra qualquer
+// jogador conseguir printar e mandar pro mestre sem mexer em nada técnico.
+window.runCallDiagnostics = async function runCallDiagnostics() {
+  var btn = document.getElementById('call-diag-btn');
+  var box = document.getElementById('call-diag-result');
+  if (!box) return;
+  box.style.display = 'block';
+  box.style.background = 'rgba(255,255,255,.04)';
+  box.style.border = '1px solid rgba(255,255,255,.12)';
+  box.style.color = 'rgba(255,255,255,.75)';
+  box.textContent = '⏳ Testando conexão (isso leva uns 6 segundos, espera aí)...';
+  if (btn) { btn.disabled = true; btn.style.opacity = '.5'; btn.style.cursor = 'default'; }
+
+  var found = { host: false, srflx: false, relay: false };
+  var testPc = null;
+
+  try {
+    testPc = new RTCPeerConnection(RTC_CONFIG);
+    testPc.createDataChannel('diag-test');
+
+    testPc.onicecandidate = function(e) {
+      if (!e.candidate) return;
+      var t = e.candidate.type; // 'host' | 'srflx' | 'relay' | 'prflx'
+      if (t === 'host') found.host = true;
+      if (t === 'srflx') found.srflx = true;
+      if (t === 'relay') found.relay = true;
+    };
+
+    var offer = await testPc.createOffer();
+    await testPc.setLocalDescription(offer);
+
+    // Espera até 7s juntando candidatos, ou até o ICE terminar de coletar sozinho.
+    await new Promise(function(resolve) {
+      var done = false;
+      var finish = function() { if (done) return; done = true; resolve(); };
+      testPc.onicegatheringstatechange = function() {
+        if (testPc.iceGatheringState === 'complete') finish();
+      };
+      setTimeout(finish, 7000);
+    });
+  } catch (err) {
+    console.error('[Diagnóstico] Erro:', err);
+    box.style.background = 'rgba(28,5,5,.5)';
+    box.style.border = '1px solid rgba(200,40,40,.4)';
+    box.style.color = 'rgba(255,150,150,.95)';
+    box.textContent = '❌ O navegador bloqueou o teste (' + (err && err.message ? err.message : 'erro desconhecido') + ').\nTenta em outro navegador ou desativa bloqueador de anúncio/VPN e testa de novo.';
+    if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.style.cursor = 'pointer'; }
+    if (testPc) { try { testPc.close(); } catch(e){} }
+    return;
+  }
+
+  if (testPc) { try { testPc.close(); } catch(e){} }
+  if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.style.cursor = 'pointer'; }
+
+  var lines = [];
+  lines.push((found.host ? '✅' : '❌') + ' Rede local (host)');
+  lines.push((found.srflx ? '✅' : '❌') + ' STUN — descobrir seu IP público');
+  lines.push((found.relay ? '✅' : '❌') + ' TURN — retransmissor pra falar com quem está numa rede diferente da sua');
+  lines.push('');
+
+  if (found.relay) {
+    box.style.background = 'rgba(8,28,12,.5)';
+    box.style.border = '1px solid rgba(0,200,80,.35)';
+    box.style.color = 'rgba(150,240,180,.95)';
+    lines.push('✅ TUDO OK. Seu navegador consegue se conectar até com gente de outra rede/cidade. Se a call ainda assim não conecta, o problema provavelmente está do lado da OUTRA pessoa — peça pra ela rodar esse mesmo teste.');
+  } else if (found.srflx) {
+    box.style.background = 'rgba(28,20,4,.5)';
+    box.style.border = '1px solid rgba(220,160,0,.4)';
+    box.style.color = 'rgba(255,210,110,.95)';
+    lines.push('⚠ O relay TURN não respondeu. Isso costuma ser o servidor TURN gratuito fora do ar temporariamente (acontece de vez em quando com serviços grátis), ou seu firewall/rede bloqueando esse tipo de tráfego. A call PODE funcionar com gente da mesma rede/wifi, mas provavelmente vai falhar com quem está em outro lugar. Tenta de novo em alguns minutos — se continuar assim, avisa o mestre/dev pra trocar o servidor TURN.');
+  } else {
+    box.style.background = 'rgba(28,5,5,.5)';
+    box.style.border = '1px solid rgba(200,40,40,.4)';
+    box.style.color = 'rgba(255,150,150,.95)';
+    lines.push('❌ Nem STUN nem TURN responderam. Isso geralmente é rede corporativa/escolar muito travada, VPN, ou firewall bloqueando WebRTC por completo. Tenta desligar a VPN, trocar de rede (ex: usar dados móveis) ou testar em outro navegador.');
+  }
+
+  box.textContent = lines.join('\n');
+}
 
 function _initWebRTC(profile) {
   _myCallId = profile.id;
@@ -17092,18 +17194,77 @@ function _createPeerConn(roomId, peerUid) {
     } catch(e) { console.warn('[WebRTC] Erro ao renegociar com', peerUid, ':', e); }
   };
 
+  // v202608171200 — ANTES: qualquer 'disconnected'/'failed' fechava a conexão
+  // na hora. Só que 'disconnected' é comum e muitas vezes se resolve sozinho
+  // em 1-2s (perda momentânea de pacote, troca de wifi/4G, etc) — fechar de
+  // cara derrubava calls que teriam voltado ao normal. Agora: 'disconnected'
+  // ganha um prazo pra se recuperar sozinho; se não recuperar, tenta
+  // restartIce() (repede negociação ICE sem derrubar a call) algumas vezes
+  // antes de desistir de vez e fechar.
+  pc._reconnectAttempts = 0;
+  pc._reconnectTimer = null;
+  var MAX_RECONNECT_ATTEMPTS = 3;
+
+  function _nomeParticipante() {
+    return (window._callMembersCache && window._callMembersCache[peerUid] && window._callMembersCache[peerUid].username) || 'participante';
+  }
+
+  function _clearReconnectTimer() {
+    if (pc._reconnectTimer) { clearTimeout(pc._reconnectTimer); pc._reconnectTimer = null; }
+  }
+
+  function _giveUp(motivo) {
+    showToast('✕ Falha ao conectar com ' + _nomeParticipante() + ' (' + motivo + ')', 'err');
+    try { pc.close(); } catch(e){}
+    delete _peers[peerUid];
+    _removeRemoteStream(peerUid);
+  }
+
   pc.onconnectionstatechange = () => {
-    console.log('[WebRTC] Estado da conexão com', peerUid, ':', pc.connectionState);
+    console.log('[WebRTC] Estado da conexão com', peerUid, ':', pc.connectionState, '(tentativa', pc._reconnectAttempts, ')');
+
+    if (pc.connectionState === 'connected') {
+      // Recuperou — cancela qualquer tentativa de reconexão pendente e zera o contador.
+      _clearReconnectTimer();
+      pc._reconnectAttempts = 0;
+      return;
+    }
+
+    if (pc.connectionState === 'disconnected') {
+      _clearReconnectTimer();
+      // Dá 3s pra ver se volta sozinho antes de fazer qualquer coisa.
+      pc._reconnectTimer = setTimeout(() => {
+        if (pc.connectionState !== 'disconnected') return; // já resolveu ou mudou de estado
+        if (pc._reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+          _giveUp('conexão instável, sem retorno');
+          return;
+        }
+        pc._reconnectAttempts++;
+        showToast('🔄 Reconectando com ' + _nomeParticipante() + '... (' + pc._reconnectAttempts + '/' + MAX_RECONNECT_ATTEMPTS + ')', 'warn');
+        try { pc.restartIce(); } catch(e) { console.warn('[WebRTC] restartIce falhou:', e); }
+      }, 3000);
+      return;
+    }
+
     // CORRIGIDO: quando o ICE não achava caminho entre os dois lados
     // (ex: TURN indisponível, firewall bloqueando UDP/TCP), a conexão só
     // aparecia como 'failed' no console — pra quem está jogando isso é só
-    // "a call não funciona", sem nenhum aviso na tela. Agora avisa.
+    // "a call não funciona", sem nenhum aviso na tela. Agora avisa —
+    // e antes de desistir, tenta recuperar com restartIce() também.
     if (pc.connectionState === 'failed') {
-      var nm = (window._callMembersCache && window._callMembersCache[peerUid] && window._callMembersCache[peerUid].username) || 'participante';
-      showToast('✕ Falha ao conectar com ' + nm + ' (rede/firewall)', 'err');
+      _clearReconnectTimer();
+      if (pc._reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+        pc._reconnectAttempts++;
+        showToast('🔄 Reconectando com ' + _nomeParticipante() + '... (' + pc._reconnectAttempts + '/' + MAX_RECONNECT_ATTEMPTS + ')', 'warn');
+        try { pc.restartIce(); } catch(e) { _giveUp('rede/firewall'); }
+      } else {
+        _giveUp('rede/firewall');
+      }
+      return;
     }
-    if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed' || pc.connectionState === 'closed') {
-      try { pc.close(); } catch(e){}
+
+    if (pc.connectionState === 'closed') {
+      _clearReconnectTimer();
       delete _peers[peerUid];
       _removeRemoteStream(peerUid);
     }
