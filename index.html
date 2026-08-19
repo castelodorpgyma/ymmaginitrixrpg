@@ -12497,7 +12497,11 @@ function _openCallOverlayImpl() {
   // quem clicou, o problema não é mais o código da call — é o navegador
   // rodando uma cópia ANTIGA/em cache do arquivo (o clique nem chega aqui).
   console.log('[Call] openCallOverlay() chamado — build 20260818-1822');
-  if (!currentUser) { showToast('⚠ Faça login primeiro','warn'); return; }
+  // Espera a sessão terminar de restaurar antes de decidir se recusa —
+  // ver bloco "_runWhenAuthReady" no topo do módulo pra entender por quê.
+  window._runWhenAuthReady(_openCallOverlayImplReady);
+}
+function _openCallOverlayImplReady() {
 
   var isMestre = currentUser.role==='mestre' || currentUser.role==='ambos';
 
@@ -12547,7 +12551,11 @@ function _openCallOverlayImpl() {
 // ── Chamada PRIVADA: só entre você e um player específico (não é a call de grupo) ──
 // Usa uma sala própria (dm_<idA>_<idB>) então ninguém mais do grupo participa dela.
 function startPrivateCall(peerId, withVideo) {
-  if (!currentUser) { showToast('⚠ Faça login primeiro','warn'); return; }
+  // Espera a sessão terminar de restaurar antes de decidir se recusa —
+  // ver bloco "_runWhenAuthReady" no topo do módulo pra entender por quê.
+  window._runWhenAuthReady(function() { _startPrivateCallReady(peerId, withVideo); });
+}
+function _startPrivateCallReady(peerId, withVideo) {
   if (!peerId) return;
   if (!_userTemCampanha()) {
     showToast('⚠ Crie ou entre em uma campanha antes de usar a call','warn'); return;
@@ -15573,6 +15581,47 @@ gProvider.addScope('profile');
 gProvider.setCustomParameters({ prompt: 'select_account' });
 
 // ════════════════════════════════════════════════════════════════════════
+//  ESPERA A SESSÃO SER RESTAURADA ANTES DE RECUSAR AÇÕES DE CALL
+//  ------------------------------------------------------------------------
+//  ANTES: ao recarregar a página (ou abrir o link de novo), currentUser
+//  fica null por uma fração de segundo — o tempo que o Firebase Auth leva
+//  pra confirmar que sua sessão já estava logada (onAuthStateChanged é
+//  ASSÍNCRONO). Se você clicasse em "Entrar na call"/"Atender"/"Ligar"
+//  bem nesse instante inicial (bem comum: a pessoa já vê o botão na tela
+//  e clica na hora), os guards de "if (!currentUser)" recusavam a ação
+//  IMEDIATAMENTE com "Faça login primeiro" — mesmo você JÁ estando
+//  logado de verdade, só que a confirmação ainda não tinha chegado.
+//  Um clique repetido um instante depois (quando a sessão já tinha
+//  restaurado) então funcionava — por isso o aviso aparecia junto com a
+//  call funcionando normalmente, o que não fazia sentido nenhum pra quem
+//  via na tela.
+//  AGORA: as ações de call não recusam mais na cara-dura só porque
+//  currentUser ainda está null bem no início — elas ESPERAM a sessão
+//  terminar de restaurar (até 4s) e só então decidem se você está
+//  logado de verdade ou não. Só mostra "Faça login primeiro" se, depois
+//  desse prazo, você continuar sem sessão nenhuma.
+// ════════════════════════════════════════════════════════════════════════
+window._authRestoring = true; // true só até o PRIMEIRO onAuthStateChanged resolver
+window._runWhenAuthReady = function(fn) {
+  if (currentUser) { fn(); return; }
+  if (!window._authRestoring) { showToast('⚠ Faça login primeiro', 'warn'); return; }
+  var waited = 0, step = 150, maxWait = 4000;
+  var iv = setInterval(function() {
+    waited += step;
+    if (currentUser) {
+      clearInterval(iv);
+      fn();
+      return;
+    }
+    if (!window._authRestoring || waited >= maxWait) {
+      clearInterval(iv);
+      if (currentUser) fn();
+      else showToast('⚠ Faça login primeiro', 'warn');
+    }
+  }, step);
+};
+
+// ════════════════════════════════════════════════════════════════════════
 //  SYNC DE "data" (campanhas + fichas + itens/origens/habilidades custom)
 //  ------------------------------------------------------------------------
 //  ANTES: `data` só existia no localStorage do navegador — por isso
@@ -16660,6 +16709,7 @@ onAuthStateChanged(auth, async (fbUser) => {
     _startRealtimeSync();
     _initWebRTC(profile);
     showToast('✓ Sessão restaurada — ' + profile.username, 'ok');
+    window._authRestoring = false; // sessão confirmada — ações de call podem parar de esperar
 
   } else {
     // ── Deslogado do Firebase — MAS com um período de tolerância ──
@@ -16682,6 +16732,7 @@ onAuthStateChanged(auth, async (fbUser) => {
       window._authLogoutTimer = null;
       if (auth.currentUser) return; // já reconectou sozinho — falso alarme, não faz nada
       currentUser = null;
+      window._authRestoring = false; // sem sessão de verdade — ações de call podem parar de esperar e recusar normalmente
       _stopRealtimeSync();
       _cleanupWebRTC();
       _clearCallIdentity(); // aqui sim: deslogou de verdade, ninguém autenticado
