@@ -2632,6 +2632,7 @@ textarea{resize:vertical;min-height:72px;border-radius:var(--r-sm)}
   transition:transform .3s cubic-bezier(.22,1,.36,1);
 }
 .dm-call-invite-banner.show{display:flex;transform:translateX(-50%) translateY(0)}
+.dmci-avatar{width:36px;height:36px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid rgba(90,170,255,0.8)}
 .dmci-ring-icon{font-size:1.5rem;animation:dmciRing 1s infinite}
 @keyframes dmciRing{0%,100%{transform:rotate(0)}20%{transform:rotate(-18deg)}40%{transform:rotate(14deg)}60%{transform:rotate(-10deg)}80%{transform:rotate(6deg)}}
 .dmci-info{flex:1;min-width:0}
@@ -12534,6 +12535,7 @@ function startPrivateCall(peerId, withVideo) {
       window._set(window._ref(window.db, 'dmCalls/' + peerId), {
         from: currentUser.id,
         fromName: currentUser.username || currentUser.nome || 'Alguém',
+        fromAvatar: currentUser.avatar || null,
         video: !!withVideo,
         room: _privateCallRoomId(currentUser.id, peerId),
         ts: Date.now()
@@ -14709,6 +14711,7 @@ function initCallCard() {
 
 <!-- Aviso de chamada privada recebida (estilo "tocando", como no Discord) -->
 <div id="dm-call-invite-banner" class="dm-call-invite-banner">
+  <img id="dmci-avatar" class="dmci-avatar" style="display:none" alt="">
   <div class="dmci-ring-icon">📞</div>
   <div class="dmci-info">
     <div class="dmci-label">CHAMADA PRIVADA</div>
@@ -16617,16 +16620,64 @@ onAuthStateChanged(auth, async (fbUser) => {
 });
 
 // ════════════════════════════════════════════════════════════════════════
+//  NOTIFICAÇÕES NATIVAS DO NAVEGADOR (Notification API)
+//  ------------------------------------------------------------------------
+//  ANTES: não existia NENHUM pedido de permissão de notificação em todo o
+//  código — só havia showToast(), que é um aviso DENTRO da própria aba.
+//  Se a pessoa estivesse numa aba diferente, com o app minimizado, ou só
+//  sem estar olhando pra tela naquele segundo, ela nunca ficava sabendo
+//  que alguém ligou pra ela, entrou na call ou mandou mensagem — mesmo o
+//  Firebase entregando o evento certinho, porque o aviso só aparecia
+//  visualmente dentro da aba. AGORA: ao logar, pedimos permissão de
+//  notificação do navegador uma única vez; se concedida, chamadas
+//  recebidas (privada e de grupo) e mensagens novas do chat também disparam
+//  uma notificação nativa do SO quando a aba não está em foco — clicar nela
+//  foca a aba de novo.
+// ════════════════════════════════════════════════════════════════════════
+function _requestNotificationPermission() {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'default') {
+    try { Notification.requestPermission().catch(function(){}); } catch(e){}
+  }
+}
+window._requestNotificationPermission = _requestNotificationPermission;
+
+// Dispara uma notificação nativa só quando faz sentido: permissão concedida
+// E a aba não está visível/focada agora (se a pessoa já está olhando pro
+// chat/call na tela, o toast dentro da aba já é suficiente e uma notificação
+// nativa por cima só atrapalharia).
+function _fireNativeNotification(title, body, tag) {
+  try {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    if (document.visibilityState === 'visible' && document.hasFocus()) return;
+    var n = new Notification(title, {
+      body: body || '',
+      tag: tag || undefined,
+      renotify: !!tag,
+      icon: 'https://em-content.zobj.net/source/microsoft-teams/337/game-die_1f3b2.png'
+    });
+    n.onclick = function() {
+      try { window.focus(); } catch(e){}
+      try { n.close(); } catch(e){}
+    };
+  } catch(e) { console.warn('[Notification] falha ao exibir', e); }
+}
+window._fireNativeNotification = _fireNativeNotification;
+
+// ════════════════════════════════════════════════════════════════════════
 //  REALTIME SYNC — Chat, Rolls, Status da sessão
 //  Tudo que acontece é visto por TODOS em tempo real
 // ════════════════════════════════════════════════════════════════════════
 let _rtListeners = {};
+var _knownLastChatTs = null; // null = ainda não recebeu o primeiro snapshot (evita notificar o histórico inteiro na entrada)
 
 function _startRealtimeSync() {
   _stopRealtimeSync();
+  _requestNotificationPermission();
 
   // ── Chat em tempo real ──
-  const chatRef = ref(db, 'live/chat');
+  const chatRef = ref(db, 'Live/chat');
+  _knownLastChatTs = null;
   const chatUnsub = onValue(chatRef, (snap) => {
     if (!snap.exists()) return;
     const msgs = [];
@@ -16636,11 +16687,26 @@ function _startRealtimeSync() {
     liveSession.chat = msgs.slice(-200);
     renderChatFeed();
     renderChatFeedOv();
+    // ── Avisa com notificação nativa quando chega mensagem nova de outra
+    //    pessoa (não a primeira leitura, que é só o histórico existente) ──
+    var lastMsg = msgs[msgs.length - 1];
+    if (lastMsg) {
+      var isFromMe = currentUser && lastMsg.senderId === currentUser.id;
+      var visibleToMe = !lastMsg.pvTo || (currentUser && (lastMsg.pvTo === currentUser.id || lastMsg.senderId === currentUser.id));
+      if (_knownLastChatTs !== null && (lastMsg.ts || 0) > _knownLastChatTs &&
+          !isFromMe && !lastMsg.isSystem && lastMsg.type !== 'system' && visibleToMe) {
+        var preview = (lastMsg.text || lastMsg.msg || '📎 anexo');
+        if (preview.length > 80) preview = preview.slice(0, 80) + '…';
+        var label = lastMsg.pvTo ? ('🔒 ' + (lastMsg.sender || 'Alguém')) : ('💬 ' + (lastMsg.sender || 'Alguém'));
+        _fireNativeNotification(label, preview, 'chat-msg');
+      }
+      _knownLastChatTs = lastMsg.ts || Date.now();
+    }
   });
   _rtListeners.chat = () => off(chatRef);
 
   // ── Rolls em tempo real ──
-  const rollRef = ref(db, 'live/rolls');
+  const rollRef = ref(db, 'Live/rolls');
   const rollUnsub = onValue(rollRef, (snap) => {
     if (!snap.exists()) return;
     const rolls = [];
@@ -16652,7 +16718,7 @@ function _startRealtimeSync() {
   _rtListeners.rolls = () => off(rollRef);
 
   // ── Status da sessão (ativo/inativo) ──
-  const sessRef = ref(db, 'live/session');
+  const sessRef = ref(db, 'Live/session');
   onValue(sessRef, (snap) => {
     if (!snap.exists()) return;
     const s = snap.val();
@@ -16664,7 +16730,7 @@ function _startRealtimeSync() {
   _rtListeners.session = () => off(sessRef);
 
   // ── Mídia ao vivo (o que o mestre está exibindo) ──
-  const mediaDisplayRef = ref(db, 'live/currentDisplay');
+  const mediaDisplayRef = ref(db, 'Live/currentDisplay');
   onValue(mediaDisplayRef, (snap) => {
     if (!snap.exists()) {
       // Mestre limpou a tela
@@ -16753,7 +16819,7 @@ window.toggleLive = function() {
     showToast('⚠ Apenas o Mestre da campanha pode controlar a sessão', 'warn'); return;
   }
   liveSession.active = !liveSession.active;
-  set(ref(db, 'live/session'), { active: liveSession.active, updatedBy: currentUser.username, ts: Date.now() });
+  set(ref(db, 'Live/session'), { active: liveSession.active, updatedBy: currentUser.username, ts: Date.now() });
   _applySessionUI(liveSession.active);
 };
 
@@ -16771,8 +16837,8 @@ window.pushChatMsg = function(msg) {
   // ANTES: essa chamada não tinha .catch() nenhum — se um GIF/figurinha/imagem
   // fosse grande demais ou o login tivesse expirado, a mensagem simplesmente
   // não chegava aos outros e ninguém ficava sabendo (falha 100% silenciosa).
-  push(ref(db, 'live/chat'), msg).catch(function(e) {
-    _fbHandleWriteError(e, function(){ push(ref(db, 'live/chat'), msg).catch(function(){}); }, 'mensagem do chat');
+  push(ref(db, 'Live/chat'), msg).catch(function(e) {
+    _fbHandleWriteError(e, function(){ push(ref(db, 'Live/chat'), msg).catch(function(){}); }, 'mensagem do chat');
   });
   // Local imediato (sempre aparece pra quem enviou, mesmo se a sincronização falhar)
   liveSession.chat.push(msg);
@@ -16794,7 +16860,7 @@ window.transmitMedia = function(id) {
   if (!m) return;
   liveSession.currentMedia = id;
   // Transmite para todos via Firebase
-  set(ref(db, 'live/currentDisplay'), { id: m.id, name: m.name, type: m.type, dataUrl: m.dataUrl, ts: Date.now() });
+  set(ref(db, 'Live/currentDisplay'), { id: m.id, name: m.name, type: m.type, dataUrl: m.dataUrl, ts: Date.now() });
   // Exibe local
   var display = document.getElementById('live-display');
   var img     = document.getElementById('live-img');
@@ -16817,7 +16883,7 @@ window.transmitMedia = function(id) {
 var _origClearLive = window.clearLiveDisplay;
 window.clearLiveDisplay = function() {
   liveSession.currentMedia = null;
-  remove(ref(db, 'live/currentDisplay'));
+  remove(ref(db, 'Live/currentDisplay'));
   var img = document.getElementById('live-img');
   var vid = document.getElementById('live-video');
   var ph  = document.getElementById('live-placeholder');
@@ -16840,7 +16906,7 @@ window.pushRoll = function(entry) {
   if (!entry.avatar && currentUser) entry.avatar = currentUser.avatar || null;
   entry.ts = Date.now();
   // Envia ao Firebase (todos veem)
-  push(ref(db, 'live/rolls'), entry);
+  push(ref(db, 'Live/rolls'), entry);
   // Local imediato
   liveSession.rolls.unshift(entry);
   if (liveSession.rolls.length > 60) liveSession.rolls.length = 60;
@@ -17164,6 +17230,7 @@ function _watchGroupCallActivity(myId) {
           showToast('📞 ' + nm + ' entrou na call da campanha', 'ok');
           var ob = document.getElementById('call-open-btn');
           if (ob) { ob.classList.add('call-pulse'); setTimeout(function(){ ob.classList.remove('call-pulse'); }, 4000); }
+          _fireNativeNotification('📞 ' + nm, 'Entrou na call da campanha — toque para ir também', 'group-call');
         }
       });
     }
@@ -17186,17 +17253,29 @@ function _watchIncomingPrivateCalls(myId) {
     if (Date.now() - (inv.ts || 0) > 30000) { return; }
     // Já estou nessa mesma call privada? não precisa avisar de novo
     if (callState.privateWith === inv.from) { _hideIncomingCallBanner(); return; }
-    _showIncomingCallBanner(inv.from, inv.fromName || 'Alguém', !!inv.video);
+    _showIncomingCallBanner(inv.from, inv.fromName || 'Alguém', !!inv.video, inv.fromAvatar || null);
   }, _fbReadErrHandler('dmCalls/'+myId+' (convites de call privada)'));
 }
-function _showIncomingCallBanner(fromId, fromName, video) {
+function _showIncomingCallBanner(fromId, fromName, video, fromAvatar) {
   var b = document.getElementById('dm-call-invite-banner');
   if (!b) return;
+  var isNew = b.dataset.fromId !== fromId || !b.classList.contains('show');
   b.dataset.fromId = fromId;
   b.dataset.video = video ? '1' : '';
   var nameEl = document.getElementById('dmci-name');
   if (nameEl) nameEl.textContent = fromName + (video ? ' (vídeo)' : '');
+  // Mostra a foto de quem está ligando (antes só tinha um ícone genérico de
+  // telefone — ninguém via a imagem/avatar de quem estava chamando).
+  var avEl = document.getElementById('dmci-avatar');
+  var icoEl = document.querySelector('.dmci-ring-icon');
+  if (avEl) {
+    if (fromAvatar) { avEl.src = fromAvatar; avEl.style.display = 'block'; if (icoEl) icoEl.style.display = 'none'; }
+    else { avEl.style.display = 'none'; if (icoEl) icoEl.style.display = ''; }
+  }
   b.classList.add('show');
+  if (isNew) {
+    _fireNativeNotification('📞 ' + fromName, video ? 'Chamada de vídeo recebida' : 'Chamada de voz recebida', 'dm-call');
+  }
 }
 function _hideIncomingCallBanner() {
   var b = document.getElementById('dm-call-invite-banner');
@@ -19184,10 +19263,10 @@ window.plyOpen = function() {
   _plyRolls();
   _whenFb(function() {
     if (!window._onValue||!window._ref||!window.db) return;
-    var r1 = window._ref(window.db,'live/currentDisplay');
+    var r1 = window._ref(window.db,'Live/currentDisplay');
     window._onValue(r1, function(s){ _plyMedia(s.exists()?s.val():null); });
     _plyUnsub.push(function(){ window._off(r1); });
-    var r2 = window._ref(window.db,'live/rolls');
+    var r2 = window._ref(window.db,'Live/rolls');
     window._onValue(r2, function(s){
       if(!s.exists()) return;
       var a=[]; s.forEach(function(c){a.push(c.val());}); a.sort(function(x,y){return (y.ts||0)-(x.ts||0);});
@@ -19195,10 +19274,10 @@ window.plyOpen = function() {
       var dh=document.getElementById('dh-ov'); if(dh&&dh.classList.contains('open')) dhRender();
     });
     _plyUnsub.push(function(){ window._off(r2); });
-    var r3 = window._ref(window.db,'live/session');
+    var r3 = window._ref(window.db,'Live/session');
     window._onValue(r3, function(s){ if(s.exists()) _plyUpdateDot(s.val().active); });
     _plyUnsub.push(function(){ window._off(r3); });
-    var r4 = window._ref(window.db,'live/teleprompter');
+    var r4 = window._ref(window.db,'Live/teleprompter');
     window._onValue(r4, function(s){ _applyTP(s.exists()?s.val():null); });
     _plyUnsub.push(function(){ window._off(r4); });
   });
@@ -19262,7 +19341,7 @@ document.addEventListener('keydown', function(e){
 // ─────────────────────────────────────────
 _whenFb(function(){
   if(!window._onValue||!window._ref||!window.db) return;
-  window._onValue(window._ref(window.db,'live/teleprompter'), function(s){ _applyTP(s.exists()?s.val():null); });
+  window._onValue(window._ref(window.db,'Live/teleprompter'), function(s){ _applyTP(s.exists()?s.val():null); });
 });
 
 function _applyTP(d) {
@@ -19280,14 +19359,14 @@ window.tpSend = function() {
   if(!text){tpClear();return;}
   _whenFb(function(){
     if(!window._set||!window._ref||!window.db) return;
-    window._set(window._ref(window.db,'live/teleprompter'),{text:text,active:true,by:currentUser.username,ts:Date.now()});
+    window._set(window._ref(window.db,'Live/teleprompter'),{text:text,active:true,by:currentUser.username,ts:Date.now()});
     showToast('📜 Teleprompter enviado!','ok');
   });
 };
 window.tpClear = function() {
   _whenFb(function(){
     if(!window._remove||!window._ref||!window.db) return;
-    window._remove(window._ref(window.db,'live/teleprompter'));
+    window._remove(window._ref(window.db,'Live/teleprompter'));
     var i=document.getElementById('tp-inp'); if(i) i.value='';
     showToast('📜 Limpo','info');
   });
