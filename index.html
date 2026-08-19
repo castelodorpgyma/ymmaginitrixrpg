@@ -7302,11 +7302,43 @@ var selectedRole = 'mestre';
   if(seed.users && seed.users.length) authUsers = JSON.parse(JSON.stringify(seed.users));
 })();
 
+var _usersToastLastAt = 0;
 function saveUsers() {
-  try { localStorage.setItem(AUTH_KEY, JSON.stringify(authUsers)); }
+  // ── CORRIGIDO — ESTA ERA A CAUSA RAIZ DO AVISO REAPARECENDO SOZINHO ──
+  // O listener 'users/' (mais abaixo, fora deste bloco) roda pra TODO
+  // MUNDO e chama saveUsers() toda vez que QUALQUER jogador, em QUALQUER
+  // lugar do sistema, muda o próprio perfil (avatar, banner, nome...).
+  // authUsers é a lista de TODOS os usuários já vistos, cada um com o
+  // próprio avatar/banner em base64 dentro — e essa lista inteira era
+  // gravada no localStorage TODA VEZ. Isso faz o cache local crescer
+  // sozinho conforme mais gente se cadastra ou troca de foto, sem você
+  // ter feito nada — e explica o aviso de "armazenamento cheio"
+  // reaparecendo do nada, minutos depois, sem nenhum upload seu.
+  // AGORA: só o perfil do usuário ATUAL (você) é guardado completo no
+  // cache local — é o único que precisa aparecer na hora, antes do
+  // Firebase reconectar, ao recarregar a página. Os avatares/banners dos
+  // OUTROS jogadores não ficam mais no localStorage; eles continuam
+  // disponíveis normalmente em memória (chegam ao vivo pelo Firebase
+  // assim que a página carrega), só não pesam mais no cache offline.
+  try {
+    var lean = authUsers.map(function(u) {
+      if (currentUser && u.id === currentUser.id) return u; // você: mantém completo
+      var copy = Object.assign({}, u);
+      delete copy.avatar;
+      delete copy.banner;
+      return copy;
+    });
+    localStorage.setItem(AUTH_KEY, JSON.stringify(lean));
+  }
   catch(err) {
     console.error('[saveUsers]', err);
-    showToast('⚠ Não foi possível salvar — armazenamento local cheio. Tente uma imagem de perfil menor.', 'err');
+    // Throttle: no máximo 1 aviso a cada 15s, senão uma sequência de perfis
+    // remotos mudando ao mesmo tempo empilhava vários toasts idênticos.
+    var now = Date.now();
+    if (now - _usersToastLastAt > 15000) {
+      _usersToastLastAt = now;
+      showToast('⚠ Cache local de perfis cheio (não afeta sua campanha nem o Firebase) — libere espaço do navegador quando puder.', 'warn');
+    }
   }
 }
 
