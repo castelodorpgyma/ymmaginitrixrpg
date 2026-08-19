@@ -16563,6 +16563,9 @@ onValue(_callLiveStripRef, function(snap) {
 // ────────────────────────────────────────────────────────────────────────
 onAuthStateChanged(auth, async (fbUser) => {
   if (fbUser) {
+    // Um logout "fantasma" pode ter sido agendado (ver branch de baixo) —
+    // cancela, pois o usuário voltou a estar autenticado.
+    if (window._authLogoutTimer) { clearTimeout(window._authLogoutTimer); window._authLogoutTimer = null; }
     // Outro fluxo já está tratando este login — não interferir
     if (window._gAuthLock || window._fbCreatingUser) return;
     // Já processamos este UID nesta sessão
@@ -16606,16 +16609,34 @@ onAuthStateChanged(auth, async (fbUser) => {
     showToast('✓ Sessão restaurada — ' + profile.username, 'ok');
 
   } else {
-    // Deslogado do Firebase
+    // ── Deslogado do Firebase — MAS com um período de tolerância ──
+    // ANTES: qualquer disparo de onAuthStateChanged com fbUser=null
+    // (inclusive uma piscada momentânea durante a renovação automática do
+    // token, comum ao trocar de rede/wifi para dados móveis, ou o app
+    // ficar em segundo plano no celular) derrubava currentUser NA HORA,
+    // chamava _cleanupWebRTC() — que ENCERRA a call ativa e fecha as
+    // conexões de peer — e mostrava a tela de login por cima de tudo.
+    // Um instante depois o Firebase reconectava e tudo "voltava sozinho",
+    // mas a call já tinha caído e precisado reconectar do zero — daí o
+    // aviso de "Faça login primeiro" aparecendo no meio de uma call que
+    // até então estava funcionando, e quedas de chamada sem motivo claro.
+    // AGORA: só tratamos como logout de verdade se o estado continuar
+    // nulo depois de um pequeno intervalo de tolerância — uma piscada
+    // momentânea do SDK não derruba mais a call nem a sessão.
     if (window._gAuthLock) return; // redirect em andamento — não limpar
-    currentUser = null;
-    _stopRealtimeSync();
-    _cleanupWebRTC();
-    _clearCallIdentity(); // aqui sim: deslogou de verdade, ninguém autenticado
-    var authScreen = document.getElementById('auth-screen');
-    if (authScreen) authScreen.classList.remove('gone');
-    var userBar = document.getElementById('user-bar');
-    if (userBar) userBar.classList.remove('visible');
+    if (window._authLogoutTimer) clearTimeout(window._authLogoutTimer);
+    window._authLogoutTimer = setTimeout(function() {
+      window._authLogoutTimer = null;
+      if (auth.currentUser) return; // já reconectou sozinho — falso alarme, não faz nada
+      currentUser = null;
+      _stopRealtimeSync();
+      _cleanupWebRTC();
+      _clearCallIdentity(); // aqui sim: deslogou de verdade, ninguém autenticado
+      var authScreen = document.getElementById('auth-screen');
+      if (authScreen) authScreen.classList.remove('gone');
+      var userBar = document.getElementById('user-bar');
+      if (userBar) userBar.classList.remove('visible');
+    }, 2000);
   }
 });
 
