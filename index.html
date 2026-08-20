@@ -9065,7 +9065,7 @@ function switchCampTab(tab) {
           if (snap.exists()) snap.forEach(function(child){ _catalogoCampanhas.push(child.val()); });
           _buildCatalogo();
           renderCatalogo();
-        });
+        }, window._fbReadErrHandler ? window._fbReadErrHandler('globalCampanhas (catálogo)') : undefined);
       } catch(e) {}
     }
   }
@@ -12047,7 +12047,12 @@ function openThemeModal() {
 function applyTheme(themeId) {
   THEMES.forEach(function(t){ document.body.classList.remove('theme-'+t.id); });
   document.body.classList.add('theme-'+themeId);
-  localStorage.setItem('ymm_theme', themeId);
+  // Protegido: se o cache local estiver cheio (herdado de outra coisa, ex.:
+  // uma campanha com muitas imagens), gravar o tema NÃO PODE quebrar o
+  // resto da função — antes, uma exceção aqui pulava direto pro erro do
+  // navegador e o resto da troca de tema (destaque visual, toast) nunca
+  // chegava a rodar.
+  try { localStorage.setItem('ymm_theme', themeId); } catch(e){}
   var grid = document.getElementById('theme-grid');
   if (grid) {
     var t = THEMES.find(function(x){ return x.id===themeId; });
@@ -12066,7 +12071,7 @@ function applyTheme(themeId) {
 function setDarkMode(isDark) {
   if (isDark) document.body.classList.remove('light-mode');
   else document.body.classList.add('light-mode');
-  localStorage.setItem('ymm_darkmode', isDark ? '1' : '0');
+  try { localStorage.setItem('ymm_darkmode', isDark ? '1' : '0'); } catch(e){}
   var dbtn = document.getElementById('mode-dark-btn');
   var lbtn = document.getElementById('mode-light-btn');
   if (dbtn) dbtn.style.opacity = isDark ? '1' : '.45';
@@ -14362,7 +14367,11 @@ function chatKeydown(e, which) {
 }
 
 function sendChat() {
-  if(!currentUser) { showToast('⚠ Faça login primeiro','warn'); return; }
+  // Mesma corrida de largada das calls: se a página acabou de carregar e o
+  // Firebase ainda está confirmando a sessão, espera em vez de recusar.
+  window._runWhenAuthReady(_sendChatReady);
+}
+function _sendChatReady() {
   var inp = document.getElementById('chat-inp');
   var text = inp ? inp.value.trim() : '';
   if(!text) return;
@@ -14375,7 +14384,9 @@ function sendChat() {
 }
 
 function sendChatOv() {
-  if(!currentUser) { showToast('⚠ Faça login primeiro','warn'); return; }
+  window._runWhenAuthReady(_sendChatOvReady);
+}
+function _sendChatOvReady() {
   var inp = document.getElementById('chat-inp-ov');
   var text = inp ? inp.value.trim() : '';
   if(!text) return;
@@ -14423,7 +14434,9 @@ function deleteMsg(msgId) {
 
 // ── Reactions ──
 function toggleReaction(msgId, emoji) {
-  if (!currentUser) { showToast('⚠ Faça login primeiro','warn'); return; }
+  window._runWhenAuthReady(function(){ _toggleReactionReady(msgId, emoji); });
+}
+function _toggleReactionReady(msgId, emoji) {
   var msg = liveSession.chat && liveSession.chat.find(function(m){ return m.id === msgId; });
   if (!msg) return;
   if (!msg.reactions) msg.reactions = {};
@@ -14636,7 +14649,7 @@ function _tenorPromptKey(suffix) {
   if (nova === null) return;
   nova = nova.trim();
   if (!nova) { localStorage.removeItem('ymm_gif_key'); showToast('🔑 Chave do GIPHY removida', 'warn'); return; }
-  localStorage.setItem('ymm_gif_key', nova);
+  try { localStorage.setItem('ymm_gif_key', nova); } catch(e){}
   showToast('✓ Chave do GIPHY salva — buscando GIFs...', 'ok');
   var grid = document.getElementById('sp-grid-tenor-'+(suffix||''));
   if (grid) grid.dataset.loaded = '';
@@ -16055,8 +16068,12 @@ onValue(_usersRef, function(snap) {
 let _presenceRef = null;
 function _setupPresence(uid, username) {
   _presenceRef = ref(db, 'presence/' + uid);
-  set(_presenceRef, { online: true, username: username, lastSeen: Date.now() });
-  onDisconnect(_presenceRef).set({ online: false, username: username, lastSeen: Date.now() });
+  // Protegido: sem isso, se a regra do Firebase negar a escrita aqui, você
+  // "sumia" da lista de presença/online pra todo mundo, sem NENHUM aviso —
+  // exatamente o tipo de bug silencioso que temos caçado nesta campanha.
+  set(_presenceRef, { online: true, username: username, lastSeen: Date.now() })
+    .catch(function(e){ _fbHandleWriteError(e, function(){ _setupPresence(uid, username); }, 'presença online'); });
+  onDisconnect(_presenceRef).set({ online: false, username: username, lastSeen: Date.now() }).catch(function(){});
 }
 
 // ────────────────────────────────────────────────────────────────────────
@@ -16601,7 +16618,7 @@ onValue(gcRef, function(snap) {
   var countEl = document.getElementById('cat-count');
   if (countEl) countEl.textContent = '// ' + _catalogoCampanhas.length + ' campanha(s) encontrada(s)';
   if (typeof _syncCallEntryBtn === 'function') try{ _syncCallEntryBtn(); }catch(e){}
-});
+}, _fbReadErrHandler('globalCampaigns (catálogo)'));
 
 // Escuta em tempo real se a call de GRUPO está ativa e quem está autorizado —
 // SEMPRE, independente de estar com o overlay de call aberto. É isto que
@@ -16827,7 +16844,7 @@ function _startRealtimeSync() {
       }
       _knownLastChatTs = lastMsg.ts || Date.now();
     }
-  });
+  }, _fbReadErrHandler('Live/chat'));
   _rtListeners.chat = () => off(chatRef);
 
   // ── Rolls em tempo real ──
@@ -16839,7 +16856,7 @@ function _startRealtimeSync() {
     rolls.sort((a, b) => (b.ts || 0) - (a.ts || 0));
     liveSession.rolls = rolls.slice(0, 60);
     renderRollFeed();
-  });
+  }, _fbReadErrHandler('Live/rolls'));
   _rtListeners.rolls = () => off(rollRef);
 
   // ── Status da sessão (ativo/inativo) ──
@@ -16851,7 +16868,7 @@ function _startRealtimeSync() {
       liveSession.active = s.active;
       _applySessionUI(s.active);
     }
-  });
+  }, _fbReadErrHandler('Live/session'));
   _rtListeners.session = () => off(sessRef);
 
   // ── Mídia ao vivo (o que o mestre está exibindo) ──
@@ -16871,7 +16888,7 @@ function _startRealtimeSync() {
         _showDisplayForPlayer(d);
       }
     }
-  });
+  }, _fbReadErrHandler('Live/currentDisplay'));
   _rtListeners.display = () => off(mediaDisplayRef);
 
   // ── Players online (presença) ──
@@ -16883,7 +16900,7 @@ function _startRealtimeSync() {
     window._onlinePlayers = online;
     renderCallParticipants();
     renderLivePlayersStatus();
-  });
+  }, _fbReadErrHandler('presence'));
   _rtListeners.presence = () => off(presRef);
 }
 
@@ -16944,7 +16961,8 @@ window.toggleLive = function() {
     showToast('⚠ Apenas o Mestre da campanha pode controlar a sessão', 'warn'); return;
   }
   liveSession.active = !liveSession.active;
-  set(ref(db, 'Live/session'), { active: liveSession.active, updatedBy: currentUser.username, ts: Date.now() });
+  set(ref(db, 'Live/session'), { active: liveSession.active, updatedBy: currentUser.username, ts: Date.now() })
+    .catch(function(e){ _fbHandleWriteError(e, null, 'status da sessão'); });
   _applySessionUI(liveSession.active);
 };
 
@@ -16985,7 +17003,8 @@ window.transmitMedia = function(id) {
   if (!m) return;
   liveSession.currentMedia = id;
   // Transmite para todos via Firebase
-  set(ref(db, 'Live/currentDisplay'), { id: m.id, name: m.name, type: m.type, dataUrl: m.dataUrl, ts: Date.now() });
+  set(ref(db, 'Live/currentDisplay'), { id: m.id, name: m.name, type: m.type, dataUrl: m.dataUrl, ts: Date.now() })
+    .catch(function(e){ _fbHandleWriteError(e, null, 'mídia exibida'); });
   // Exibe local
   var display = document.getElementById('live-display');
   var img     = document.getElementById('live-img');
@@ -17031,7 +17050,7 @@ window.pushRoll = function(entry) {
   if (!entry.avatar && currentUser) entry.avatar = currentUser.avatar || null;
   entry.ts = Date.now();
   // Envia ao Firebase (todos veem)
-  push(ref(db, 'Live/rolls'), entry);
+  push(ref(db, 'Live/rolls'), entry).catch(function(e){ _fbHandleWriteError(e, function(){ push(ref(db,'Live/rolls'), entry).catch(function(){}); }, 'rolagem de dado'); });
   // Local imediato
   liveSession.rolls.unshift(entry);
   if (liveSession.rolls.length > 60) liveSession.rolls.length = 60;
@@ -17802,7 +17821,12 @@ function _createPeerConn(roomId, peerUid) {
 }
 
 function _sendSignal(roomId, targetUid, data) {
-  push(ref(db, 'calls/' + roomId + '/signals/' + targetUid), data);
+  // Só loga no console (sem toast) — esse push dispara MUITAS vezes por
+  // segundo durante a negociação WebRTC (ICE candidates), então um erro
+  // aqui não deve virar um toast por chamada, só não pode mais desaparecer
+  // 100% em silêncio (era uma promise nunca tratada antes).
+  push(ref(db, 'calls/' + roomId + '/signals/' + targetUid), data)
+    .catch(function(e){ console.warn('[WebRTC signal] falha ao enviar', e && (e.code||e.message)); });
 }
 
 // ── Áudio remoto dos participantes ──
@@ -18271,7 +18295,7 @@ function _notifyMediaTransmission(gmName, mediaType) {
         });
       });
       _screenTrackId = null;
-      if (_myCallId) set(ref(db, 'calls/'+_curCallRoom()+'/screenShare'), { active: false, ts: Date.now() });
+      if (_myCallId) set(ref(db, 'calls/'+_curCallRoom()+'/screenShare'), { active: false, ts: Date.now() }).catch(function(){});
     } else if (callState.screenState === 'active' && callState.screenStream) {
       // Acabamos de COMEÇAR a compartilhar — a prévia local já foi mostrada pela função original
       var track = callState.screenStream.getVideoTracks()[0];
@@ -18284,7 +18308,7 @@ function _notifyMediaTransmission(gmName, mediaType) {
           name: (currentUser && currentUser.username) || 'Alguém',
           streamId: callState.screenStream.id,
           ts: Date.now()
-        });
+        }).catch(function(e){ _fbHandleWriteError(e, null, 'compartilhar tela'); });
       }
     }
   };
@@ -18302,7 +18326,7 @@ function _notifyMediaTransmission(gmName, mediaType) {
       });
     });
     _screenTrackId = null;
-    if (_myCallId) set(ref(db, 'calls/'+_curCallRoom()+'/screenShare'), { active: false, ts: Date.now() });
+    if (_myCallId) set(ref(db, 'calls/'+_curCallRoom()+'/screenShare'), { active: false, ts: Date.now() }).catch(function(){});
     if (typeof _origStopScreenStream === 'function') _origStopScreenStream();
   };
 })();
@@ -18362,7 +18386,9 @@ function toggleQuickDice() {
 }
 
 function quickRollDie(sides) {
-  if (!currentUser) { showToast('⚠ Faça login primeiro', 'warn'); return; }
+  window._runWhenAuthReady(function(){ _quickRollDieReady(sides); });
+}
+function _quickRollDieReady(sides) {
   var result = Math.floor(Math.random() * sides) + 1;
   var isCrit = result === sides;
   var isFail = result === 1;
@@ -18629,7 +18655,7 @@ function _sbLoadPublic() {
         if (snap.exists()) snap.forEach(function(c){ var v=c.val()||{}; v.id=c.key; items.push(v); });
         _sbPublicItems = items.length ? items : _sbDefaultPublic();
         renderSoundboard();
-      });
+      }, window._fbReadErrHandler ? window._fbReadErrHandler('soundboardPublic') : function(err){ console.warn('[Soundboard] leitura negada', err); _sbPublicItems = _sbDefaultPublic(); renderSoundboard(); });
       return;
     } catch(e){ console.warn('[Soundboard] sync público falhou', e); }
   }
@@ -19389,7 +19415,7 @@ window.plyOpen = function() {
   _whenFb(function() {
     if (!window._onValue||!window._ref||!window.db) return;
     var r1 = window._ref(window.db,'Live/currentDisplay');
-    window._onValue(r1, function(s){ _plyMedia(s.exists()?s.val():null); });
+    window._onValue(r1, function(s){ _plyMedia(s.exists()?s.val():null); }, window._fbReadErrHandler && window._fbReadErrHandler('Live/currentDisplay (tela do player)'));
     _plyUnsub.push(function(){ window._off(r1); });
     var r2 = window._ref(window.db,'Live/rolls');
     window._onValue(r2, function(s){
@@ -19397,13 +19423,13 @@ window.plyOpen = function() {
       var a=[]; s.forEach(function(c){a.push(c.val());}); a.sort(function(x,y){return (y.ts||0)-(x.ts||0);});
       liveSession.rolls=a.slice(0,60); _plyRolls();
       var dh=document.getElementById('dh-ov'); if(dh&&dh.classList.contains('open')) dhRender();
-    });
+    }, window._fbReadErrHandler && window._fbReadErrHandler('Live/rolls (tela do player)'));
     _plyUnsub.push(function(){ window._off(r2); });
     var r3 = window._ref(window.db,'Live/session');
-    window._onValue(r3, function(s){ if(s.exists()) _plyUpdateDot(s.val().active); });
+    window._onValue(r3, function(s){ if(s.exists()) _plyUpdateDot(s.val().active); }, window._fbReadErrHandler && window._fbReadErrHandler('Live/session (tela do player)'));
     _plyUnsub.push(function(){ window._off(r3); });
     var r4 = window._ref(window.db,'Live/teleprompter');
-    window._onValue(r4, function(s){ _applyTP(s.exists()?s.val():null); });
+    window._onValue(r4, function(s){ _applyTP(s.exists()?s.val():null); }, window._fbReadErrHandler && window._fbReadErrHandler('Live/teleprompter (tela do player)'));
     _plyUnsub.push(function(){ window._off(r4); });
   });
   if (document.fullscreenEnabled) ov.requestFullscreen().catch(function(){});
@@ -19466,7 +19492,7 @@ document.addEventListener('keydown', function(e){
 // ─────────────────────────────────────────
 _whenFb(function(){
   if(!window._onValue||!window._ref||!window.db) return;
-  window._onValue(window._ref(window.db,'Live/teleprompter'), function(s){ _applyTP(s.exists()?s.val():null); });
+  window._onValue(window._ref(window.db,'Live/teleprompter'), function(s){ _applyTP(s.exists()?s.val():null); }, window._fbReadErrHandler && window._fbReadErrHandler('Live/teleprompter'));
 });
 
 function _applyTP(d) {
@@ -23004,12 +23030,12 @@ function opSalvarItem(pid){
       document.body.style.userSelect = '';
       document.body.style.cursor = '';
       var finalW = sidebar.getBoundingClientRect().width;
-      localStorage.setItem('ymm_sidebar_w', Math.round(finalW));
+      try { localStorage.setItem('ymm_sidebar_w', Math.round(finalW)); } catch(e){}
     });
     // Duplo-clique no handle reseta pro tamanho padrão
     handle.addEventListener('dblclick', function(){
       applySidebarWidth(248);
-      localStorage.setItem('ymm_sidebar_w', 248);
+      try { localStorage.setItem('ymm_sidebar_w', 248); } catch(e){}
     });
   }
 
@@ -23058,7 +23084,7 @@ function opSalvarItem(pid){
       document.body.style.userSelect = '';
       document.body.style.cursor = '';
       var finalW = panel.getBoundingClientRect().width;
-      localStorage.setItem('ymm_callchat_w', Math.round(finalW));
+      try { localStorage.setItem('ymm_callchat_w', Math.round(finalW)); } catch(e){}
     });
     handle.addEventListener('dblclick', function(){
       panel.style.width = '';
