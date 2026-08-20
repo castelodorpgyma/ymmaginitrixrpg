@@ -11725,7 +11725,9 @@ function setProfStatus(el) {
 }
 
 function saveProfInfo() {
-  if (!currentUser) return;
+  window._runWhenAuthReady(_saveProfInfoReady);
+}
+function _saveProfInfoReady() {
   var bio = document.getElementById('prof-bio').value;
   var sel = document.querySelector('.prof-status-opt.sel');
   currentUser.bio = bio;
@@ -11771,7 +11773,9 @@ function renderProfStats() {
 // PERFIL: ABRIR / FECHAR MEU PERFIL
 // ══════════════════════════════════════════
 function openProfile() {
-  if (!currentUser) return;
+  window._runWhenAuthReady(_openProfileReady);
+}
+function _openProfileReady() {
   // Preenche dados
   var uname = document.getElementById('prof-username');
   var rbadge = document.getElementById('prof-role-badge');
@@ -11810,7 +11814,9 @@ function openProfile() {
 
 // ── Edição do nome de usuário ──
 function toggleEditUsername() {
-  if (!currentUser) return;
+  window._runWhenAuthReady(_toggleEditUsernameReady);
+}
+function _toggleEditUsernameReady() {
   var disp = document.getElementById('prof-username');
   var inp  = document.getElementById('prof-username-input');
   var editBtn = document.getElementById('prof-username-edit-btn');
@@ -11835,7 +11841,9 @@ function _cancelEditUsername() {
   if (saveBtn) saveBtn.style.display = 'none';
 }
 function saveUsername() {
-  if (!currentUser) return;
+  window._runWhenAuthReady(_saveUsernameReady);
+}
+function _saveUsernameReady() {
   var inp = document.getElementById('prof-username-input');
   if (!inp) return;
   var novo = inp.value.trim();
@@ -11873,7 +11881,12 @@ function closeProfileModal() {
 function updateProfileAvatar(e) {
   var file = e.target.files[0]; if (!file) return;
   _processAvatarFile(file, function(dataUrl) {
-    if (!currentUser) return;
+    window._runWhenAuthReady(function(){ _updateProfileAvatarReady(dataUrl); });
+  });
+  // Permite escolher o mesmo arquivo de novo em seguida sem precisar trocar
+  e.target.value = '';
+}
+function _updateProfileAvatarReady(dataUrl) {
     currentUser.avatar = dataUrl;
     var idx = authUsers.findIndex(function(u){ return u.id === currentUser.id; });
     if (idx !== -1) authUsers[idx].avatar = currentUser.avatar;
@@ -11886,15 +11899,15 @@ function updateProfileAvatar(e) {
     var avMedia = document.getElementById('prof-avatar-media');
     if (avMedia) avMedia.innerHTML = '<img src="'+currentUser.avatar+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%">';
     showToast('✓ Avatar atualizado', 'ok');
-  });
-  // Permite escolher o mesmo arquivo de novo em seguida sem precisar trocar
-  e.target.value = '';
 }
 
 function updateProfileBanner(e) {
   var file = e.target.files[0]; if (!file) return;
   _processAvatarFile(file, function(dataUrl) {
-    if (!currentUser) return;
+    window._runWhenAuthReady(function(){ _updateProfileBannerReady(dataUrl); });
+  }, { maxDim: 1200, quality: 0.82 });
+}
+function _updateProfileBannerReady(dataUrl) {
     currentUser.banner = dataUrl;
     var idx = authUsers.findIndex(function(u){ return u.id === currentUser.id; });
     if (idx !== -1) authUsers[idx].banner = currentUser.banner;
@@ -11903,7 +11916,6 @@ function updateProfileBanner(e) {
     var img = document.getElementById('prof-banner-img');
     if (img) { img.src = currentUser.banner; img.style.display = 'block'; }
     showToast('✓ Banner atualizado', 'ok');
-  }, { maxDim: 1200, quality: 0.82 });
 }
 
 function changePassword() {
@@ -17984,7 +17996,7 @@ function _attachRemoteStream(uid, stream) {
     vidEl.play().catch(e => console.warn('[WebRTC] Erro ao dar play no vídeo remoto:', e));
   }
   
-  showToast('🔊 ' + (uid === _myCallId ? 'Você' : uid) + ' transmitindo...', 'ok');
+  showToast('🔊 ' + (uid === _myCallId ? 'Você' : ((window._callMembersCache && window._callMembersCache[uid] && window._callMembersCache[uid].username) || 'Alguém')) + ' transmitindo...', 'ok');
 }
 
 function _removeRemoteStream(uid) {
@@ -19510,16 +19522,17 @@ window.tpSend = function() {
   if(!text){tpClear();return;}
   _whenFb(function(){
     if(!window._set||!window._ref||!window.db) return;
-    window._set(window._ref(window.db,'Live/teleprompter'),{text:text,active:true,by:currentUser.username,ts:Date.now()});
-    showToast('📜 Teleprompter enviado!','ok');
+    window._set(window._ref(window.db,'Live/teleprompter'),{text:text,active:true,by:currentUser.username,ts:Date.now()})
+      .then(function(){ showToast('📜 Teleprompter enviado!','ok'); })
+      .catch(function(e){ window._fbHandleWriteError ? window._fbHandleWriteError(e,null,'Live/teleprompter') : showToast('⚠ Não foi possível enviar o teleprompter','err'); });
   });
 };
 window.tpClear = function() {
   _whenFb(function(){
     if(!window._remove||!window._ref||!window.db) return;
-    window._remove(window._ref(window.db,'Live/teleprompter'));
-    var i=document.getElementById('tp-inp'); if(i) i.value='';
-    showToast('📜 Limpo','info');
+    window._remove(window._ref(window.db,'Live/teleprompter'))
+      .then(function(){ var i=document.getElementById('tp-inp'); if(i) i.value=''; showToast('📜 Limpo','info'); })
+      .catch(function(e){ window._fbHandleWriteError ? window._fbHandleWriteError(e,null,'Live/teleprompter') : showToast('⚠ Não foi possível limpar o teleprompter','err'); });
   });
 };
 
