@@ -16847,6 +16847,11 @@ onAuthStateChanged(auth, async (fbUser) => {
     // momentânea do SDK não derruba mais a call nem a sessão.
     if (window._gAuthLock) return; // redirect em andamento — não limpar
     if (window._authLogoutTimer) clearTimeout(window._authLogoutTimer);
+    // CORRIGIDO (3ª rodada): a tolerância era de só 2s — em trocas de rede
+    // mais lentas (wifi -> dados móveis, app em segundo plano no celular
+    // durante uma call), o token podia demorar mais que isso pra renovar, e
+    // aí a call ATIVA era encerrada e "Faça login primeiro" aparecia no meio
+    // dela mesmo com o usuário nunca tendo saído de verdade. Subimos pra 7s.
     window._authLogoutTimer = setTimeout(function() {
       window._authLogoutTimer = null;
       if (auth.currentUser) return; // já reconectou sozinho — falso alarme, não faz nada
@@ -16859,7 +16864,7 @@ onAuthStateChanged(auth, async (fbUser) => {
       if (authScreen) authScreen.classList.remove('gone');
       var userBar = document.getElementById('user-bar');
       if (userBar) userBar.classList.remove('visible');
-    }, 2000);
+    }, 7000);
   }
 });
 
@@ -17663,7 +17668,25 @@ window._joinCallRoom = async function(roomId) {
         if (_myCallId || waited >= maxWait) { clearInterval(iv); resolve(!!_myCallId); }
       }, step);
     });
-    if (!ok) { showToast('⚠ Faça login primeiro', 'warn'); return; }
+    if (!ok) {
+      showToast('⚠ Faça login primeiro', 'warn');
+      // CORRIGIDO: antes desistia de vez aqui — se a sessão confirmasse um
+      // instante depois do aviso (mesma janela lenta que já tratamos em
+      // _runWhenAuthReady), a pessoa precisava clicar em "Entrar na call"
+      // de novo. Agora continua de olho por mais 20s e entra sozinha assim
+      // que _myCallId aparecer, sem exigir um segundo clique.
+      var _joinWaitedAfterWarn = 0;
+      var _joinRetryIv = setInterval(function() {
+        _joinWaitedAfterWarn += 300;
+        if (_myCallId) {
+          clearInterval(_joinRetryIv);
+          window._joinCallRoom(roomId);
+          return;
+        }
+        if (_joinWaitedAfterWarn > 20000) clearInterval(_joinRetryIv);
+      }, 300);
+      return;
+    }
   }
   roomId = roomId || 'main';
   window._activeCallRoomId = roomId;
