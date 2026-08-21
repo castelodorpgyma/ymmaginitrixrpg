@@ -17645,7 +17645,26 @@ function _clearCallIdentity() {
 
 // Chamado quando usuário clica "Entrar na Call"
 window._joinCallRoom = async function(roomId) {
-  if (!_myCallId) { showToast('⚠ Faça login primeiro', 'warn'); return; }
+  // CORRIGIDO: esta checagem era feita na cara-dura, sem esperar nada —
+  // diferente do _runWhenAuthReady (que já espera a sessão confirmar antes
+  // de recusar ações como abrir a call). _myCallId normalmente é setado no
+  // mesmíssimo instante que currentUser, mas se por qualquer motivo (aba em
+  // segundo plano, navegador com bloqueio de rastreadores mais agressivo,
+  // etc.) esse instante não for perfeitamente síncrono, essa checagem
+  // FALHAVA sozinha mesmo com _runWhenAuthReady já tendo liberado a
+  // entrada — é o mesmo aviso "Faça login primeiro" reaparecendo mesmo
+  // com a call funcionando. Agora ela também espera, generosamente, em vez
+  // de desistir na primeira checagem.
+  if (!_myCallId) {
+    var ok = await new Promise(function(resolve) {
+      var waited = 0, step = 150, maxWait = 8000;
+      var iv = setInterval(function() {
+        waited += step;
+        if (_myCallId || waited >= maxWait) { clearInterval(iv); resolve(!!_myCallId); }
+      }, step);
+    });
+    if (!ok) { showToast('⚠ Faça login primeiro', 'warn'); return; }
+  }
   roomId = roomId || 'main';
   window._activeCallRoomId = roomId;
   _subscribeCallRoomExtras(roomId);
