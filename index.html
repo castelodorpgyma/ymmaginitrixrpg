@@ -7442,7 +7442,7 @@ function loginSuccess(user) {
   document.getElementById('ub-username').textContent = user.username;
   document.getElementById('ub-role-label').textContent = user.role === 'mestre' ? '🗡 MESTRE' : user.role === 'ambos' ? '🗡⚔ MESTRE & PLAYER' : '⚔ PLAYER';
   var avWrap = document.getElementById('ub-avatar-wrap');
-  if(user.avatar) avWrap.innerHTML = '<img src="'+user.avatar+'" style="width:100%;height:100%;object-fit:cover">';
+  if(user.avatar) avWrap.innerHTML = '<img src="'+esc(user.avatar)+'" style="width:100%;height:100%;object-fit:cover">';
   else avWrap.textContent = user.role === 'mestre' ? '🗡' : user.role === 'ambos' ? '🗡' : '⚔';
   // apply role restrictions
   applyRoleUI(user.role);
@@ -9368,7 +9368,7 @@ function openCampanhaDetail(id) {
         var vidaPct = p.vidaMax > 0 ? Math.min(100, Math.round((p.vida||0)/p.vidaMax*100)) : 0;
         return '<div class="player-card" style="cursor:pointer" onclick="closeModal(\'modal-campanha-detail\');openFicha(\''+p.id+'\')">'
           + '<div class="pc-top">'
-          + '<div class="pc-av">'+(p.avatar?'<img src="'+p.avatar+'">':'<span style="opacity:.4">👤</span>')+'</div>'
+          + '<div class="pc-av">'+(p.avatar?'<img src="'+esc(p.avatar)+'">':'<span style="opacity:.4">👤</span>')+'</div>'
           + '<div class="pc-info">'
           + '<div class="pc-name">'+_esc(p.nome)+'</div>'
           + '<div class="pc-player">player: '+_esc(p.player)+(p.vulgo?' &nbsp;·&nbsp; "'+_esc(p.vulgo)+'"':'')+'</div>'
@@ -9635,7 +9635,7 @@ function renderPlayers() {
     var vidaColor = vidaPct > 50 ? '' : vidaPct > 25 ? 'style="background:linear-gradient(90deg,#806000,#ffd700)"' : 'style="background:linear-gradient(90deg,#8b0000,#ff1a1a)"';
     return '<div class="player-card" onclick="openFicha(\''+ p.id +'\')">'
       + '<div class="pc-top">'
-      + '<div class="pc-av">'+(p.avatar?'<img src="'+p.avatar+'">':'<span style="opacity:.4">👤</span>')+'</div>'
+      + '<div class="pc-av">'+(p.avatar?'<img src="'+esc(p.avatar)+'">':'<span style="opacity:.4">👤</span>')+'</div>'
       + '<div class="pc-info">'
       + '<div class="pc-name">'+p.nome+'</div>'
       + '<div class="pc-player">player: '+p.player+(p.vulgo?' &nbsp;·&nbsp; "'+p.vulgo+'"':'')+'</div>'
@@ -10468,7 +10468,7 @@ function openEditPlayer(id) {
   // avatar preview
   var avPrev = document.getElementById('np-avatar-preview');
   document.getElementById('np-avatar-data').value = p.avatar||'';
-  if(p.avatar) { avPrev.innerHTML = '<img src="'+p.avatar+'" style="width:100%;height:100%;object-fit:cover">'; }
+  if(p.avatar) { avPrev.innerHTML = '<img src="'+esc(p.avatar)+'" style="width:100%;height:100%;object-fit:cover">'; }
   updateAttrTotal(); updateSkillTotal();
   openModal('modal-novo-player');
   if(window.lucide) lucide.createIcons();
@@ -11388,7 +11388,7 @@ function renderLivePlayersStatus() {
     }
     var pid = p.id;
     var avHtml = p.avatar
-      ? '<div class="lpr-av"><img src="'+p.avatar+'"></div>'
+      ? '<div class="lpr-av"><img src="'+esc(p.avatar)+'"></div>'
       : '<div class="lpr-av">'+(p.role==='mestre'?'🗡':'⚔')+'</div>';
     var roleTag = p.role==='mestre'
       ? '<span class="lpr-role-tag">MESTRE</span>'
@@ -11831,7 +11831,7 @@ function _openProfileReady() {
   var avMedia = document.getElementById('prof-avatar-media');
   if (avMedia) {
     avMedia.innerHTML = currentUser.avatar
-      ? '<img src="'+currentUser.avatar+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%">'
+      ? '<img src="'+esc(currentUser.avatar)+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%">'
       : '<span style="font-size:2rem">'+(currentUser.role==='mestre'?'🗡':'⚔')+'</span>';
   }
   if (bannerImg) {
@@ -11931,10 +11931,10 @@ function _updateProfileAvatarReady(dataUrl) {
     if (typeof window._fbSyncProfile === 'function') window._fbSyncProfile(currentUser);
     // Atualiza na topbar
     var ubav = document.getElementById('ub-avatar-wrap');
-    if (ubav) ubav.innerHTML = '<img src="'+currentUser.avatar+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%">';
+    if (ubav) ubav.innerHTML = '<img src="'+esc(currentUser.avatar)+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%">';
     // Atualiza só o conteúdo visual no modal — input e overlay ficam intactos
     var avMedia = document.getElementById('prof-avatar-media');
-    if (avMedia) avMedia.innerHTML = '<img src="'+currentUser.avatar+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%">';
+    if (avMedia) avMedia.innerHTML = '<img src="'+esc(currentUser.avatar)+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%">';
     showToast('✓ Avatar atualizado', 'ok');
 }
 
@@ -11986,7 +11986,7 @@ function showDiceOverlay(entry) {
   var card = document.createElement('div');
   card.className = 'dice-card';
   var av = entry.avatar
-    ? '<img src="'+entry.avatar+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%">'
+    ? '<img src="'+esc(entry.avatar)+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%">'
     : '<span style="font-size:1.1rem">'+(entry.sender?entry.sender[0].toUpperCase():'M')+'</span>';
   var isCrit = entry.isCrit, isFail = entry.isFail;
   var faceClass = 'dc-die-face dc-die-front' + (isCrit?' dc-crit':isFail?' dc-fail':'');
@@ -12149,7 +12149,7 @@ function openViewProfile(player) {
   if (!vp.name) return;
   // avatar
   vp.av.innerHTML = player.avatar
-    ? '<img src="'+player.avatar+'" style="width:100%;height:100%;object-fit:cover">'
+    ? '<img src="'+esc(player.avatar)+'" style="width:100%;height:100%;object-fit:cover">'
     : (player.role === 'mestre' ? '🗡' : '⚔');
   vp.name.textContent = player.username || player.nome || '—';
   vp.role.innerHTML = player.role === 'mestre'
@@ -12367,7 +12367,7 @@ function _syncCallVoiceStatus() {
   if (uname) uname.textContent = (typeof currentUser!=='undefined' && currentUser) ? (currentUser.username||currentUser.name||'Você') : 'Você';
   if (ustatus) ustatus.textContent = callState.deafened ? 'Ensurdecido' : (callState.micState==='muted' ? 'Mutado' : 'Conectado');
   if (avatar && typeof currentUser!=='undefined' && currentUser && currentUser.avatar) {
-    avatar.innerHTML = '<img src="'+currentUser.avatar+'">';
+    avatar.innerHTML = '<img src="'+esc(currentUser.avatar)+'">';
   }
   var chEl = document.getElementById('cvs-channel');
   if (chEl) {
@@ -14008,8 +14008,8 @@ function buildParticipantCard(user, isLocal, uid, canModerate) {
   var customCallAvatar = isLocal ? (window.callGetCustomAvatar ? window.callGetCustomAvatar() : null) : (user.avatar||null);
   var charAvatar = customCallAvatar || (linkedChar && linkedChar.avatar) || (user.avatar||null);
   var av = charAvatar
-    ? '<img class="cp-av-static" src="'+charAvatar+'" style="width:100%;height:100%;object-fit:cover;border-radius:14px">'
-      + '<img class="cp-av-live" src="'+charAvatar+'" style="width:100%;height:100%;object-fit:cover;border-radius:14px">'
+    ? '<img class="cp-av-static" src="'+esc(charAvatar)+'" style="width:100%;height:100%;object-fit:cover;border-radius:14px">'
+      + '<img class="cp-av-live" src="'+esc(charAvatar)+'" style="width:100%;height:100%;object-fit:cover;border-radius:14px">'
     : (user.role==='mestre'?'🗡':'⚔');
 
   // Nome/status customizados na call (painel ⚙ Configurações) têm prioridade
@@ -14316,7 +14316,7 @@ function buildMsgHtml(m, prevMsg) {
     && (m._ts && prevMsg._ts && (m._ts - prevMsg._ts) < 300000);
   function getAv(sId, sName, role) {
     var u = (authUsers||[]).find(function(x){ return x.id===sId||x.username===sName; });
-    if(u && u.avatar) return '<img src="'+u.avatar+'">';
+    if(u && u.avatar) return '<img src="'+esc(u.avatar)+'">';
     return '<span>'+(role==='mestre'||role==='ambos'?'🗡':'⚔')+'</span>';
   }
   var avHtml = getAv(m.senderId, m.sender, m.role);
@@ -14327,7 +14327,7 @@ function buildMsgHtml(m, prevMsg) {
     var rAv = getAv(m.replyTo.senderId, m.replyTo.sender,'');
     replyHtml = '<div class="cm-reply-quote" onclick="scrollToMsg(\''+m.replyTo.id+'\''+')">'
       +'<div class="cm-reply-quote-av">'+rAv+'</div>'
-      +'<span style="color:rgba(200,160,255,0.72);margin-right:4px">'+(m.replyTo.sender||'?')+'</span>'
+      +'<span style="color:rgba(200,160,255,0.72);margin-right:4px">'+escHtml(m.replyTo.sender||'?')+'</span>'
       +'<span>'+escHtml((m.replyTo.text||'📷').slice(0,50))+'</span></div>';
   }
   // body
@@ -14342,13 +14342,19 @@ function buildMsgHtml(m, prevMsg) {
     return s;
   }
   var bodyHtml = '';
+  // CORRIGIDO: m.img/m.vid/m.sticker iam direto pro src="..." E pro
+  // onclick="openLightbox('...')" sem NENHUM escape — tanto o atributo
+  // (aspa dupla) quanto a string JS do onclick (aspa simples) podiam ser
+  // quebrados por um valor malicioso, já que qualquer jogador autenticado
+  // pode gravar esses campos na sala de chat compartilhada.
+  function _safeMediaUrl(u) { return escHtml(String(u||'').replace(/'/g,"\\'")); }
   if(m.img) {
-    bodyHtml='<div class="cm-media-wrap" onclick="openLightbox(\''+m.img+'\',false)"><img src="'+m.img+'" loading="lazy"></div>';
+    bodyHtml='<div class="cm-media-wrap" onclick="openLightbox(\''+_safeMediaUrl(m.img)+'\',false)"><img src="'+_safeMediaUrl(m.img)+'" loading="lazy"></div>';
   } else if(m.vid) {
-    bodyHtml='<div class="cm-media-wrap" onclick="openLightbox(\''+m.vid+'\',true)"><video src="'+m.vid+'" muted preload="metadata"></video>'
+    bodyHtml='<div class="cm-media-wrap" onclick="openLightbox(\''+_safeMediaUrl(m.vid)+'\',true)"><video src="'+_safeMediaUrl(m.vid)+'" muted preload="metadata"></video>'
       +'<div style="font-family:\'Share Tech Mono\',monospace;font-size:.46rem;color:rgba(255,255,255,0.72);padding:4px 8px;text-align:center">▶ toque para ver</div></div>';
   } else if(m.sticker) {
-    bodyHtml='<div class="cm-sticker-wrap" onclick="openLightbox(\''+m.sticker+'\',false)"><img src="'+m.sticker+'"></div>';
+    bodyHtml='<div class="cm-sticker-wrap" onclick="openLightbox(\''+_safeMediaUrl(m.sticker)+'\',false)"><img src="'+_safeMediaUrl(m.sticker)+'"></div>';
   } else {
     bodyHtml='<div class="cm-text">'+parsemd(m.text||'')+(m.pvTo?'<span class="cm-pv-badge">PV</span>':'')+'</div>';
   }
@@ -14368,20 +14374,40 @@ function buildMsgHtml(m, prevMsg) {
   // actions
   var actHtml='<div class="cm-actions">'
     +'<button class="cm-act-btn" onclick="openEmojiPicker(\''+m.id+'\',this)" title="Reagir">😊</button>'
-    +'<button class="cm-act-btn" onclick="replyTo(\''+m.id+'\',\''+escHtml(m.sender||'?')+'\',\''+escHtml((m.text||'mídia').slice(0,40).replace(/'/g,"\\'"))+'\')" title="Responder">↩</button>'
+    // CORRIGIDO: escHtml() sozinho não protege aspas simples (') dentro de um
+    // onclick="...'...'..." — se o nome do remetente tivesse um apóstrofo
+    // (ex: "O'Brien") ou fosse deliberadamente malicioso, a string JS deste
+    // atributo quebrava e permitia rodar código arbitrário no clique. O
+    // texto da mensagem, logo abaixo, já escapava a aspa simples com
+    // .replace(/'/g,"\\'") — faltava fazer o mesmo com o nome do remetente.
+    +'<button class="cm-act-btn" onclick="replyTo(\''+m.id+'\',\''+escHtml((m.sender||'?').replace(/'/g,"\\'"))+'\',\''+escHtml((m.text||'mídia').slice(0,40).replace(/'/g,"\\'"))+'\')" title="Responder">↩</button>'
     +(isMe?'<button class="cm-act-btn" onclick="deleteMsg(\''+m.id+'\')" title="Apagar" style="color:rgba(255,80,80,0.72)">🗑</button>':'')
     +'</div>';
   var cls='cm-group'+(isMe?' is-me':' them')+(isCompact?' compact':'');
   return '<div class="'+cls+'" id="cmsg-'+m.id+'">'
     +'<div class="cm-av-col"><div class="cm-av">'+avHtml+'</div></div>'
     +'<div class="cm-body">'
-      +(isCompact?'':'<div class="cm-header"><span class="'+nameClass+'">'+(m.sender||'?')+'</span><span class="cm-timestamp">'+m.time+'</span></div>')
+      // CORRIGIDO: o nome do remetente aqui era inserido DIRETO no innerHTML,
+      // sem passar por escHtml() — diferente de todo o resto desta função,
+      // que já escapa texto de usuário. Qualquer jogador (não só o Mestre)
+      // podia mudar seu próprio username para algo como "<img src=x
+      // onerror=alert(1)>" e isso executava no navegador de TODO MUNDO que
+      // abrisse o chat, já que a regra do Firebase permite qualquer
+      // usuário autenticado escrever seu próprio perfil. Isso é XSS
+      // persistente — o pior tipo de furo de segurança num app com várias
+      // contas reais. Agora o nome passa por escHtml() como o restante.
+      +(isCompact?'':'<div class="cm-header"><span class="'+nameClass+'">'+escHtml(m.sender||'?')+'</span><span class="cm-timestamp">'+m.time+'</span></div>')
       +replyHtml+bodyHtml+reactHtml
     +'</div>'+actHtml+'</div>';
 }
 
 function escHtml(s) {
-  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  // CORRIGIDO: faltava escapar aspas duplas (") — como esta função é usada
+  // o tempo todo dentro de atributos HTML com aspas duplas (title="...",
+  // onclick="...", etc.), uma aspa dupla vinda de texto do usuário (nome,
+  // mensagem) fechava o atributo mais cedo e permitia injetar HTML/atributos
+  // novos logo depois. Agora escapa igual ao esc().
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 function _renderFeedInto(feedEl, msgs) {
@@ -16746,7 +16772,13 @@ onValue(callAccessRef, function(snap) {
   callState.callPermissions = (val && Array.isArray(val.permissions)) ? val.permissions : [];
   if (typeof _syncCallEntryBtn === 'function') try{ _syncCallEntryBtn(); }catch(e){}
   if (typeof renderCallPermList === 'function' && callState.active) try{ renderCallPermList(); }catch(e){}
-});
+// CORRIGIDO: este listener (o que avisa "a call de grupo começou" e mantém
+// callState.groupLive/callPermissions atualizados pra QUALQUER jogador, mesmo
+// sem o overlay de call aberto) era o ÚNICO onValue relacionado a call sem
+// callback de erro em todo o arquivo — se a regra do Firebase negasse a
+// leitura de "calls/main/access", ele falhava 100% em silêncio: nenhum toast
+// de "call começou" aparecia pra ninguém, e sem nenhuma pista do motivo.
+}, _fbReadErrHandler('calls/main/access (aviso de call de grupo ativa)'));
 
 // v202608190800 — Faixinha "quem está em call" tipo Discord (ver
 // #call-live-strip no HTML). Roda SEMPRE que logado, mostrando quem está na
@@ -17134,7 +17166,11 @@ window.transmitMedia = function(id) {
 var _origClearLive = window.clearLiveDisplay;
 window.clearLiveDisplay = function() {
   liveSession.currentMedia = null;
-  remove(ref(db, 'Live/currentDisplay'));
+  // CORRIGIDO: sem .catch(), se essa remoção falhasse (regra do Firebase,
+  // token expirado, offline) sobrava uma "unhandled promise rejection" solta
+  // no console — inofensivo aqui, mas ruído que atrapalha achar erros de
+  // verdade nos logs.
+  remove(ref(db, 'Live/currentDisplay')).catch(function(){});
   var img = document.getElementById('live-img');
   var vid = document.getElementById('live-video');
   var ph  = document.getElementById('live-placeholder');
@@ -18351,7 +18387,22 @@ window._rtcRemoveMediaTrack = function(stream) {
 // ── Sai da call ──
 window._leaveCallRoom = function(roomId) {
   roomId = roomId || 'main';
-  if (_myCallId) remove(ref(db, 'calls/' + roomId + '/members/' + _myCallId));
+  // CORRIGIDO: esta remoção não tinha NENHUM tratamento — se falhasse (rede
+  // caindo bem na hora de sair, token expirado, etc.), seu cartão de
+  // participante ficava "fantasma" no grid de call de todo mundo, mesmo
+  // com você já tendo saído de verdade, sem nenhuma pista do motivo. Agora
+  // tenta de novo uma vez após 1.5s antes de desistir.
+  if (_myCallId) {
+    var _leaveCallId = _myCallId;
+    remove(ref(db, 'calls/' + roomId + '/members/' + _leaveCallId)).catch(function(e){
+      console.warn('[WebRTC] Falha ao remover presença da call ao sair, tentando de novo:', e);
+      setTimeout(function(){
+        remove(ref(db, 'calls/' + roomId + '/members/' + _leaveCallId)).catch(function(e2){
+          console.error('[WebRTC] Não foi possível remover presença da call — pode ficar "fantasma" pros outros:', e2);
+        });
+      }, 1500);
+    });
+  }
   Object.values(_peers).forEach(pc => { try { pc.close(); } catch(e){} });
   _peers = {};
   Object.values(_remoteAudioEls).forEach(el => { el.srcObject = null; el.remove(); });
