@@ -15668,15 +15668,26 @@ gProvider.setCustomParameters({ prompt: 'select_account' });
 //  via na tela.
 //  AGORA: as ações de call não recusam mais na cara-dura só porque
 //  currentUser ainda está null bem no início — elas ESPERAM a sessão
-//  terminar de restaurar (até 4s) e só então decidem se você está
-//  logado de verdade ou não. Só mostra "Faça login primeiro" se, depois
-//  desse prazo, você continuar sem sessão nenhuma.
+//  terminar de restaurar e só então decidem se você está logado de
+//  verdade ou não. Só mostra "Faça login primeiro" se, depois de um
+//  prazo BEM generoso, você continuar sem sessão nenhuma.
+//  CORRIGIDO (2ª rodada): o prazo de espera era de só 4 segundos — em
+//  conexões mais lentas (ou no primeiro carregamento, sem nada em cache,
+//  baixando o SDK do Firebase do zero), a confirmação da sessão podia
+//  demorar mais que isso. O código desistia, mostrava "Faça login
+//  primeiro", e a sessão confirmava um instante depois de qualquer
+//  jeito — por isso o aviso aparecia bem ao lado de uma call que
+//  funcionou normalmente, o que não fazia sentido nenhum pra quem via.
+//  Agora: 1) o prazo subiu pra 12s (bem mais generoso); 2) mesmo depois
+//  de "desistir" e avisar, continuamos de olho em segundo plano por mais
+//  um tempo — se a sessão confirmar mesmo depois do aviso, a ação
+//  original ainda é concluída sozinha, sem você precisar clicar de novo.
 // ════════════════════════════════════════════════════════════════════════
 window._authRestoring = true; // true só até o PRIMEIRO onAuthStateChanged resolver
 window._runWhenAuthReady = function(fn) {
   if (currentUser) { fn(); return; }
   if (!window._authRestoring) { showToast('⚠ Faça login primeiro', 'warn'); return; }
-  var waited = 0, step = 150, maxWait = 4000;
+  var waited = 0, step = 150, maxWait = 12000, warnedAt = null;
   var iv = setInterval(function() {
     waited += step;
     if (currentUser) {
@@ -15686,8 +15697,16 @@ window._runWhenAuthReady = function(fn) {
     }
     if (!window._authRestoring || waited >= maxWait) {
       clearInterval(iv);
-      if (currentUser) fn();
-      else showToast('⚠ Faça login primeiro', 'warn');
+      if (currentUser) { fn(); return; }
+      showToast('⚠ Faça login primeiro', 'warn');
+      warnedAt = Date.now();
+      // Continua de olho por mais 20s em segundo plano: se a sessão
+      // confirmar depois do aviso (rede bem lenta mesmo), completa a
+      // ação sozinha, sem exigir um segundo clique de quem só quer jogar.
+      var iv2 = setInterval(function() {
+        if (currentUser) { clearInterval(iv2); fn(); return; }
+        if (Date.now() - warnedAt > 20000) clearInterval(iv2);
+      }, 300);
     }
   }, step);
 };
@@ -15777,18 +15796,43 @@ window._forceRelogin = function() {
 //  vários listeners falhem ao mesmo tempo, pra não empilhar toasts iguais).
 // ════════════════════════════════════════════════════════════════════════
 var _fbLastReadPermToastAt = 0;
-function _fbShowReadPermToastThrottled(label) {
+function _fbShowReadPermToastThrottled(label, consequence) {
   var now = Date.now();
   if (now - _fbLastReadPermToastAt < 15000) return;
   _fbLastReadPermToastAt = now;
   if (typeof showToast === 'function') {
-    showToast('⚠ Sem permissão para ler "'+label+'" (regra do Firebase) — a call pode ficar incompleta (sem ver quem entrou, sem áudio, sem notificação). Peça pra quem administra o projeto no Firebase liberar a leitura desse nó pra todo usuário autenticado.', 'err');
+    showToast('⚠ Sem permissão para ler "'+label+'" (regra do Firebase) — ' + (consequence || 'esse recurso específico pode não funcionar') + '. Peça pra quem administra o projeto no Firebase liberar a leitura desse nó pra todo usuário autenticado.', 'err');
   }
+}
+// CORRIGIDO: antes, TODO listener sem tratamento de erro (chat, teleprompter,
+// catálogo, soundboard...) usava a MESMA frase escrita pensando em call
+// (membros/sinalização) — "sem ver quem entrou, sem áudio, sem notificação".
+// Isso é enganoso: um erro de permissão no teleprompter (só texto do Mestre)
+// mostrava um alarme sobre ÁUDIO sumir, o que não tem nada a ver e só confunde
+// quem está tentando entender o que realmente quebrou. Agora cada tipo de nó
+// tem sua própria frase, e o texto genérico só é usado como último recurso.
+var _FB_READ_ERR_CONSEQUENCES = {
+  'calls/main/members (aviso de call de grupo)': 'a call pode ficar incompleta (sem ver quem entrou, sem áudio, sem notificação)',
+  'calls/main/members (indicador de quem está em call)': 'o indicador de quem está em call pode não aparecer',
+  'Live/chat': 'o chat pode não sincronizar entre os jogadores',
+  'Live/rolls': 'as rolagens de dado podem não aparecer pra todo mundo',
+  'Live/session': 'o status de sessão ativa/inativa pode não sincronizar',
+  'Live/currentDisplay': 'a mídia exibida pelo Mestre pode não aparecer pros jogadores',
+  'Live/teleprompter': 'o teleprompter do Mestre pode não aparecer pros jogadores (isso NÃO afeta áudio/vídeo da call)',
+  'presence': 'a lista de quem está online pode ficar desatualizada',
+  'globalCampaigns (catálogo)': 'o catálogo global de campanhas pode não atualizar',
+  'soundboardPublic': 'os sons compartilhados do soundboard podem não carregar'
+};
+function _fbConsequenceFor(label) {
+  if (_FB_READ_ERR_CONSEQUENCES[label]) return _FB_READ_ERR_CONSEQUENCES[label];
+  if (label.indexOf('dmCalls/') === 0) return 'convites de call privada podem não chegar';
+  if (label.indexOf('Live/teleprompter') === 0) return _FB_READ_ERR_CONSEQUENCES['Live/teleprompter'];
+  return null;
 }
 function _fbReadErrHandler(label) {
   return function(err) {
     console.warn('[Firebase onValue] Falha ao ler "'+label+'":', err && (err.code || err.message));
-    if (err && err.code === 'PERMISSION_DENIED') _fbShowReadPermToastThrottled(label);
+    if (err && err.code === 'PERMISSION_DENIED') _fbShowReadPermToastThrottled(label, _fbConsequenceFor(label));
   };
 }
 // Exposto em window: outros <script> fora deste módulo (ex.: o soundboard,
