@@ -9326,6 +9326,10 @@ window.tryEnterCampanha = tryEnterCampanha;
 function openCampanhaDetail(id) {
   var c = _findCampanha(id);
   if (!c) { showToast('⚠ Campanha não encontrada localmente', 'warn'); return; }
+  // Marca esta como a campanha ativa agora — base pra, no futuro, isolar
+  // chat/rolagens/teleprompter/call por campanha (ver bloco grande de
+  // comentário logo acima da declaração de `liveSession`).
+  if (typeof window._setActiveCampanha === 'function') window._setActiveCampanha(id);
 
   var bannerImg = document.getElementById('cd-banner-img');
   if (bannerImg) {
@@ -10672,8 +10676,41 @@ function rollMoney() {
 }
 
 // ===== SESSÃO AO VIVO =====
+// ════════════════════════════════════════════════════════════════════════
+//  BASE PRA ISOLAMENTO POR CAMPANHA (Fase 1 do roadmap — auditoria 360°)
+//  ------------------------------------------------------------------------
+//  ANTES: liveSession.campanhaId e data.campAtiva eram LIDOS em 3 lugares
+//  do código, mas NUNCA escritos em lugar nenhum — ou seja, na prática
+//  não existia isolamento nenhum entre campanhas diferentes; toda
+//  campanha do site dividia o MESMO chat/rolagens/teleprompter/call
+//  global (o nó "Live/..." do Firebase). Com 1 campanha ativa isso nunca
+//  apareceu como problema, mas travaria a plataforma no dia em que duas
+//  mesas quisessem jogar ao mesmo tempo.
+//  AGORA: window._activeCampanhaId é a fonte real de qual campanha está
+//  aberta neste momento, atualizada de verdade quando alguém abre uma
+//  campanha (openCampanhaDetail) ou liga a sessão ao vivo (toggleLive).
+//  IMPORTANTE — decisão deliberada: os caminhos "Live/..." do Firebase
+//  (chat, rolagens, teleprompter, mídia) CONTINUAM exatamente como
+//  estão por enquanto, sem migrar pra "campanhas/{id}/live/...". Migrar
+//  isso agora, em cima de uma call que acabamos de estabilizar depois de
+//  várias rodadas de bugs, é arriscado por pouco ganho real (só 1
+//  campanha ativa hoje). Esta base deixa a migração futura pronta pra
+//  ser um recorte pequeno e isolado (trocar só as strings de path nos
+//  pontos abaixo) em vez de uma reescrita geral, quando fizer sentido.
+// ════════════════════════════════════════════════════════════════════════
+window._activeCampanhaId = null;
+window._setActiveCampanha = function(id) {
+  window._activeCampanhaId = id || null;
+  if (typeof liveSession === 'object') liveSession.campanhaId = window._activeCampanhaId;
+  // data.campAtiva é uma segunda variável que existia com o mesmo propósito
+  // (nome da campanha exibido na barrinha da call) e também nunca era
+  // escrita — unificada aqui pra não ter duas fontes de verdade divergentes.
+  if (typeof data === 'object' && data) data.campAtiva = window._activeCampanhaId;
+};
+
 var liveSession = {
   active: false,
+  campanhaId: null, // qual campanha esta sessão ao vivo pertence — ver window._setActiveCampanha acima
   media: [],   // {id, name, type:'image'|'video', dataUrl}
   chat:  [],   // {id, sender, msg, time, isPrivate, target}
   rolls: [],   // {id, expr, total, individual, time, isCrit, isFail}
@@ -15586,6 +15623,15 @@ import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword,
 import { getDatabase, ref, set, get, push, onValue, off, remove, serverTimestamp, onDisconnect }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
+// ════════════════════════════════════════════════════════════════════════
+//  IMPRESSÃO DIGITAL DE VERSÃO — pra confirmar, sem dúvida nenhuma, se o
+//  navegador está rodando ESTE arquivo ou uma cópia antiga em cache/CDN.
+//  Abra o Console (F12 → Console) assim que a página carregar e procure
+//  por esta linha. Se ela NÃO aparecer, o navegador/GitHub Pages ainda
+//  está servindo uma versão antiga — não é bug de código.
+// ════════════════════════════════════════════════════════════════════════
+console.log('%c🔍 YMMAGINITRIX — BUILD CHECK 2026-08-20-A — se você está vendo isso, o arquivo mais recente ESTÁ carregado ', 'background:#c1121f;color:#fff;font-size:14px;font-weight:bold;padding:6px 10px;border-radius:4px');
+
 const firebaseConfig = {
   apiKey:            "AIzaSyDl3IAQwId269-5MOfY0xRN8fre4TFIV3Q",
   authDomain:        "ymaginity-rpg.firebaseapp.com",
@@ -19886,7 +19932,8 @@ window.copyToClipboard = function(text, label) {
 (function(){
   var wm = document.createElement('div');
   wm.className = 'version-watermark';
-  wm.textContent = 'YMMAGINITRIX v11 · build 20260819-0800';
+  wm.setAttribute('data-ymm-wm', '1'); // CORRIGIDO: sem isso, as atualizações de versão mais abaixo (v13/v14) nunca encontravam este elemento e nunca atualizavam o texto — o rodapé ficava travado em "v11" pra sempre, mesmo em builds bem mais novas.
+  wm.textContent = 'YMMAGINITRIX · BUILD 2026-08-20-A';
   document.body.appendChild(wm);
 })();
 
