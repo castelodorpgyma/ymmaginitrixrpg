@@ -17041,6 +17041,33 @@ function _startRealtimeSync() {
     renderLivePlayersStatus();
   }, _fbReadErrHandler('presence'));
   _rtListeners.presence = () => off(presRef);
+
+  // ── Teleprompter (mensagem do Mestre na tela dos players) ──
+  // CORRIGIDO (causa raiz de verdade — não era a regra do Firebase): este
+  // listener vivia fora daqui, ligado por _whenFb(), que só espera o SDK
+  // do Firebase carregar — NÃO espera o login terminar. Em quase toda
+  // carga de página, ele tentava ler antes do onAuthStateChanged resolver
+  // com um usuário de verdade, tomava PERMISSION_DENIED (corretamente,
+  // já que ainda não tinha auth), e o onValue do Firebase NUNCA tenta de
+  // novo sozinho depois de um erro — então o aviso "sem permissão pra ler
+  // Live/teleprompter" ficava preso pra sempre, mesmo com a regra do
+  // Firebase certinha e o usuário já logado. Chat/rolagens/sessão/mídia
+  // nunca tiveram esse problema porque sempre estiveram aqui dentro,
+  // que só roda DEPOIS do login confirmado. Teleprompter agora também.
+  const tpRef = ref(db, 'Live/teleprompter');
+  onValue(tpRef, (snap) => {
+    if (typeof _applyTP === 'function') _applyTP(snap.exists() ? snap.val() : null);
+  }, _fbReadErrHandler('Live/teleprompter'));
+  _rtListeners.teleprompter = () => off(tpRef);
+
+  // ── Soundboard compartilhado ──
+  // CORRIGIDO: mesmo problema do teleprompter — _sbLoadPublic() só era
+  // chamado no evento "ymm-fb-ready" (SDK carregado, não login completo).
+  // Se essa corrida acontecesse, os sons compartilhados por OUTROS
+  // jogadores nunca apareciam pra ninguém que carregasse a página depois
+  // (o fallback evitava um erro feio na tela, mas escondia o problema:
+  // caía silenciosamente pros sons padrão e nunca mais tentava de novo).
+  if (typeof _sbLoadPublic === 'function') _sbLoadPublic();
 }
 
 function _stopRealtimeSync() {
@@ -17696,6 +17723,25 @@ window._joinCallRoom = async function(roomId) {
   // entrada — é o mesmo aviso "Faça login primeiro" reaparecendo mesmo
   // com a call funcionando. Agora ela também espera, generosamente, em vez
   // de desistir na primeira checagem.
+  if (!_myCallId) {
+    // CORRIGIDO (causa raiz de verdade): existem logins locais/legado
+    // (cadastro local, login local, fallback do Google sem Firebase,
+    // convidado offline) que chamam loginSuccess() — e por isso deixam
+    // currentUser preenchido normalmente — mas NUNCA chamavam
+    // _initWebRTC(), que é quem define _myCallId. Só os logins que passam
+    // pelo Firebase de verdade chamavam _initWebRTC(). Resultado: para
+    // qualquer sessão nessa situação, esperar _myCallId aparecer sozinho
+    // era esperar pra sempre — daí o aviso "Faça login primeiro"
+    // aparecendo mesmo com a pessoa visivelmente logada e a call já em
+    // andamento (o microfone é local e não depende disso, então ativava
+    // normalmente enquanto a entrada na sala Firebase nunca completava).
+    // Agora, se já existe uma sessão (currentUser) mas _myCallId ainda não
+    // foi definido, inicializamos o WebRTC aqui mesmo em vez de só esperar
+    // passivamente por algo que talvez nunca fosse acontecer sozinho.
+    if (currentUser && currentUser.id && typeof _initWebRTC === 'function') {
+      _initWebRTC(currentUser);
+    }
+  }
   if (!_myCallId) {
     var ok = await new Promise(function(resolve) {
       var waited = 0, step = 150, maxWait = 8000;
@@ -19685,10 +19731,11 @@ document.addEventListener('keydown', function(e){
 // ─────────────────────────────────────────
 // TELEPROMPTER
 // ─────────────────────────────────────────
-_whenFb(function(){
-  if(!window._onValue||!window._ref||!window.db) return;
-  window._onValue(window._ref(window.db,'Live/teleprompter'), function(s){ _applyTP(s.exists()?s.val():null); }, window._fbReadErrHandler && window._fbReadErrHandler('Live/teleprompter'));
-});
+// CORRIGIDO: o listener global de teleprompter que ficava aqui (usando
+// _whenFb, que não espera login) foi movido pra dentro de
+// _startRealtimeSync() — veja o comentário lá. Aqui só sobra a função
+// que aplica visualmente o estado (_applyTP), chamada tanto por esse
+// listener quanto pelo bloco da Tela do Player logo acima.
 
 function _applyTP(d) {
   var active=!!(d&&d.active&&d.text);
