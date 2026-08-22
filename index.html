@@ -18510,6 +18510,35 @@ function _sendSignal(roomId, targetUid, data) {
 
 // ── Áudio remoto dos participantes ──
 const _remoteAudioEls = {};
+// CORRIGIDO — helper central de "tenta tocar, e se o navegador bloquear
+// (política de autoplay), guarda o elemento e tenta de novo no próximo
+// clique/toque em qualquer lugar da tela". Usado tanto pro áudio da VOZ
+// de quem está na call quanto pro áudio ambiente compartilhado — os dois
+// só tinham o atributo "autoplay" e nunca chamavam .play() de verdade,
+// então em vários navegadores a trilha simplesmente nunca tocava, sem
+// nenhum aviso (a promise rejeitada não tinha catch nenhum).
+window._pendingAutoplayAudioEls = window._pendingAutoplayAudioEls || [];
+if (!window._autoplayRetryBound) {
+  window._autoplayRetryBound = true;
+  var _ymmRetryAutoplayAudio = function() {
+    (window._pendingAutoplayAudioEls || []).forEach(function(a) { a.play().catch(function(){}); });
+    window._pendingAutoplayAudioEls = [];
+  };
+  document.addEventListener('click', _ymmRetryAutoplayAudio);
+  document.addEventListener('touchstart', _ymmRetryAutoplayAudio);
+}
+function _ymmTryPlayAudioEl(el, showWarnToast) {
+  var p = el.play();
+  if (p && p.catch) {
+    p.catch(function(err) {
+      console.warn('[WebRTC] Áudio bloqueado pelo navegador (autoplay), vai tentar de novo no próximo clique:', err && err.name);
+      if (window._pendingAutoplayAudioEls.indexOf(el) === -1) window._pendingAutoplayAudioEls.push(el);
+      if (showWarnToast && typeof showToast === 'function') {
+        showToast('🔇 O navegador bloqueou o áudio da call — toque em qualquer lugar da tela para ativar', 'warn');
+      }
+    });
+  }
+}
 
 // ── Localiza (ou cria como fallback) o vídeo de câmera de um participante remoto ──
 // Preferência: o <video id="call-remote-vid-{uid}"> já existe DENTRO do card
@@ -18631,6 +18660,9 @@ function _attachRemoteStream(uid, stream) {
     var volSlider = document.getElementById('call-music-vol');
     mEl.volume = volSlider ? (parseInt(volSlider.value, 10) / 100) : 0.6;
     mEl.muted = !!(typeof callState !== 'undefined' && callState.deafened);
+    // Mesmo bug do áudio de voz (ver comentário no bloco "Áudio" abaixo):
+    // faltava um .play() explícito aqui também.
+    _ymmTryPlayAudioEl(mEl, false);
     return; // não é voz de ninguém — não cria elemento de mic nem vídeo
   }
 
@@ -18647,6 +18679,23 @@ function _attachRemoteStream(uid, stream) {
   el.srcObject = stream;
   el.dataset.streamId = stream.id; // usado acima pra reconhecer uma 2ª trilha de áudio como música, não como um novo "microfone"
   el.volume = (typeof callState !== 'undefined' && callState.outVol != null) ? callState.outVol : 1.0;
+  // CORRIGIDO — o elemento de áudio remoto (a VOZ da outra pessoa) só tinha
+  // o atributo "autoplay", sem nunca chamar .play() de verdade — diferente
+  // de TODO outro elemento de mídia da call (vídeo local, vídeo remoto,
+  // tela compartilhada), que sempre chama .play().catch(...) explicitamente.
+  // Como esse <audio> é criado dinamicamente (fora do clique que iniciou a
+  // call) e o navegador barra autoplay com som em boa parte dos casos assim,
+  // a trilha às vezes nunca tocava — mesmo com tudo conectado certinho no
+  // WebRTC — e ficava SEM NENHUM aviso na tela (a promise rejeitada do
+  // autoplay não tinha catch nenhum, então o erro nem aparecia no console).
+  // Isso também explicava o botão de silenciar/dessilenciar da moderação
+  // parecer "não fazer nada": o forceMuted mexe no microfone de QUEM FALA,
+  // não no seu próprio áudio bloqueado — então mesmo destravando o mic da
+  // outra pessoa, seu navegador continuava sem tocar nada.
+  // Agora: chama .play() de verdade e, se o navegador recusar (política de
+  // autoplay), guarda esse elemento numa lista e tenta de novo no PRÓXIMO
+  // clique/toque em qualquer lugar da página — sem precisar recarregar.
+  _ymmTryPlayAudioEl(el, true);
   if (typeof _applyDeafenToStream === 'function') _applyDeafenToStream(uid);
   if (typeof _startRemoteSpeakingDetector === 'function') _startRemoteSpeakingDetector(uid, stream);
   
