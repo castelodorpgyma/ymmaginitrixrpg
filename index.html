@@ -10848,6 +10848,14 @@ window._setActiveCampanha = function(id) {
   if (changed && typeof window._resubscribeLiveChatRolls === 'function') {
     try { window._resubscribeLiveChatRolls(); } catch(e) { console.error('[_setActiveCampanha] resubscribe falhou:', e); }
   }
+  // Copia (sem apagar nada do lugar antigo) qualquer mensagem/rolagem que
+  // ainda esteja presa no caminho antigo e global "Live/chat"/"Live/rolls"
+  // (de antes desta campanha ter um caminho isolado) pro caminho certo desta
+  // campanha — ver window._migrateLegacyLiveData, definido no módulo do
+  // Firebase, logo abaixo do _subscribeLiveChatRolls.
+  if (changed && newId && typeof window._migrateLegacyLiveData === 'function') {
+    try { window._migrateLegacyLiveData(newId); } catch(e) { console.error('[_setActiveCampanha] migração de dados antigos falhou:', e); }
+  }
 };
 // ══════════════════════════════════════════════════════════════════
 // CORRIGIDO — chat/rolagens "não sincronizavam pra ninguém"
@@ -16592,6 +16600,42 @@ function _applyRemoteData(remote) {
   if (typeof renderFichaSelect === 'function') try{ renderFichaSelect(); }catch(e){}
   if (typeof renderFichaView === 'function') try{ renderFichaView(); }catch(e){}
   if (typeof _syncCallEntryBtn === 'function') try{ _syncCallEntryBtn(); }catch(e){}
+  // ══════════════════════════════════════════════════════════════════
+  // CORRIGIDO — causa raiz de "só mestre ou só player vê só as próprias
+  // mensagens no chat/PV, e as mensagens da campanha somem ao recarregar"
+  // ------------------------------------------------------------------
+  // window._activeCampanhaId só era resolvido em 2 momentos: (1) quando
+  // alguém abre a TELA de detalhe da campanha (openCampanhaDetail), ou
+  // (2) uma única vez dentro de _startRealtimeSync(), tentando adivinhar
+  // pela ficha/campanha do usuário (_resolveMyCampanhaId) — mas ISSO
+  // rodava numa corrida contra esta própria sincronização de "sharedData"
+  // (onde ficam as fichas e campanhas). Se o snapshot de sharedData ainda
+  // não tivesse chegado no instante em que _startRealtimeSync rodou,
+  // data.players/data.campanhas ainda estavam vazios, a resolução falhava,
+  // e ELA NUNCA ERA TENTADA DE NOVO — a conta ficava presa pro resto da
+  // sessão lendo/escrevendo no caminho antigo e global "Live/chat", em vez
+  // do caminho isolado da campanha "campanhas/<id>/live/chat".
+  // Quem costuma abrir a tela da campanha (management, convites — mais
+  // comum pra Mestre ou conta "ambos") sempre resolvia certo, por isso
+  // parecia um problema "só de quem é player" ou "só de quem é mestre":
+  // na prática é qualquer conta que nunca passou por aquela tela ANTES
+  // dos dados carregarem. O sintoma batia com o relato: a própria pessoa
+  // via as mensagens que ela mesma mandava (o Firebase ecoa de volta pra
+  // quem escreveu, mesmo no nó errado), mas nunca via as de quem estava
+  // no nó certo — e ao recarregar a página, o que tinha sido escrito no
+  // nó errado ficava pra trás, parecendo que "as mensagens sumiram".
+  // AGORA: toda vez que dados novos de sharedData chegam (aqui), se ainda
+  // não tem campanha ativa resolvida, tenta de novo — assim que a ficha/
+  // campanha da pessoa aparecer nos dados, o chat e as rolagens migram
+  // sozinhos pro caminho certo, sem precisar abrir a tela da campanha.
+  if (!window._activeCampanhaId && typeof _resolveMyCampanhaId === 'function') {
+    try {
+      var _campResolved = _resolveMyCampanhaId();
+      if (_campResolved && typeof window._setActiveCampanha === 'function') {
+        window._setActiveCampanha(_campResolved);
+      }
+    } catch(e) { console.error('[_applyRemoteData] falha ao resolver campanha ativa:', e); }
+  }
 }
 
 onValue(_sharedDataRef, function(snap) {
@@ -17606,15 +17650,70 @@ function _startRealtimeSync() {
     _rtListeners.rolls = () => off(rollRef);
   }
   window._resubscribeLiveChatRolls = _subscribeLiveChatRolls;
+
+  // ══════════════════════════════════════════════════════════════════
+  // MIGRAÇÃO NÃO-DESTRUTIVA do chat/rolagens do caminho antigo e global
+  // ("Live/chat"/"Live/rolls") pro caminho isolado desta campanha
+  // ------------------------------------------------------------------
+  // Contas que ficaram presas no caminho antigo (ver bug corrigido em
+  // window._setActiveCampanha / _applyRemoteData) mandaram mensagens e
+  // rolagens de verdade — elas não desapareceram, só ficaram no nó
+  // errado. Esta função COPIA tudo que estiver lá pro nó certo desta
+  // campanha, comparando pelo "id" de cada mensagem/rolagem pra nunca
+  // duplicar (mesmo rodando de novo, ou duas contas ao mesmo tempo).
+  // IMPORTANTE: em NENHUM momento isso apaga ou sobrescreve o caminho
+  // antigo — só adiciona uma cópia no lugar certo. Se algo der errado no
+  // meio da migração, o pior caso é "a mensagem continua só no lugar
+  // antigo", nunca "a mensagem some".
+  // ══════════════════════════════════════════════════════════════════
+  function _migrateLegacyLiveKind(kind, campId) {
+    var legacyRef = ref(db, 'Live/' + kind);
+    var newRef    = ref(db, 'campanhas/' + campId + '/live/' + kind);
+    Promise.all([get(legacyRef), get(newRef)]).then(function(res) {
+      var legacySnap = res[0], newSnap = res[1];
+      if (!legacySnap.exists()) return; // nada pra migrar, não precisa nem tocar no destino
+      var existingIds = {};
+      if (newSnap.exists()) {
+        newSnap.forEach(function(child) {
+          var v = child.val();
+          if (v && v.id) existingIds[v.id] = true;
+        });
+      }
+      var pending = [];
+      legacySnap.forEach(function(child) {
+        var v = child.val();
+        if (v && v.id && !existingIds[v.id]) pending.push(v);
+      });
+      if (!pending.length) return;
+      var done = 0, failed = 0;
+      pending.forEach(function(v) {
+        push(newRef, v).then(function(){ done++; }).catch(function(e){ failed++; console.warn('[Migração '+kind+'] falhou pra 1 item:', e); });
+      });
+      console.log('[Migração] '+pending.length+' item(ns) de "'+kind+'" encontrados no caminho antigo — copiando pra campanhas/'+campId+'/live/'+kind+' (nada é apagado do caminho antigo).');
+    }).catch(function(e) { console.warn('[Migração '+kind+'] falha ao ler:', e && (e.code || e.message)); });
+  }
+  window._migrateLegacyLiveData = function(campId) {
+    if (!campId) return;
+    _migrateLegacyLiveKind('chat', campId);
+    _migrateLegacyLiveKind('rolls', campId);
+  };
+
   // Ver bloco "CORRIGIDO — chat/rolagens não sincronizavam pra ninguém" (perto
   // de window._setActiveCampanha) — se esta aba nunca passou pela tela de
   // detalhe da campanha, resolve a campanha do usuário pela ficha dele antes
   // de assinar chat/rolagens pela 1ª vez, senão ficaria presa no caminho
   // antigo 'Live/chat', fora de sincronia com quem já abriu a campanha.
+  // CORRIGIDO: antes esta resolução escrevia window._activeCampanhaId
+  // diretamente, por fora de window._setActiveCampanha() — o que pulava a
+  // migração dos dados antigos (acima) bem no caso mais comum de precisar
+  // dela (login novo, sem nunca ter aberto a tela da campanha). Agora passa
+  // pela mesma função de sempre, então a migração roda aqui também.
   if (!window._activeCampanhaId && typeof _resolveMyCampanhaId === 'function') {
     try {
       var _myCampFallback = _resolveMyCampanhaId();
-      if (_myCampFallback) { window._activeCampanhaId = _myCampFallback; if (typeof liveSession === 'object') liveSession.campanhaId = _myCampFallback; if (typeof data === 'object' && data) data.campAtiva = _myCampFallback; }
+      if (_myCampFallback && typeof window._setActiveCampanha === 'function') {
+        window._setActiveCampanha(_myCampFallback);
+      }
     } catch(e) { console.error('[_startRealtimeSync] Falha ao resolver campanha ativa:', e); }
   }
   _subscribeLiveChatRolls();
