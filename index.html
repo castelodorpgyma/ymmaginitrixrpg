@@ -17731,6 +17731,41 @@ function _startRealtimeSync() {
   }, _fbReadErrHandler('Live/session'));
   _rtListeners.session = () => off(sessRef);
 
+  // ══════════════════════════════════════════════════════════════════
+  // "Campanha ativa" publicada pelo MESTRE — fonte da verdade global
+  // ------------------------------------------------------------------
+  // A heurística local (_resolveMyCampanhaId, ver comentário grande logo
+  // acima dela) resolve pela ficha/campanha de CADA conta — mas isso
+  // falha silenciosamente em pelo menos 2 casos reais: (1) jogador cuja
+  // ficha ainda não tem a campanha vinculada (fica preso pra sempre no
+  // caminho antigo "Live/chat", nunca tenta de novo sozinho porque nunca
+  // ganha um id pra resolver), e (2) conta que é Mestre/dona de MAIS DE
+  // UMA campanha, onde a escolha de qual usar é arbitrária (primeira
+  // chave encontrada) e pode divergir das outras contas da MESMA mesa.
+  // Nos dois casos, cada conta "funciona" sozinha (ecoa a própria
+  // mensagem de volta) mas nunca se encontra com o resto — exatamente o
+  // sintoma "cada um só vê a própria mensagem no chat/PV".
+  // AGORA: sempre que o MESTRE de fato de uma campanha tem sua campanha
+  // ativa definida (ver override de window._setActiveCampanha, abaixo,
+  // fora desta função), ele publica o id em 'Live/activeCampanhaId'.
+  // Todo mundo — inclusive quem a heurística local não conseguiu
+  // resolver, ou resolveu errado — escuta esse nó aqui e adota o valor
+  // publicado, convergindo pro MESMO caminho de chat/rolagens que o
+  // Mestre está usando. A heurística local continua existindo como
+  // fallback pra quando ainda não há nenhum Mestre publicando nada
+  // (ex.: sessão ainda não foi aberta por ninguém desta mesa).
+  // ══════════════════════════════════════════════════════════════════
+  const activeCampRef = ref(db, 'Live/activeCampanhaId');
+  onValue(activeCampRef, (snap) => {
+    if (!snap.exists()) return;
+    var broadcastId = snap.val();
+    if (broadcastId && broadcastId !== window._activeCampanhaId && typeof window._setActiveCampanha === 'function') {
+      console.log('[Chat/Rolagens] Adotando campanha publicada pelo Mestre: ' + broadcastId + ' (era: ' + (window._activeCampanhaId || 'nenhuma') + ')');
+      window._setActiveCampanha(broadcastId);
+    }
+  }, _fbReadErrHandler('Live/activeCampanhaId'));
+  _rtListeners.activeCamp = () => off(activeCampRef);
+
   // ── Mídia ao vivo (o que o mestre está exibindo) ──
   const mediaDisplayRef = ref(db, 'Live/currentDisplay');
   onValue(mediaDisplayRef, (snap) => {
@@ -17845,6 +17880,30 @@ function _showDisplayForPlayer(d) {
     img.src = d.dataUrl;
   }
 }
+
+// ── Sobrescreve _setActiveCampanha para PUBLICAR a campanha ativa ──
+// Ver bloco grande "Campanha ativa publicada pelo MESTRE" dentro de
+// _startRealtimeSync (onde isto é consumido). Só publica quando quem está
+// definindo a campanha é de fato o Mestre dela (isMestreDa) — assim uma
+// conta de jogador com a heurística local desalinhada nunca sobrescreve
+// o id correto que o resto da mesa já está usando; ela só ADOTA o que o
+// Mestre publicar, nunca publica por conta própria.
+var _origSetActiveCampanha = window._setActiveCampanha;
+window._setActiveCampanha = function(id) {
+  var prevId = window._activeCampanhaId;
+  _origSetActiveCampanha(id);
+  var newId = window._activeCampanhaId;
+  if (newId && newId !== prevId) {
+    try {
+      var camp = (data.campanhas || []).find(function(c) { return c.id === newId; });
+      if (camp && typeof isMestreDa === 'function' && isMestreDa(camp)) {
+        set(ref(db, 'Live/activeCampanhaId'), newId).catch(function(e) {
+          console.warn('[activeCampanhaId] Falha ao publicar campanha ativa:', e && (e.code || e.message));
+        });
+      }
+    } catch (e) { console.error('[_setActiveCampanha override] Falha ao avaliar publicação:', e); }
+  }
+};
 
 // ── Sobrescreve toggleLive para sincronizar ──
 var _origToggleLive = window.toggleLive;
