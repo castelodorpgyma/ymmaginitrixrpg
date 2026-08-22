@@ -6635,7 +6635,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     <div class="call-video-zone" id="call-video-zone">
       <!-- Screen share preview -->
       <div class="call-screen-area" id="call-screen-area">
-        <video id="call-screen-video" autoplay="" playsinline="" muted=""></video>
+        <video id="call-screen-video" autoplay="" playsinline="" muted="" disablepictureinpicture></video>
         <div class="call-screen-label">🖥 TRANSMISSÃO DE TELA</div>
         <div class="call-screen-vol-ctrl" id="call-screen-vol-ctrl">
           <button class="csv-btn" id="csv-mute-btn" onclick="toggleScreenAudioMute()" title="Mutar/ativar áudio da transmissão">🔇</button>
@@ -12759,9 +12759,19 @@ function _fbPublishCallAccess(active) {
   if (callState.privateWith) return; // chamada privada não usa esse mecanismo
   if (!(window.db && window._ref && window._set)) return;
   try {
+    // CORRIGIDO — CAUSA RAIZ de "a permissão de falar/moderar não salva":
+    // esta escrita gravava "permissions: []" (lista VAZIA) toda vez que
+    // "active" fosse false — ou seja, toda vez que o Mestre mexia na lista
+    // de permissões com a call de grupo ENCERRADA (o caso mais comum: dar
+    // permissão ANTES de começar a call), a própria gravação apagava a
+    // permissão que acabou de ser marcada, ou apagava tudo assim que a call
+    // terminasse. A lista de "quem pode moderar" é uma escolha do Mestre
+    // que devia durar entre calls, não algo amarrado a "call está ao vivo
+    // agora" — são dois conceitos diferentes (active = a call está rolando
+    // agora; permissions = quem tem esse direito quando ela estiver).
     window._set(window._ref(window.db, 'calls/main/access'), {
       active: !!active,
-      permissions: active ? callState.callPermissions : [],
+      permissions: callState.callPermissions,
       by: currentUser.id,
       ts: Date.now()
     }).catch(function(e) {
@@ -14207,7 +14217,7 @@ function buildParticipantCard(user, isLocal, uid, canModerate) {
 
   var localId=isLocal?'id="call-part-local"':'';
   var vidId = isLocal ? 'call-part-local-vid' : 'call-remote-vid-'+uid;
-  var vidTag='<video id="'+vidId+'" class="call-part-video" autoplay playsinline '+(isLocal?'muted':'')+' style="display:none"></video>';
+  var vidTag='<video id="'+vidId+'" class="call-part-video" autoplay playsinline disablepictureinpicture '+(isLocal?'muted':'')+' style="display:none"></video>';
   var muteVis=(isLocal&&callState.micState!=='active')?'visible':'';
   var muteBtn = (!isLocal && canModerate)
     ? '<button class="call-part-mute-btn'+(user.forceMuted?' is-muted':'')+'" title="'+(user.forceMuted?'Reativar microfone':'Silenciar participante')+'" onclick="callForceMuteToggle(\''+uid+'\')">🔇</button>'
@@ -15024,7 +15034,7 @@ function initCallCard() {
   openBtn.innerHTML = '<span class="call-dot"></span>&nbsp;'+(callState.active?'VOLTAR PARA CALL':'ENTRAR NA CALL');
   openBtn.style.opacity = ''; openBtn.style.cursor = '';
 }
-</script><div id="ymm-lightbox" style="display: none; position: fixed; inset: 0px; z-index: 99999; background: rgba(0, 0, 0, 0.95); align-items: center; justify-content: center; cursor: zoom-out; touch-action: manipulation;"><video id="call-vid-preview" style="display:none;max-width:100%;max-height:100%;object-fit:contain" controls="" autoplay="" loop="" playsinline=""></video><img id="call-img-preview" style="display:none;max-width:100%;max-height:100%;object-fit:contain" alt=""><button onclick="closeLightbox()" style="position:absolute;top:12px;right:16px;background:rgba(255,40,40,.3);border:1px solid rgba(255,60,60,.5);color:#fff;font-size:1.2rem;width:38px;height:38px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center">✕</button></div><div id="call-cam-fullview" class="call-cam-fullview"><div class="ccfv-name" id="call-cam-fullview-name"></div><video id="call-cam-fullview-vid" autoplay playsinline></video><div class="ccfv-empty" id="call-cam-fullview-empty" style="display:none">📷 Câmera desligada no momento</div><button class="ccfv-close" onclick="closeCameraFullview()">✕</button></div>
+</script><div id="ymm-lightbox" style="display: none; position: fixed; inset: 0px; z-index: 99999; background: rgba(0, 0, 0, 0.95); align-items: center; justify-content: center; cursor: zoom-out; touch-action: manipulation;"><video id="call-vid-preview" style="display:none;max-width:100%;max-height:100%;object-fit:contain" controls="" autoplay="" loop="" playsinline=""></video><img id="call-img-preview" style="display:none;max-width:100%;max-height:100%;object-fit:contain" alt=""><button onclick="closeLightbox()" style="position:absolute;top:12px;right:16px;background:rgba(255,40,40,.3);border:1px solid rgba(255,60,60,.5);color:#fff;font-size:1.2rem;width:38px;height:38px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center">✕</button></div><div id="call-cam-fullview" class="call-cam-fullview"><div class="ccfv-name" id="call-cam-fullview-name"></div><video id="call-cam-fullview-vid" autoplay playsinline disablepictureinpicture></video><div class="ccfv-empty" id="call-cam-fullview-empty" style="display:none">📷 Câmera desligada no momento</div><button class="ccfv-close" onclick="closeCameraFullview()">✕</button></div>
 
 
 
@@ -18575,6 +18585,7 @@ function _createRemoteVideoElement(uid) {
   vid.className = 'call-part-video';
   vid.autoplay = true;
   vid.playsinline = true;
+  vid.disablePictureInPicture = true;
   vid.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:14px;background:#000';
 
   var container = document.getElementById('call-participants-area');
