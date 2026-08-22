@@ -14077,7 +14077,29 @@ function buildParticipantCard(user, isLocal, uid, canModerate) {
   }
 
   var customCallAvatar = isLocal ? (window.callGetCustomAvatar ? window.callGetCustomAvatar() : null) : (user.avatar||null);
-  var charAvatar = customCallAvatar || (linkedChar && linkedChar.avatar) || (user.avatar||null);
+  // CORRIGIDO — 202608221930: quem é MESTRE puro nunca tem "ficha vinculada"
+  // (ver bloco acima — de propósito, pra não puxar avatar de NPC por engano),
+  // e o ícone customizado da call (Configurações → foto) é opt-in — se a
+  // pessoa nunca mexeu nisso, sobrava SEM NENHUMA fonte de foto e caía
+  // sempre no emoji genérico 🗡/⚔, mesmo tendo avatar cadastrado na própria
+  // conta (ex.: foto do Google, ou avatar escolhido na criação da conta).
+  // Isso explicava "o mestre nunca mostra a própria foto pros outros".
+  // Agora, como último recurso antes do emoji, usa o avatar da CONTA
+  // (sincronizado via users/ e já disponível em authUsers/currentUser,
+  // sem precisar de nenhuma configuração extra da pessoa).
+  var accountAvatar = null;
+  try {
+    if (isLocal) {
+      accountAvatar = (currentUser && currentUser.avatar) || null;
+    } else {
+      var _acctId = user.id || uid;
+      var _acct = (typeof authUsers !== 'undefined' ? authUsers : []).find(function(u){
+        return u && (u.id === _acctId || (u.username||'').toLowerCase() === (name||'').toLowerCase());
+      });
+      accountAvatar = (_acct && _acct.avatar) || null;
+    }
+  } catch(e) { console.warn('[buildParticipantCard] Falha ao buscar avatar da conta:', e); }
+  var charAvatar = customCallAvatar || (linkedChar && linkedChar.avatar) || accountAvatar || (user.avatar||null);
   var av = charAvatar
     ? '<img class="cp-av-static" src="'+esc(charAvatar)+'" style="width:100%;height:100%;object-fit:cover;border-radius:14px">'
       + '<img class="cp-av-live" src="'+esc(charAvatar)+'" style="width:100%;height:100%;object-fit:cover;border-radius:14px">'
