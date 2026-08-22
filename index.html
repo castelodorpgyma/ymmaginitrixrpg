@@ -12813,7 +12813,18 @@ function _doRequestMic() {
   if (callState.micDeviceId) audioConstraints.deviceId = {exact: callState.micDeviceId};
   var constraints={audio:audioConstraints, video:false};
 
-  navigator.mediaDevices.getUserMedia(constraints)
+  // CORRIGIDO — CAUSA RAIZ de verdade de "câmera/tela não aparece pro outro
+  // lado": esta função nunca devolvia (return) a Promise do getUserMedia().
+  // Em outro <script> mais abaixo, existe um "gancho" que faz
+  // `await _doRequestMic()` e só DEPOIS verifica se o stream já existe pra
+  // então mandar pela conexão WebRTC. Sem o `return` aqui, essa função
+  // devolvia undefined na hora — o `await` não esperava NADA de verdade, e
+  // a verificação rodava antes de o microfone/câmera sequer terminar de
+  // ligar (que depende do usuário aceitar a permissão no navegador,
+  // podendo levar segundos). Na prática, isso quase nunca conseguia
+  // mandar a trilha a tempo. Agora a Promise de verdade é devolvida, então
+  // o gancho espera o stream realmente existir antes de continuar.
+  return navigator.mediaDevices.getUserMedia(constraints)
     .catch(function(err){
       // fallback sem constraints avançados (ex.: dispositivo escolhido não existe mais)
       if(err.name==='OverconstrainedError'||err.name==='ConstraintNotSatisfiedError') {
@@ -12880,7 +12891,7 @@ function callToggleCam() {
   var videoConstraints = callState.camDeviceId
     ? {deviceId:{exact:callState.camDeviceId}}
     : {facingMode:'user'};
-  navigator.mediaDevices.getUserMedia({video:videoConstraints, audio:false})
+  return navigator.mediaDevices.getUserMedia({video:videoConstraints, audio:false})
     .catch(function(err){
       if(err.name==='OverconstrainedError'||err.name==='ConstraintNotSatisfiedError') {
         if (callState.camDeviceId) { callState.camDeviceId = ''; var s=document.getElementById('call-cam-device-sel'); if(s) s.value=''; }
