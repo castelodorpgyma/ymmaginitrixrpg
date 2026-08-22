@@ -16106,7 +16106,7 @@ import { getDatabase, ref, set, get, push, onValue, off, remove, serverTimestamp
 //  por esta linha. Se ela NÃO aparecer, o navegador/GitHub Pages ainda
 //  está servindo uma versão antiga — não é bug de código.
 // ════════════════════════════════════════════════════════════════════════
-console.log('%c🔍 YMMAGINITRIX — BUILD CHECK 2026-08-20-A — se você está vendo isso, o arquivo mais recente ESTÁ carregado ', 'background:#c1121f;color:#fff;font-size:14px;font-weight:bold;padding:6px 10px;border-radius:4px');
+console.log('%c🔍 YMMAGINITRIX — BUILD CHECK 2026-08-22-CHAT-FIX — se você está vendo isso, o arquivo mais recente (com as sobrescritas do chat movidas pro topo) ESTÁ carregado ', 'background:#c1121f;color:#fff;font-size:14px;font-weight:bold;padding:6px 10px;border-radius:4px');
 
 const firebaseConfig = {
   apiKey:            "AIzaSyDl3IAQwId269-5MOfY0xRN8fre4TFIV3Q",
@@ -16126,6 +16126,123 @@ const gProvider = new GoogleAuthProvider();
 gProvider.addScope('email');
 gProvider.addScope('profile');
 gProvider.setCustomParameters({ prompt: 'select_account' });
+
+// ════════════════════════════════════════════════════════════════════════
+//  SOBRESCRITAS CRÍTICAS DO CHAT — de propósito, o MAIS CEDO possível
+//  ------------------------------------------------------------------------
+//  pushChatMsg / toggleLive / _setActiveCampanha nascem como funções 100%
+//  LOCAIS (definidas nos <script> comuns, antes deste módulo) — sem elas
+//  serem sobrescritas aqui, embaixo, com a versão que fala com o Firebase,
+//  NENHUMA mensagem de chat sai do próprio navegador, mas cada um continua
+//  vendo a própria mensagem (o "push" local sempre roda), o que produz
+//  exatamente o sintoma "cada um só vê a própria mensagem" sem NENHUM erro
+//  visível — porque tecnicamente nada quebrou, só nunca chegou a sincronizar.
+//  ANTES essas sobrescritas ficavam centenas de linhas abaixo neste mesmo
+//  módulo (depois de toda a lógica de call/WebRTC/presença). Um módulo
+//  ES (<script type="module">) para de executar o código restante no
+//  primeiro erro não tratado no nível principal do script — então se
+//  QUALQUER COISA antes delas travasse, elas nunca chegavam a rodar, e não
+//  havia nenhum aviso disso. Cada sobrescrita agora roda em seu próprio
+//  try/catch, o mais cedo possível (logo após "db" existir), e marca
+//  window._chatFbWired = true só se as três aplicarem sem erro — ver o
+//  vigia (watchdog) logo abaixo, que avisa alto e claro se isso falhar.
+// ════════════════════════════════════════════════════════════════════════
+window._chatFbWired = false;
+try {
+  (function() {
+    var okCount = 0;
+
+    // ── _setActiveCampanha: publica a campanha ativa quando quem define
+    //    é de fato o Mestre dela — ver consumo em _startRealtimeSync
+    //    (listener de 'Live/activeCampanhaId'), mais abaixo neste módulo.
+    try {
+      var _origSetActiveCampanha = window._setActiveCampanha;
+      window._setActiveCampanha = function(id) {
+        var prevId = window._activeCampanhaId;
+        _origSetActiveCampanha(id);
+        var newId = window._activeCampanhaId;
+        if (newId && newId !== prevId) {
+          try {
+            var camp = (data.campanhas || []).find(function(c) { return c.id === newId; });
+            if (camp && typeof isMestreDa === 'function' && isMestreDa(camp)) {
+              set(ref(db, 'Live/activeCampanhaId'), newId).catch(function(e) {
+                console.warn('[activeCampanhaId] Falha ao publicar campanha ativa:', e && (e.code || e.message));
+              });
+            }
+          } catch (e) { console.error('[_setActiveCampanha override] Falha ao avaliar publicação:', e); }
+        }
+      };
+      okCount++;
+    } catch (e) { console.error('[SOBRESCRITAS CRÍTICAS] _setActiveCampanha falhou ao aplicar:', e); }
+
+    // ── toggleLive: liga/desliga sessão E sincroniza status via Firebase ──
+    try {
+      var _origToggleLive = window.toggleLive;
+      window.toggleLive = function() {
+        var activeCampId = liveSession && liveSession.campanhaId;
+        var activeCamp   = activeCampId ? data.campanhas.find(function(c){ return c.id === activeCampId; }) : null;
+        var allowed = activeCamp ? isMestreDa(activeCamp) : (currentUser && (currentUser.role === 'mestre' || currentUser.role === 'ambos'));
+        if (!allowed) {
+          showToast('⚠ Apenas o Mestre da campanha pode controlar a sessão', 'warn'); return;
+        }
+        liveSession.active = !liveSession.active;
+        set(ref(db, 'Live/session'), { active: liveSession.active, updatedBy: currentUser.username, ts: Date.now() })
+          .catch(function(e){ _fbHandleWriteError(e, null, 'status da sessão'); });
+        _applySessionUI(liveSession.active);
+      };
+      okCount++;
+    } catch (e) { console.error('[SOBRESCRITAS CRÍTICAS] toggleLive falhou ao aplicar:', e); }
+
+    // ── pushChatMsg: a função mais importante — sem ela, chat/PV nunca
+    //    saem do próprio navegador. Ver window._chatFbWired abaixo.
+    try {
+      var _origPushChatMsg = window.pushChatMsg;
+      window.pushChatMsg = function(msg) {
+        if (!liveSession.chat) liveSession.chat = [];
+        msg.id   = Date.now().toString(36) + Math.random().toString(36).slice(2);
+        msg.ts   = Date.now();
+        msg.time = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        if (!msg.senderId && currentUser) msg.senderId = currentUser.id;
+        if (!msg.sender   && currentUser) msg.sender   = currentUser.username;
+        if (!msg.role     && currentUser) msg.role      = currentUser.role;
+        var _path = window._liveChatPath ? window._liveChatPath() : 'Live/chat';
+        console.log('[Chat] Enviando mensagem pro Firebase em "' + _path + '":', msg.text || '(mídia)');
+        push(ref(db, _path), msg).then(function(){
+          console.log('[Chat] ✅ Mensagem confirmada no Firebase em "' + _path + '"');
+        }).catch(function(e) {
+          console.error('[Chat] ❌ Falha ao enviar mensagem pro Firebase em "' + _path + '":', e && (e.code || e.message));
+          if (typeof _fbHandleWriteError === 'function') {
+            _fbHandleWriteError(e, function(){ push(ref(db, _path), msg).catch(function(){}); }, 'mensagem do chat');
+          }
+        });
+        // Local imediato (sempre aparece pra quem enviou, mesmo se a sincronização falhar)
+        liveSession.chat.push(msg);
+        if (liveSession.chat.length > 200) liveSession.chat.splice(0, liveSession.chat.length - 200);
+        if (typeof saveLive === 'function') saveLive();
+        if (typeof renderChatFeed === 'function') renderChatFeed();
+        if (typeof renderChatFeedOv === 'function') renderChatFeedOv();
+      };
+      okCount++;
+    } catch (e) { console.error('[SOBRESCRITAS CRÍTICAS] pushChatMsg falhou ao aplicar:', e); }
+
+    window._chatFbWired = (okCount === 3);
+    console.log(window._chatFbWired
+      ? '%c✅ Chat conectado ao Firebase (3/3 sobrescritas aplicadas)'
+      : '%c⚠ Chat NÃO conectado ao Firebase corretamente (' + okCount + '/3 sobrescritas aplicadas) — mensagens podem ficar só locais',
+      'background:' + (okCount === 3 ? '#1a7f37' : '#c1121f') + ';color:#fff;font-weight:bold;padding:3px 8px;border-radius:3px');
+  })();
+} catch (e) {
+  console.error('[SOBRESCRITAS CRÍTICAS] Falha geral ao aplicar sobrescritas do chat:', e);
+}
+
+// ── Vigia: se por qualquer motivo o chat não ficou conectado ao Firebase,
+//    avisa alto (toast persistente) em vez de falhar em silêncio. Roda
+//    depois do login pra não incomodar na tela de entrada.
+setTimeout(function() {
+  if (!window._chatFbWired && typeof showToast === 'function' && window.currentUser) {
+    showToast('⚠ ATENÇÃO: chat em tempo real não conectou ao Firebase nesta sessão — mensagens podem não chegar aos outros. Recarregue a página (F5). Se persistir, veja o Console (F12) por "SOBRESCRITAS CRÍTICAS".', 'err');
+  }
+}, 4000);
 
 // ════════════════════════════════════════════════════════════════════════
 //  ESPERA A SESSÃO SER RESTAURADA ANTES DE RECUSAR AÇÕES DE CALL
@@ -17881,70 +17998,16 @@ function _showDisplayForPlayer(d) {
   }
 }
 
-// ── Sobrescreve _setActiveCampanha para PUBLICAR a campanha ativa ──
-// Ver bloco grande "Campanha ativa publicada pelo MESTRE" dentro de
-// _startRealtimeSync (onde isto é consumido). Só publica quando quem está
-// definindo a campanha é de fato o Mestre dela (isMestreDa) — assim uma
-// conta de jogador com a heurística local desalinhada nunca sobrescreve
-// o id correto que o resto da mesa já está usando; ela só ADOTA o que o
-// Mestre publicar, nunca publica por conta própria.
-var _origSetActiveCampanha = window._setActiveCampanha;
-window._setActiveCampanha = function(id) {
-  var prevId = window._activeCampanhaId;
-  _origSetActiveCampanha(id);
-  var newId = window._activeCampanhaId;
-  if (newId && newId !== prevId) {
-    try {
-      var camp = (data.campanhas || []).find(function(c) { return c.id === newId; });
-      if (camp && typeof isMestreDa === 'function' && isMestreDa(camp)) {
-        set(ref(db, 'Live/activeCampanhaId'), newId).catch(function(e) {
-          console.warn('[activeCampanhaId] Falha ao publicar campanha ativa:', e && (e.code || e.message));
-        });
-      }
-    } catch (e) { console.error('[_setActiveCampanha override] Falha ao avaliar publicação:', e); }
-  }
-};
-
-// ── Sobrescreve toggleLive para sincronizar ──
-var _origToggleLive = window.toggleLive;
-window.toggleLive = function() {
-  // Verifica: é mestre da campanha ativa OU tem role de mestre sem campanha ativa
-  var activeCampId = liveSession && liveSession.campanhaId;
-  var activeCamp   = activeCampId ? data.campanhas.find(function(c){ return c.id === activeCampId; }) : null;
-  var allowed = activeCamp ? isMestreDa(activeCamp) : (currentUser && (currentUser.role === 'mestre' || currentUser.role === 'ambos'));
-  if (!allowed) {
-    showToast('⚠ Apenas o Mestre da campanha pode controlar a sessão', 'warn'); return;
-  }
-  liveSession.active = !liveSession.active;
-  set(ref(db, 'Live/session'), { active: liveSession.active, updatedBy: currentUser.username, ts: Date.now() })
-    .catch(function(e){ _fbHandleWriteError(e, null, 'status da sessão'); });
-  _applySessionUI(liveSession.active);
-};
-
-// ── Sobrescreve pushChatMsg para sincronizar com Firebase ──
-var _origPushChatMsg = window.pushChatMsg;
-window.pushChatMsg = function(msg) {
-  if (!liveSession.chat) liveSession.chat = [];
-  msg.id   = Date.now().toString(36) + Math.random().toString(36).slice(2);
-  msg.ts   = Date.now();
-  msg.time = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-  if (!msg.senderId && currentUser) msg.senderId = currentUser.id;
-  if (!msg.sender   && currentUser) msg.sender   = currentUser.username;
-  if (!msg.role     && currentUser) msg.role      = currentUser.role;
-  // Salva no Firebase (todos os outros vão receber via onValue).
-  // ANTES: essa chamada não tinha .catch() nenhum — se um GIF/figurinha/imagem
-  // fosse grande demais ou o login tivesse expirado, a mensagem simplesmente
-  // não chegava aos outros e ninguém ficava sabendo (falha 100% silenciosa).
-  push(ref(db, window._liveChatPath ? window._liveChatPath() : 'Live/chat'), msg).catch(function(e) {
-    _fbHandleWriteError(e, function(){ push(ref(db, window._liveChatPath ? window._liveChatPath() : 'Live/chat'), msg).catch(function(){}); }, 'mensagem do chat');
-  });
-  // Local imediato (sempre aparece pra quem enviou, mesmo se a sincronização falhar)
-  liveSession.chat.push(msg);
-  if (liveSession.chat.length > 200) liveSession.chat.splice(0, liveSession.chat.length - 200);
-  saveLive();
-  renderChatFeed();
-  renderChatFeedOv();
-};
+// ── Sobrescritas de _setActiveCampanha / toggleLive / pushChatMsg ──
+// MOVIDAS pra logo após a inicialização do Firebase (topo deste módulo,
+// ver bloco "SOBRESCRITAS CRÍTICAS DO CHAT" logo após "const db =
+// getDatabase(app)"). Motivo: aqui embaixo elas ficavam DEPOIS de toda a
+// lógica de call/WebRTC/presença — se qualquer coisa lá em cima desse
+// módulo travasse com um erro não tratado, essas sobrescritas nunca
+// chegavam a rodar, e o chat voltava a ser 100% local (pushChatMsg cai de
+// volta pra versão sem Firebase) SEM NENHUM AVISO — exatamente o sintoma
+// "cada um só vê a própria mensagem". Agora elas rodam o mais cedo
+// possível, antes de qualquer coisa que possa quebrar depois.
 
 // ── Sobrescreve transmitMedia para sincronizar exibição ──
 var _origTransmitMedia = window.transmitMedia;
