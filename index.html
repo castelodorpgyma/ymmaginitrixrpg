@@ -5241,7 +5241,13 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 <div class="view" id="view-players">
   <div class="topbar">
     <h1><i data-lucide="sword" style="width:22px;height:22px;vertical-align:-4px;margin-right:6px;color:var(--c-accent)"></i><span>Players</span></h1>
-    <button class="btn btn-primary" onclick="openModal('modal-novo-player')">+ Novo Player</button>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <select id="players-camp-filter" onchange="renderPlayers()"
+        style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09);border-radius:10px;padding:9px 12px;color:var(--c-text);font-family:'Rajdhani',sans-serif;font-size:.85rem;outline:none;cursor:pointer">
+        <option value="">Todas as minhas campanhas</option>
+      </select>
+      <button class="btn btn-primary" onclick="openModal('modal-novo-player')">+ Novo Player</button>
+    </div>
   </div>
   <div id="players-list">
     <div class="empty-state"><div class="es-icon">⚔</div><p>Nenhum player cadastrado.<br>Adicione um player para começar.</p></div>
@@ -6300,7 +6306,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
       </div>
       <div style="flex:1;min-width:160px">
         <div class="form-group" style="margin-bottom:8px"><label class="lbl">nome do player</label><input type="text" id="np-player" placeholder="Nome do jogador real..."></div>
-      <div class="form-group" style="margin-bottom:0"><label class="lbl">campanha</label><select id="np-campanha"><option value="">Sem campanha</option></select></div>
+      <div class="form-group" style="margin-bottom:0"><label class="lbl">campanha</label><select id="np-campanha"><option value="">Sem campanha</option></select>
+        <div style="font-family:'Share Tech Mono',monospace;font-size:.5rem;color:rgba(255,255,255,0.55);margin-top:4px">Só aparecem campanhas que você já entrou (senha/convite) ou das quais é mestre. Entre em "Campanhas" para desbloquear outras.</div>
+      </div>
       </div><!-- /flex wrapper -->
     </div>
     <div class="grid2">
@@ -6419,6 +6427,20 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     <button class="modal-close" onclick="closeModal('modal-edit-campanha')">✕</button>
     <div class="modal-title"><i data-lucide="pencil" style="width:18px;height:18px;vertical-align:-3px;margin-right:6px"></i>Editar Campanha</div>
     <input type="hidden" id="ec-id">
+    <div class="form-group">
+      <label class="lbl">🗺 banner da campanha</label>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div id="ec-banner-preview" onclick="document.getElementById('ec-banner-input').click()" style="width:80px;height:80px;border:2px dashed rgba(255,40,40,.3);border-radius:4px;display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;background:rgba(255,255,255,.02);flex-shrink:0">
+          <span style="font-size:1.6rem;opacity:.3">🗺</span>
+        </div>
+        <div>
+          <label class="sp-upload-lbl" onclick="document.getElementById('ec-banner-input').click()" style="cursor:pointer">📷 Trocar imagem</label>
+          <div style="font-family:'Share Tech Mono',monospace;font-size:.5rem;color:rgba(255,255,255,0.55);margin-top:4px">Salva automaticamente ao escolher uma imagem.</div>
+        </div>
+        <input type="file" id="ec-banner-input" accept="image/*" style="display:none" onchange="updateCampanhaBanner(event)">
+        <input type="hidden" id="ec-banner-data">
+      </div>
+    </div>
     <div class="form-group"><label class="lbl">nome</label><input type="text" id="ec-nome"></div>
     <div class="form-group"><label class="lbl">mestre</label><input type="text" id="ec-mestre"></div>
     <div class="form-group"><label class="lbl">descrição</label><textarea id="ec-desc"></textarea></div>
@@ -8205,7 +8227,7 @@ function showView(v) {
 // ===== MODAIS =====
 function openModal(id) {
   if(id==='modal-novo-player') {
-    populateCampanhaSelect('np-campanha');
+    populateCampanhaSelect('np-campanha', { onlyAccessible: true });
     var _mnp = document.getElementById('modal-novo-player');
     // Só pré-preenche em ficha NOVA (sem editId ativo) — evita atrapalhar edição
     if (_mnp && !_mnp.dataset.editId && currentUser) {
@@ -9446,6 +9468,9 @@ function openCampanhaDetail(id) {
   // chat/rolagens/teleprompter/call por campanha (ver bloco grande de
   // comentário logo acima da declaração de `liveSession`).
   if (typeof window._setActiveCampanha === 'function') window._setActiveCampanha(id);
+  // Agora que você de fato entrou (senha certa/convite/campanha aberta),
+  // ela passa a poder ser escolhida na hora de criar/editar um player.
+  markCampanhaUnlocked(id);
 
   var bannerImg = document.getElementById('cd-banner-img');
   if (bannerImg) {
@@ -9509,8 +9534,32 @@ function editCampanha(id) {
   document.getElementById('ec-mestre').value = c.mestre||'';
   document.getElementById('ec-desc').value = c.desc||'';
   document.getElementById('ec-status').value = c.status;
+  document.getElementById('ec-banner-data').value = c.banner||'';
+  var bp = document.getElementById('ec-banner-preview');
+  if (bp) bp.innerHTML = c.banner
+    ? '<img src="'+esc(c.banner)+'" style="width:100%;height:100%;object-fit:cover">'
+    : '<span style="font-size:1.6rem;opacity:.3">🗺</span>';
   renderInviteList('ec');
   openModal('modal-edit-campanha');
+}
+
+// Troca o banner e salva na hora — não precisa clicar em "SALVAR" no resto
+// do formulário pra a imagem nova realmente ficar valendo.
+function updateCampanhaBanner(event) {
+  var id = document.getElementById('ec-id').value;
+  var c = _findCampanha(id);
+  if (!c) { showToast('⚠ Campanha não encontrada localmente', 'warn'); return; }
+  if (!isMestreDa(c)) { showToast('✕ Apenas o mestre criador pode alterar o banner', 'err'); return; }
+  previewImg(event, 'ec-banner-preview', 'ec-banner-data');
+  setTimeout(function() {
+    var novoBanner = document.getElementById('ec-banner-data').value;
+    if (!novoBanner) return;
+    c.banner = novoBanner;
+    if (typeof window._fbPublishCampanha === 'function') window._fbPublishCampanha(c);
+    save();
+    renderCampanhas();
+    showToast('🗺 Banner da campanha atualizado!', 'ok');
+  }, 60); // pequeno atraso pra esperar o processamento assíncrono da imagem em previewImg
 }
 function updateCampanha() {
   var id = document.getElementById('ec-id').value;
@@ -9520,6 +9569,8 @@ function updateCampanha() {
   c.mestre = document.getElementById('ec-mestre').value.trim();
   c.desc = document.getElementById('ec-desc').value.trim();
   c.status = document.getElementById('ec-status').value;
+  var bannerVal = document.getElementById('ec-banner-data').value;
+  if (bannerVal) c.banner = bannerVal; // reforço: já foi salvo na hora por updateCampanhaBanner(), isso só garante consistência
   var newSenha = document.getElementById('ec-senha').value.trim();
   if(newSenha) { c.senha = hashPass(newSenha); c.senhaSet = true; }
   else if(newSenha === '') { /* keep existing if blank */ }
@@ -9545,10 +9596,56 @@ function deleteCampanha(id) {
   save(); renderCampanhas(); notify('// campanha excluída');
 }
 
-function populateCampanhaSelect(elId) {
+// ── Campanhas "desbloqueadas" pela conta atual neste aparelho ──
+// Uma campanha entra nessa lista quando você de fato ENTRA nela (senha
+// certa, convite resgatado, ou ela é aberta e você clicou em entrar) — ver
+// markCampanhaUnlocked(), chamada dentro de openCampanhaDetail(). Guardado
+// por conta (currentUser.id) pra não misturar quem usa o mesmo aparelho.
+function _unlockedCampanhasKey() {
+  return 'ymm_unlocked_camps_' + (currentUser ? currentUser.id : 'anon');
+}
+function getUnlockedCampanhaIds() {
+  try { return JSON.parse(localStorage.getItem(_unlockedCampanhasKey()) || '[]'); }
+  catch(e) { return []; }
+}
+function markCampanhaUnlocked(id) {
+  if (!id) return;
+  var ids = getUnlockedCampanhaIds();
+  if (ids.indexOf(id) === -1) {
+    ids.push(id);
+    try { localStorage.setItem(_unlockedCampanhasKey(), JSON.stringify(ids)); } catch(e) {}
+  }
+}
+// Uma campanha é "acessível" pra essa conta se: ela é o mestre dona, ela já
+// tem um personagem cadastrado ali, ou ela já entrou (senha/convite/aberta)
+// nesse aparelho antes. Sem isso, dava pra escolher QUALQUER campanha do
+// site inteiro na hora de criar/editar um player — mesmo uma de outra mesa
+// que você nunca entrou.
+function isCampanhaAcessivel(c) {
+  if (!c) return false;
+  if (isMestreDa(c)) return true;
+  if (typeof window._pertenceACampanha === 'function' && window._pertenceACampanha(c.id)) return true;
+  return getUnlockedCampanhaIds().indexOf(c.id) !== -1;
+}
+
+function populateCampanhaSelect(elId, opts) {
+  opts = opts || {};
   var sel = document.getElementById(elId);
+  if (!sel) return;
+  // Preserva a seleção atual (ex.: ao editar um player, o campo já vinha
+  // preenchido ANTES desta função rodar de novo — sem isso o rebuild do
+  // <select> perdia o valor e voltava sempre pra "Sem campanha").
+  var selectedId = (opts.selectedId !== undefined) ? opts.selectedId : sel.value;
+  var list = data.campanhas || [];
+  if (opts.onlyAccessible) {
+    // Só restringe às campanhas que essa conta pode acessar — mas nunca some
+    // com o valor que já estava selecionado (ex.: ficha antiga vinculada a
+    // uma campanha que por algum motivo não bateu no filtro).
+    list = list.filter(function(c) { return isCampanhaAcessivel(c) || c.id === selectedId; });
+  }
   sel.innerHTML = '<option value="">Sem campanha</option>' +
-    data.campanhas.map(c=>`<option value="${c.id}">${c.nome}</option>`).join('');
+    list.map(c=>`<option value="${c.id}">${c.nome}</option>`).join('');
+  if (selectedId) sel.value = selectedId;
 }
 
 // ===== PLAYERS =====
@@ -9738,15 +9835,42 @@ function savePlayer() {
   if(existing) { setTimeout(function(){ openFicha(p.id); }, 80); }
 }
 
+// Popula o filtro de campanha da página Players só com campanhas que essa
+// conta pode acessar (mestre delas, tem ficha nelas, ou já entrou) — mesmo
+// critério do select de criar/editar player, pra manter a mesma "regra de
+// acesso" em todo canto do app.
+function _populatePlayersCampFilter() {
+  var sel = document.getElementById('players-camp-filter');
+  if (!sel) return;
+  var selectedId = sel.value;
+  var acessiveis = (data.campanhas||[]).filter(isCampanhaAcessivel);
+  sel.innerHTML = '<option value="">Todas as minhas campanhas</option>' +
+    acessiveis.map(c=>`<option value="${c.id}">${c.nome}</option>`).join('');
+  if (selectedId && acessiveis.some(function(c){ return c.id===selectedId; })) sel.value = selectedId;
+}
+
 function renderPlayers() {
   var el = document.getElementById('players-list');
   if(!el) return;
-  if(!data.players.length){
-    el.innerHTML='<div class="empty-state"><div class="es-icon">⚔</div><p>Nenhum player cadastrado.<br>Clique em "+ Nova Ficha" para criar.</p></div>';
+  _populatePlayersCampFilter();
+  var filterId = (document.getElementById('players-camp-filter')||{}).value || '';
+  // Restringe a lista às campanhas acessíveis por essa conta (mestre ou
+  // com ficha nelas); dentro disso, se um filtro específico foi escolhido,
+  // mostra só os personagens catalogados naquela campanha.
+  var visiveis = data.players.filter(function(p){
+    if (!p.campanha) return !filterId; // fichas sem campanha só aparecem sem filtro ativo
+    var camp = data.campanhas.find(function(c){ return c.id===p.campanha; });
+    if (!isCampanhaAcessivel(camp)) return false;
+    return !filterId || p.campanha === filterId;
+  });
+  if(!visiveis.length){
+    el.innerHTML='<div class="empty-state"><div class="es-icon">⚔</div><p>'
+      + (filterId ? 'Nenhum personagem catalogado nessa campanha ainda.' : 'Nenhum player cadastrado.<br>Clique em "+ Nova Ficha" para criar.')
+      + '</p></div>';
     return;
   }
   var sbClass = ['sb-0','sb-1','sb-2','sb-3','sb-4'];
-  el.innerHTML = '<div class="grid2">' + data.players.map(function(p){
+  el.innerHTML = '<div class="grid2">' + visiveis.map(function(p){
     var camp = data.campanhas.find(function(c){ return c.id===p.campanha; });
     var vidaPct = p.vidaMax > 0 ? Math.min(100,Math.round(p.vida/p.vidaMax*100)) : 0;
     var sanPct  = p.sanidadeMax > 0 ? Math.min(100,Math.round(p.sanidade/p.sanidadeMax*100)) : 0;
@@ -14843,6 +14967,15 @@ function saveStickers() {
 // a pessoa ficava sem conseguir entrar mesmo estando tudo "certo" nos
 // bastidores. Agora usa ownerId primeiro (com o mesmo fallback por nome
 // só pra fichas antigas sem ownerId).
+// v202608220000 — ANTES: juntava TODAS as campanhas que a conta pertence
+// (todas as que é mestre + todas onde tem ficha) numa lista só de "peers"
+// possíveis pra PV. Isso significava que um Mestre com 2+ campanhas via os
+// players de AMBAS misturados na lista de conversa privada — inclusive
+// gente que nunca deveria poder se falar, por estar em mesas diferentes.
+// AGORA: restringe estritamente à campanha ATIVA/selecionada no momento
+// (window._activeCampanhaId) — só quem tem ficha cadastrada NESSA campanha
+// específica (+ o mestre dela) aparece pra PV. Sem campanha ativa definida
+// ainda, cai no fallback antigo (lista cheia) pra não travar setup novo.
 function _getChatPeers() {
   if(!currentUser) return [];
   var _ehDoUsuario = function(p, u) {
@@ -14850,22 +14983,21 @@ function _getChatPeers() {
     if (p.ownerId) return p.ownerId === u.id;
     return !!(p.player && u.username && p.player.toLowerCase() === u.username.toLowerCase());
   };
-  var myCampIds = {};
-  (data.campanhas||[]).forEach(function(c){ if(isMestreDa(c)) myCampIds[c.id] = true; });
-  (data.players||[]).forEach(function(p){
-    if(_ehDoUsuario(p, currentUser) && p.campanha) myCampIds[p.campanha] = true;
-  });
-  if(!Object.keys(myCampIds).length) {
-    // ainda sem campanha própria registrada: mantém a lista completa pra não travar quem tá testando
+  var activeId = window._activeCampanhaId;
+  var camp = activeId ? (data.campanhas||[]).find(function(c){ return c.id===activeId; }) : null;
+  var pertence = camp && (isMestreDa(camp) || (typeof window._pertenceACampanha === 'function' && window._pertenceACampanha(activeId)));
+  if (!camp || !pertence) {
+    // sem campanha ativa (ou a conta não pertence a ela): fallback antigo,
+    // pra não travar quem tá testando sem nenhuma campanha selecionada
     return (authUsers||[]).filter(function(u){ return u.id !== currentUser.id; });
   }
   var peerIds = {};
   (data.players||[]).forEach(function(p){
-    if(!p.campanha || !myCampIds[p.campanha]) return;
+    if(p.campanha !== activeId) return;
     var u = (authUsers||[]).find(function(x){ return _ehDoUsuario(p, x); });
     if(u) peerIds[u.id] = true;
   });
-  (data.campanhas||[]).forEach(function(c){ if(myCampIds[c.id] && c.mestreId) peerIds[c.mestreId] = true; });
+  if (camp.mestreId) peerIds[camp.mestreId] = true;
   delete peerIds[currentUser.id];
   return (authUsers||[]).filter(function(u){ return peerIds[u.id]; });
 }
