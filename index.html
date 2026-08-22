@@ -6011,6 +6011,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
         </div>
         <div class="call-perm-notice" id="call-no-perm-notice" style="display:none">⚠ Apenas o Mestre ou usuários com permissão podem iniciar a call.</div>
         <button class="call-open-btn" id="call-open-btn" onclick="openCallOverlay()"><span class="call-dot"></span>&nbsp;ENTRAR NA CALL</button>
+        <span id="fb-conn-dot" title="Status do Firebase" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#888;margin-right:6px;vertical-align:middle"></span>
         <button id="call-diag-btn" onclick="runCallDiagnostics()" style="display:block;width:100%;margin-top:8px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);border-radius:6px;color:rgba(255,255,255,0.65);font-family:'Share Tech Mono',monospace;font-size:.52rem;letter-spacing:.08em;padding:8px;cursor:pointer;transition:all .15s" onmouseover="this.style.background='rgba(255,255,255,.09)'" onmouseout="this.style.background='rgba(255,255,255,.04)'">🔧 TESTAR CONEXÃO (sem precisar do F12)</button>
         <div id="call-diag-result" style="display:none;margin-top:8px;padding:10px 12px;border-radius:6px;font-family:'Share Tech Mono',monospace;font-size:.56rem;line-height:1.8;white-space:pre-wrap"></div>
       </div>
@@ -16681,6 +16682,29 @@ function _handleGoogleError(e) {
 window.auth             = auth;
 window.app              = app;
 window.db               = db;
+
+// ── v202608220900 — Monitor real de conexão com o Firebase ──
+// ANTES: nada no app checava de verdade se o socket com o Firebase estava
+// vivo. Um "onValue" que nunca recebe atualização fica em silêncio total —
+// sem erro no console, sem warning — indistinguível de "ninguém mandou
+// nada novo ainda". Isso é exatamente o cenário relatado (câmera, dados
+// ao vivo E chat todos parados ao mesmo tempo, sem erro vermelho nenhum):
+// se o socket caiu ou nunca conectou de verdade, TUDO que depende de
+// onValue fica congelado junto, do jeito certinho, sem avisar ninguém.
+// AGORA: escutamos 'default .info/connected', mantido pelo próprio SDK do
+// Firebase e que reflete o estado REAL do socket (diferente de
+// navigator.onLine, que só sabe se há internet, não se o Firebase
+// especificamente está acessível).
+window._fbConnected = null;
+onValue(ref(db, '.info/connected'), function(snap) {
+  window._fbConnected = !!snap.val();
+  console.log('[Firebase] socket ' + (window._fbConnected ? 'CONECTADO ✅' : 'DESCONECTADO ❌'));
+  var dot = document.getElementById('fb-conn-dot');
+  if (dot) {
+    dot.style.background = window._fbConnected ? '#2ecc71' : '#e74c3c';
+    dot.title = window._fbConnected ? 'Firebase conectado' : 'Firebase DESCONECTADO — nada em tempo real vai funcionar até reconectar';
+  }
+});
 // Expõe para funções legadas
 window._fbSignIn        = _fbSignIn;
 window._fbSignUp        = _fbCreateUser;
@@ -17467,6 +17491,36 @@ function _getRtcConfig() {
 //              está do meu lado")
 // O resultado aparece direto na tela, em português simples, pra qualquer
 // jogador conseguir printar e mandar pro mestre sem mexer em nada técnico.
+// v202608220900 — Antes de mais nada, testa o Firebase (não só o WebRTC).
+// Sintoma relatado: câmera, dados ao vivo E chat pararam de sincronizar ao
+// mesmo tempo, sem NENHUM erro no console. Isso não bate só com WebRTC
+// quebrado (o chat não usa WebRTC) — bate com o socket do Firebase caído
+// ou nunca conectado, que fica em silêncio total sem avisar ninguém.
+// Faz uma escrita real + leitura de volta num caminho de teste; se isso
+// falhar ou travar, o problema é no Firebase (regra, rede bloqueando o
+// domínio, projeto sem quota etc.), não na chamada de vídeo.
+window._testFirebaseRoundtrip = async function() {
+  try {
+    if (!window.auth || !window.auth.currentUser) return { ok:false, reason:'sem-login' };
+    var uid = window.auth.currentUser.uid;
+    var testRef = ref(db, 'diagnostics/' + uid + '/ping');
+    var stamp = Date.now();
+    var writeOk = await Promise.race([
+      set(testRef, stamp).then(function(){ return true; }).catch(function(){ return false; }),
+      new Promise(function(res){ setTimeout(function(){ res('timeout'); }, 5000); })
+    ]);
+    if (writeOk !== true) return { ok:false, reason: writeOk === 'timeout' ? 'timeout-escrita' : 'falha-escrita', connected: window._fbConnected };
+    var readOk = await Promise.race([
+      get(testRef).then(function(snap){ return snap.exists() && snap.val() === stamp; }).catch(function(){ return false; }),
+      new Promise(function(res){ setTimeout(function(){ res('timeout'); }, 5000); })
+    ]);
+    if (readOk !== true) return { ok:false, reason: readOk === 'timeout' ? 'timeout-leitura' : 'falha-leitura', connected: window._fbConnected };
+    return { ok:true, connected: window._fbConnected };
+  } catch (e) {
+    return { ok:false, reason: (e && e.code) || (e && e.message) || 'erro-desconhecido', connected: window._fbConnected };
+  }
+};
+
 window.runCallDiagnostics = async function runCallDiagnostics() {
   var btn = document.getElementById('call-diag-btn');
   var box = document.getElementById('call-diag-result');
@@ -17475,8 +17529,10 @@ window.runCallDiagnostics = async function runCallDiagnostics() {
   box.style.background = 'rgba(255,255,255,.04)';
   box.style.border = '1px solid rgba(255,255,255,.12)';
   box.style.color = 'rgba(255,255,255,.75)';
-  box.textContent = '⏳ Testando conexão (isso leva uns 6 segundos, espera aí)...';
+  box.textContent = '⏳ Testando Firebase e conexão de call (isso leva uns 6 a 10 segundos, espera aí)...';
   if (btn) { btn.disabled = true; btn.style.opacity = '.5'; btn.style.cursor = 'default'; }
+
+  var fbResult = await window._testFirebaseRoundtrip();
 
   var found = { host: false, srflx: false, relay: false };
   var testPc = null;
@@ -17527,10 +17583,21 @@ window.runCallDiagnostics = async function runCallDiagnostics() {
   if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.style.cursor = 'pointer'; }
 
   var lines = [];
+  lines.push((fbResult.ok ? '✅' : '❌') + ' Firebase (chat, dados ao vivo, sinalização da call)' + (fbResult.ok ? '' : ' — ' + fbResult.reason));
+  lines.push('   socket: ' + (fbResult.connected === true ? 'conectado' : fbResult.connected === false ? 'DESCONECTADO' : 'desconhecido'));
   lines.push((found.host ? '✅' : '❌') + ' Rede local (host)');
   lines.push((found.srflx ? '✅' : '❌') + ' STUN — descobrir seu IP público');
   lines.push((found.relay ? '✅' : '❌') + ' TURN — retransmissor pra falar com quem está numa rede diferente da sua');
   lines.push('');
+
+  if (!fbResult.ok) {
+    box.style.background = 'rgba(28,5,5,.5)';
+    box.style.border = '1px solid rgba(200,40,40,.4)';
+    box.style.color = 'rgba(255,150,150,.95)';
+    lines.push('❌ O FIREBASE NÃO ESTÁ RESPONDENDO — este é provavelmente o motivo real de câmera, dados ao vivo E chat estarem todos travados juntos (nenhum deles funciona sem o Firebase). Isso NÃO é bug de WebRTC/câmera, mesmo que o teste de STUN/TURN abaixo dê certo. Motivo técnico: "' + fbResult.reason + '". Tenta: recarregar a página (Ctrl+Shift+R), checar se alguma extensão/adblock/VPN/firewall está bloqueando "*.firebaseio.com", e testar em outra rede (ex: dados móveis). Se persistir com vários jogadores ao mesmo tempo, avisa o mestre/dev — pode ser regra do banco ou quota do projeto Firebase.');
+    box.textContent = lines.join('\n');
+    return;
+  }
 
   if (found.relay) {
     box.style.background = 'rgba(8,28,12,.5)';
