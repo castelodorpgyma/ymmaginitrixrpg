@@ -10822,6 +10822,34 @@ window._setActiveCampanha = function(id) {
     try { window._resubscribeLiveChatRolls(); } catch(e) { console.error('[_setActiveCampanha] resubscribe falhou:', e); }
   }
 };
+// ══════════════════════════════════════════════════════════════════
+// CORRIGIDO — chat/rolagens "não sincronizavam pra ninguém"
+// ------------------------------------------------------------------
+// Causa raiz: window._activeCampanhaId só era definido quando alguém
+// passava pela TELA de detalhe da campanha (openCampanhaDetail). Se um
+// dos participantes nunca abriu essa tela nesta sessão — ex.: recarregou
+// a página e caiu direto na Mesa de Dados/na call — ele continuava com
+// _activeCampanhaId = null e lia/escrevia em 'Live/chat' (caminho antigo),
+// enquanto o outro participante (que abriu a campanha) lia/escrevia em
+// 'campanhas/<id>/live/chat'. Os dois caminhos são DIFERENTES nós do
+// Firebase: cada um "funcionava" sozinho (cada um via as próprias
+// mensagens/rolagens voltando), mas nunca se encontravam — exatamente
+// como "tempo real quebrado pra todo mundo" parece de fora. Esta função
+// resolve a campanha do usuário pela ficha dele (ou por ser mestre de
+// uma campanha), sem depender de ele ter clicado em nada.
+// ══════════════════════════════════════════════════════════════════
+function _resolveMyCampanhaId() {
+  if (typeof currentUser === 'undefined' || !currentUser) return null;
+  var ids = {};
+  (data.campanhas||[]).forEach(function(c){ if(typeof isMestreDa==='function' && isMestreDa(c)) ids[c.id]=true; });
+  (data.players||[]).forEach(function(p){
+    var isMine = p.ownerId ? p.ownerId===currentUser.id : !!(p.player && currentUser.username && p.player.toLowerCase()===currentUser.username.toLowerCase());
+    if (isMine && p.campanha) ids[p.campanha]=true;
+  });
+  var keys = Object.keys(ids);
+  return keys.length ? keys[0] : null;
+}
+window._resolveMyCampanhaId = _resolveMyCampanhaId;
 
 var liveSession = {
   active: false,
@@ -17474,6 +17502,7 @@ function _startRealtimeSync() {
 
     var chatRef = ref(db, window._liveChatPath ? window._liveChatPath() : 'Live/chat');
     _liveChatRollsRefs.chat = chatRef;
+    console.log('[Chat/Rolagens] Campanha ativa: '+(window._activeCampanhaId||'(nenhuma — usando caminho antigo Live/chat)')+' — lendo de: '+(window._liveChatPath ? window._liveChatPath() : 'Live/chat'));
     _knownLastChatTs = null;
     liveSession.chat = []; renderChatFeed(); renderChatFeedOv(); // limpa a tela antes do 1º snapshot da campanha nova chegar
     onValue(chatRef, (snap) => {
@@ -17519,6 +17548,17 @@ function _startRealtimeSync() {
     _rtListeners.rolls = () => off(rollRef);
   }
   window._resubscribeLiveChatRolls = _subscribeLiveChatRolls;
+  // Ver bloco "CORRIGIDO — chat/rolagens não sincronizavam pra ninguém" (perto
+  // de window._setActiveCampanha) — se esta aba nunca passou pela tela de
+  // detalhe da campanha, resolve a campanha do usuário pela ficha dele antes
+  // de assinar chat/rolagens pela 1ª vez, senão ficaria presa no caminho
+  // antigo 'Live/chat', fora de sincronia com quem já abriu a campanha.
+  if (!window._activeCampanhaId && typeof _resolveMyCampanhaId === 'function') {
+    try {
+      var _myCampFallback = _resolveMyCampanhaId();
+      if (_myCampFallback) { window._activeCampanhaId = _myCampFallback; if (typeof liveSession === 'object') liveSession.campanhaId = _myCampFallback; if (typeof data === 'object' && data) data.campAtiva = _myCampFallback; }
+    } catch(e) { console.error('[_startRealtimeSync] Falha ao resolver campanha ativa:', e); }
+  }
   _subscribeLiveChatRolls();
 
   // ── Status da sessão (ativo/inativo) ──
