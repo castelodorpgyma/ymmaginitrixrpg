@@ -12753,7 +12753,15 @@ function _startCall() {
     var _room = callState.privateWith
       ? _privateCallRoomId(currentUser.id, callState.privateWith)
       : 'main';
-    window._joinCallRoom(_room).catch(function(e){ console.warn('[Call] WebRTC join:', e); });
+    window._joinCallRoom(_room).catch(function(e){
+      console.warn('[Call] WebRTC join:', e);
+      // CORRIGIDO — 202608221900: antes esse erro só ia pro console — se
+      // _joinCallRoom() quebrasse no meio (ex.: dentro de
+      // _subscribeCallRoomExtras, ANTES de ligar os listeners de membros/
+      // sinalização), a call parecia "aberta" (overlay abriu, mic ligou)
+      // mas ninguém nunca aparecia pra ninguém, sem nenhum aviso na tela.
+      if (typeof showToast === 'function') showToast('✕ Falha ao entrar na sala da call: ' + (e && e.message || e) + ' — manda um print do console (F12) pro mestre/dev', 'err');
+    });
   }
 
   // Pede mic automaticamente
@@ -15704,6 +15712,24 @@ window.onerror = function(msg, url, line, col, error) {
   if (typeof showToast === 'function') showToast('✕ Erro crítico: ' + msg, 'err');
   return false;
 };
+// CORRIGIDO — 202608221900: window.onerror só pega erro SÍNCRONO. Um monte
+// de código crítico do app (login, _startRealtimeSync, entrar na call) roda
+// dentro de funções async chamadas sem ".catch()" — se algo dentro delas
+// jogar um erro, isso vira uma "unhandled promise rejection", que o
+// window.onerror NUNCA vê. Resultado: a função para no meio, tudo trava
+// (chat, dados ao vivo, membros da call, sinalização — o que precisar do
+// que vinha DEPOIS do ponto que quebrou), e NENHUM aviso aparece em lugar
+// nenhum — nem toast, nem console vermelho óbvio, nada. Foi exatamente esse
+// tipo de falha silenciosa que explicava chat/call/dados travados nos dois
+// lados ao mesmo tempo sem nenhum toast de permissão. Agora esses erros
+// também aparecem.
+window.addEventListener('unhandledrejection', function(ev) {
+  console.error('[Unhandled Promise Rejection]', ev.reason);
+  if (typeof showToast === 'function') {
+    var m = (ev.reason && (ev.reason.message || ev.reason.code)) || String(ev.reason);
+    showToast('✕ Erro assíncrono não tratado: ' + m + ' — manda um print do console (F12) pro mestre/dev', 'err');
+  }
+});
 </script>
 
 <script type="module">
@@ -17070,16 +17096,32 @@ var _knownLastChatTs = null; // null = ainda não recebeu o primeiro snapshot (e
 window._syncHealth = { chat:0, rolls:0, session:0, sharedData:0, presence:0, callMembers:0, callSignals:0 };
 
 function _startRealtimeSync() {
-  _stopRealtimeSync();
-  _requestNotificationPermission();
+  // CORRIGIDO — 202608221900: esta função nunca tinha try/catch. Ela é
+  // chamada (várias vezes, de vários pontos do login) de dentro de
+  // funções async SEM ".catch()" — então se qualquer linha daqui pra
+  // baixo lançasse um erro, a função parava ali mesmo, ligando só os
+  // listeners que vinham ANTES da linha que quebrou, e o erro virava uma
+  // "unhandled promise rejection" que não aparecia em NENHUM lugar (nem
+  // toast, nem console óbvio) — ver o novo listener global logo no topo
+  // do arquivo. Cada listener agora liga dentro do seu próprio try/catch:
+  // se um travar, os outros ainda ligam, e você vê exatamente qual foi.
+  try { _stopRealtimeSync(); } catch(e) { console.error('[_startRealtimeSync] _stopRealtimeSync falhou:', e); }
+  try { _requestNotificationPermission(); } catch(e) { console.error('[_startRealtimeSync] _requestNotificationPermission falhou:', e); }
 
   // CORRIGIDO: garante que a lista de usuários (quem aparece pra ligar)
   // esteja sempre assinada de verdade neste ponto — depois do login
   // confirmado — não importa se a tentativa lá em cima (no carregamento
   // do módulo) chegou cedo demais e falhou. off() primeiro evita duas
   // cópias do mesmo listener rodando ao mesmo tempo.
-  off(_usersRef);
-  _subscribeUsersLive();
+  try {
+    off(_usersRef);
+    _subscribeUsersLive();
+  } catch(e) {
+    console.error('[_startRealtimeSync] users/ falhou:', e);
+    if (typeof showToast === 'function') showToast('✕ Falha ao ligar sincronização de usuários: ' + (e && e.message || e), 'err');
+  }
+
+  try {
 
   // ── Chat em tempo real ──
   const chatRef = ref(db, 'Live/chat');
@@ -17197,6 +17239,14 @@ function _startRealtimeSync() {
   // (o fallback evitava um erro feio na tela, mas escondia o problema:
   // caía silenciosamente pros sons padrão e nunca mais tentava de novo).
   if (typeof _sbLoadPublic === 'function') _sbLoadPublic();
+
+  } catch(e) {
+    // Se ISSO disparar, significa que chat/rolagens/presença pararam de
+    // ligar bem no meio — e agora, ao contrário de antes, você vai ver
+    // exatamente qual foi o erro, em vez de só "nunca" no painel de status.
+    console.error('[_startRealtimeSync] Falha ao ligar chat/rolls/presença/etc:', e);
+    if (typeof showToast === 'function') showToast('✕ Sincronização em tempo real travou no meio: ' + (e && e.message || e), 'err');
+  }
 }
 
 function _stopRealtimeSync() {
@@ -17833,6 +17883,17 @@ window.declineIncomingPrivateCall = declineIncomingPrivateCall;
 //    o mute/tela da sala errada. ──
 function _subscribeCallRoomExtras(roomId) {
   roomId = roomId || 'main';
+  // CORRIGIDO — 202608221900: esta função roda ANTES, em _joinCallRoom, dos
+  // listeners que realmente importam pra call funcionar (membros da sala e
+  // sinalização WebRTC — ver logo abaixo de onde ela é chamada). Como ela
+  // não tinha try/catch nenhum, qualquer erro aqui dentro (tela
+  // compartilhada, mute forçado, áudio ambiente — nada disso é essencial
+  // pra ver/ouvir o resto da campanha) impedia o CÓDIGO SEGUINTE de
+  // _joinCallRoom de sequer rodar — ou seja, "membros da call: nunca" e
+  // "sinalização: nunca" mesmo com a call "aberta" na tela. Agora cada
+  // parte liga isolada; uma travar não impede as outras nem os listeners
+  // essenciais que vêm depois.
+  try {
 
   // ── Observa transmissão de tela: quem NÃO está transmitindo recebe um convite opt-in ──
   if (_screenShareUnsub) { try { _screenShareUnsub(); } catch(e){} }
@@ -17899,6 +17960,11 @@ function _subscribeCallRoomExtras(roomId) {
     if (v.by === _myCallId) return; // é o meu próprio estado ecoando de volta — ignora
     if (typeof window._applyRemoteMusicState === 'function') window._applyRemoteMusicState(v);
   }, _fbReadErrHandler('calls/'+roomId+'/music (áudio ambiente compartilhado)'));
+
+  } catch(e) {
+    console.error('[_subscribeCallRoomExtras] Falha (não afeta membros/sinalização, que ligam depois):', e);
+    if (typeof showToast === 'function') showToast('⚠ Alguns recursos extras da call (tela/mute/áudio ambiente) falharam ao ligar: ' + (e && e.message || e), 'warn');
+  }
 }
 
 function _cleanupWebRTC() {
