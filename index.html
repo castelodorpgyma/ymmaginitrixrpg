@@ -6735,8 +6735,15 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     </div>
     <div id="call-yt-wrap">
       <iframe id="call-yt-iframe" width="100%" height="120" frameborder="0" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="no-referrer-when-downgrade"></iframe>
+      <!-- CORRIGIDO: navegadores (celular principalmente, mas PC também)
+           bloqueiam autoplay COM SOM — a sincronização em tempo real "não
+           funcionava" pra quem recebia a música de outro participante
+           porque o vídeo carregava mudo e travado, sem nenhum aviso. Agora
+           o vídeo sempre começa mudo (isso nunca é bloqueado) e este botão
+           aparece pra ativar o som com 1 toque só. -->
+      <button id="call-yt-unmute-btn" onclick="_ytUnmuteNow()" style="display:none;margin-top:6px;width:100%;padding:10px;background:rgba(0,200,100,.16);border:1px solid rgba(0,200,100,.4);border-radius:7px;color:#8effc4;font-family:'Share Tech Mono',monospace;font-size:.62rem;font-weight:700;cursor:pointer;letter-spacing:.04em">🔊 TOQUE AQUI PRA ATIVAR O SOM DA MÚSICA</button>
       <div id="call-yt-notice" style="display:none;margin-top:6px;padding:7px 10px;background:rgba(220,140,0,.13);border:1px solid rgba(220,140,0,.3);border-radius:7px;font-family:'Share Tech Mono',monospace;font-size:.5rem;color:rgba(255,200,80,0.8);line-height:1.6">
-        ⚠ O YouTube pode bloquear embed em mobile.<br>
+        ⚠ O player avançado do YouTube não respondeu neste aparelho.<br>
         Use o botão <b>▶ ABRIR NO YT</b> abaixo para ouvir no app e volte aqui.
       </div>
       <button id="call-yt-open-btn" style="display:none;margin-top:6px;width:100%;padding:8px;background:rgba(255,0,0,.15);border:1px solid rgba(255,0,0,.35);border-radius:7px;color:rgba(255,120,120,0.9);font-family:'Share Tech Mono',monospace;font-size:.56rem;cursor:pointer" onclick="callOpenYoutubeExternal()">▶ ABRIR NO YOUTUBE</button>
@@ -7536,9 +7543,18 @@ function applyRoleUI(role) {
   // Campanhas — usa id dedicado
   var novaCampBtn = document.getElementById('btn-nova-campanha');
   if(novaCampBtn) novaCampBtn.style.display = isMestre ? '' : 'none';
-  // Players
+  // Players — CORRIGIDO: este botão ficava escondido pra quem tinha role
+  // "player", em QUALQUER dispositivo (inclusive celular) — só o Mestre
+  // conseguia clicar em "+ Novo Player" nessa tela. Só que a própria
+  // savePlayer() já vincula a ficha à conta de quem criou (ownerId =
+  // currentUser.id) e a aba "Fichas" (view-fichas) sempre deixou o botão
+  // equivalente ("+ Criar Ficha") visível pra todo mundo — ou seja, a
+  // restrição aqui só confundia quem tentava criar o próprio personagem
+  // pela aba "Players" e não achava o botão (sobretudo no celular, onde dá
+  // mais trabalho notar que existe uma segunda aba com o mesmo botão).
+  // Agora qualquer jogador pode criar sua própria ficha por aqui também.
   var novoPlayerBtn = document.querySelector('#view-players .btn-primary');
-  if(novoPlayerBtn) novoPlayerBtn.style.display = isMestre ? '' : 'none';
+  if(novoPlayerBtn) novoPlayerBtn.style.display = '';
   // Custom buttons - re-evaluated on render
   renderCustomOrigens();
   renderCustomItems();
@@ -8392,6 +8408,7 @@ function editCustomItem(id) {
 
 function deleteCustomItem(id) {
   data.customItems = (data.customItems||[]).filter(function(x){ return x.id!==id; });
+  if (typeof window._markDeleted === 'function') window._markDeleted('customItems', id);
   save(); renderCustomItems();
   showToast('Item removido', 'ok');
 }
@@ -8536,6 +8553,7 @@ function editCustomOrigem(id) {
 
 function deleteCustomOrigem(id) {
   data.customOrigens = (data.customOrigens||[]).filter(function(x){ return x.id!==id; });
+  if (typeof window._markDeleted === 'function') window._markDeleted('customOrigens', id);
   save(); renderCustomOrigens();
   showToast('Origem removida', 'ok');
 }
@@ -8928,6 +8946,7 @@ function saveHabilidade() {
 function deleteHabilidade(id) {
   if(!confirm('Remover esta habilidade?')) return;
   data.customHabilidades = (data.customHabilidades||[]).filter(function(x){ return x.id!==id; });
+  if (typeof window._markDeleted === 'function') window._markDeleted('customHabilidades', id);
   save(); renderHabilidades();
   showToast('Habilidade removida', 'ok');
 }
@@ -9491,6 +9510,9 @@ function deleteCampanha(id) {
   if(!confirm('Excluir esta campanha?')) return;
   data.campanhas = data.campanhas.filter(x=>x.id!==id);
   data.players.forEach(p=>{ if(p.campanha===id) p.campanha=''; });
+  // Túmulo — mesma razão do deletePlayer: sem isso o merge do save() abaixo
+  // ressuscita a campanha lendo a cópia antiga do Firebase.
+  if (typeof window._markDeleted === 'function') window._markDeleted('campanhas', id);
   // Remove do Firebase também
   if (typeof window._fbDeleteCampanha === 'function') window._fbDeleteCampanha(id);
   save(); renderCampanhas(); notify('// campanha excluída');
@@ -9734,6 +9756,11 @@ function renderPlayers() {
 function deletePlayer(id) {
   if(!confirm('Excluir esta ficha?')) return;
   data.players = data.players.filter(x=>x.id!==id);
+  // Registra o "túmulo" ANTES de save() — sem isso, o merge que roda dentro
+  // do próprio save() (ver _mergeArrById/_mergeSharedData) lê a cópia ainda
+  // não-excluída do Firebase e devolve a ficha pro array, fazendo a exclusão
+  // "não pegar". Ver comentário grande sobre TÚMULOS junto de _markDeleted.
+  if (typeof window._markDeleted === 'function') window._markDeleted('players', id);
   save(); renderPlayers(); renderFichaSelect(); notify('// ficha excluída');
 }
 
@@ -10769,13 +10796,31 @@ function rollMoney() {
 //  pontos abaixo) em vez de uma reescrita geral, quando fizer sentido.
 // ════════════════════════════════════════════════════════════════════════
 window._activeCampanhaId = null;
+// Caminhos do chat e das rolagens no Firebase — agora isolados POR
+// CAMPANHA (fase 2 do isolamento, ver comentário grande acima). Sem
+// campanha ativa ainda (ex.: antes de abrir qualquer campanha), cai no
+// caminho antigo "Live/chat"/"Live/rolls" pra não quebrar quem ainda não
+// tem esse fluxo, mas assim que uma campanha é aberta, cada mesa passa a
+// ter seu próprio chat e suas próprias rolagens, em vez de compartilhar
+// com TODAS as outras campanhas do sistema.
+window._liveChatPath  = function(){ return window._activeCampanhaId ? ('campanhas/'+window._activeCampanhaId+'/live/chat')  : 'Live/chat'; };
+window._liveRollsPath = function(){ return window._activeCampanhaId ? ('campanhas/'+window._activeCampanhaId+'/live/rolls') : 'Live/rolls'; };
 window._setActiveCampanha = function(id) {
-  window._activeCampanhaId = id || null;
+  var newId = id || null;
+  var changed = newId !== window._activeCampanhaId;
+  window._activeCampanhaId = newId;
   if (typeof liveSession === 'object') liveSession.campanhaId = window._activeCampanhaId;
   // data.campAtiva é uma segunda variável que existia com o mesmo propósito
   // (nome da campanha exibido na barrinha da call) e também nunca era
   // escrita — unificada aqui pra não ter duas fontes de verdade divergentes.
   if (typeof data === 'object' && data) data.campAtiva = window._activeCampanhaId;
+  // Troca de campanha ativa: reassina os listeners de chat/rolagens pro
+  // caminho da campanha nova (ver window._resubscribeLiveChatRolls, no
+  // <script type="module">), senão continuaria vendo — e mandando
+  // mensagem/rolagem pra — a mesa anterior.
+  if (changed && typeof window._resubscribeLiveChatRolls === 'function') {
+    try { window._resubscribeLiveChatRolls(); } catch(e) { console.error('[_setActiveCampanha] resubscribe falhou:', e); }
+  }
 };
 
 var liveSession = {
@@ -13090,7 +13135,18 @@ function callStartScreenShare(withAudio) {
   if (!navigator.mediaDevices || typeof navigator.mediaDevices.getDisplayMedia!=='function') {
     var isMob=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
     if(isMob){
-      showToast('📱 No Android use o Chrome → menu ⋮ → "Transmitir" para compartilhar tela','warn');
+      // CORRIGIDO: a mensagem antiga sugeria o "Transmitir" (Cast) do Android,
+      // mas isso manda a tela pra uma Chromecast/TV — não tem NENHUMA ligação
+      // com este site nem com a call aqui dentro, então a dica não resolvia
+      // nada (só parecia resolver). A causa real é mais básica: NENHUM
+      // navegador (Chrome, Brave, Opera, Firefox, Safari) implementa a API de
+      // captura de tela (getDisplayMedia) em Android ou iOS — é uma limitação
+      // da plataforma, não deste site nem do navegador escolhido. O jeito que
+      // funciona de verdade é espelhar a tela do celular pro COMPUTADOR (via
+      // um app tipo scrcpy/Vysor no Android, ou Espelhamento de Tela/AirPlay
+      // num Mac no iPhone) e então compartilhar essa janela pelo PC — lá a
+      // captura de tela funciona normalmente.
+      showToast('📱 Celular não consegue capturar a própria tela (nenhum navegador Android/iPhone suporta isso — não é só neste site). Alternativa: espelhe o celular pra um PC (app tipo scrcpy/Vysor no Android, ou Espelhamento de Tela no iPhone/Mac) e compartilhe a tela por lá.','warn');
     } else {
       showToast('⚠ Navegador não suporta compartilhamento de tela','err');
     }
@@ -13563,6 +13619,7 @@ window._applyRemoteMusicState = function(v) {
       try { _ytPlayer.stopVideo(); } catch(e){}
       _musicActiveSource = null;
     }
+    if (typeof _ytHideUnmuteBtn === 'function') _ytHideUnmuteBtn();
     // Se era áudio de arquivo local de outra pessoa chegando por WebRTC,
     // limpa o elemento dedicado (ver _attachRemoteStream) pra não ficar
     // com o último frame de áudio "preso"/travado tocando em loop de silêncio.
@@ -13585,12 +13642,23 @@ window._applyRemoteMusicState = function(v) {
       var curId = null;
       try { curId = _ytPlayer && typeof _ytPlayer.getVideoData === 'function' ? _ytPlayer.getVideoData().video_id : null; } catch (e) {}
       if (_ytApiReady) {
-        if (curId !== v.videoId) { _ytCreatePlayer(v.videoId); setTimeout(applySeekPlay, 700); }
+        if (curId !== v.videoId) {
+          _ytCreatePlayer(v.videoId);
+          setTimeout(applySeekPlay, 700);
+          // CORRIGIDO: antes só quem ESCOLHIA o vídeo tinha um fallback caso
+          // o player oficial não respondesse (bloqueador, navegador do
+          // celular, etc). Quem só estava RECEBENDO a música sincronizada
+          // de outra pessoa e passava pelo mesmo problema ficava com o
+          // player travado pra sempre, sem nenhum aviso nem alternativa —
+          // parecia que "a sincronização em tempo real não funciona".
+          _ytWatchdog(v.videoId, 'https://www.youtube.com/watch?v=' + v.videoId);
+        }
         else { applySeekPlay(); }
         _musicActiveSource = 'youtube-remote';
       } else {
         _ytPendingId = v.videoId;
         setTimeout(applySeekPlay, 1200);
+        _ytWatchdog(v.videoId, 'https://www.youtube.com/watch?v=' + v.videoId);
       }
     } finally {
       setTimeout(function () { window._applyingRemoteMusic = false; }, 150);
@@ -13621,6 +13689,46 @@ if (typeof YT !== 'undefined' && YT.Player) {
   window.onYouTubeIframeAPIReady();
 }
 
+// ══════════════════════════════════════════════════════════════════
+// DESBLOQUEIO DE SOM (CORRIGE "não funciona em tempo real")
+// ------------------------------------------------------------------
+// CAUSA RAIZ do problema relatado: todo navegador (celular OU pc) bloqueia
+// autoplay de vídeo COM SOM quando não há um gesto do usuário diretamente
+// ligado àquela reprodução específica. Quem RECEBIA a música sincronizada
+// de outro participante (via Firebase, sem ter clicado em nada agora)
+// simplesmente tinha o play silenciosamente recusado pelo navegador — o
+// painel parecia "tocando" mas nenhum som saía, e no celular isso é ainda
+// mais agressivo. Autoplay MUDO, por outro lado, nunca é bloqueado em
+// nenhum navegador. Então agora TODO vídeo (seja o que eu escolhi, seja o
+// que chegou sincronizado de outra pessoa) começa mudo, e mostramos um
+// botão pra ativar o som com um toque só — depois desse primeiro toque
+// nesta sessão, os próximos vídeos já tentam abrir com som direto.
+// ══════════════════════════════════════════════════════════════════
+var _ytSoundUnlocked = false;
+function _ytShowUnmuteBtn(){
+  var btn=document.getElementById('call-yt-unmute-btn');
+  if(btn) btn.style.display='block';
+}
+function _ytHideUnmuteBtn(){
+  var btn=document.getElementById('call-yt-unmute-btn');
+  if(btn) btn.style.display='none';
+}
+function _ytUnmuteNow(){
+  _ytSoundUnlocked = true;
+  var volEl=document.getElementById('call-music-vol');
+  var vol=volEl?parseInt(volEl.value):60;
+  try{
+    if(_musicActiveSource==='youtube-fallback'){
+      _ytFallbackPost(null,'unMute');
+      _ytFallbackPost(null,'setVolume',[vol]);
+    } else if(_ytPlayer && typeof _ytPlayer.unMute==='function'){
+      _ytPlayer.unMute();
+      try{ _ytPlayer.setVolume(vol); }catch(e){}
+    }
+  }catch(e){}
+  _ytHideUnmuteBtn();
+}
+
 function _ytCreatePlayer(id) {
   var volEl=document.getElementById('call-music-vol');
   var startVol=volEl?parseInt(volEl.value):60;
@@ -13628,7 +13736,12 @@ function _ytCreatePlayer(id) {
   try {
     if (_ytPlayer && typeof _ytPlayer.loadVideoById === 'function') {
       _ytPlayer.loadVideoById(id);
-      setTimeout(function(){ try{ _ytPlayer.setVolume(startVol); }catch(e){} }, 300);
+      setTimeout(function(){
+        try{
+          if(_ytSoundUnlocked){ _ytPlayer.unMute(); _ytPlayer.setVolume(startVol); _ytHideUnmuteBtn(); }
+          else { _ytPlayer.mute(); _ytShowUnmuteBtn(); }
+        }catch(e){}
+      }, 300);
       _musicActiveSource='youtube';
       return;
     }
@@ -13636,11 +13749,15 @@ function _ytCreatePlayer(id) {
   try {
     _ytPlayer = new YT.Player('call-yt-iframe', {
       videoId: id,
-      playerVars: { autoplay:1, playsinline:1, rel:0, modestbranding:1 },
+      playerVars: { autoplay:1, playsinline:1, rel:0, modestbranding:1, mute: _ytSoundUnlocked?0:1 },
       events: {
         onReady: function(e){
           _ytPlayerReady = true;
-          try { e.target.setVolume(startVol); e.target.playVideo(); } catch(err){}
+          try {
+            if(_ytSoundUnlocked){ e.target.unMute(); e.target.setVolume(startVol); _ytHideUnmuteBtn(); }
+            else { e.target.mute(); _ytShowUnmuteBtn(); }
+            e.target.playVideo();
+          } catch(err){}
           _musicActiveSource='youtube';
         },
         onStateChange: function(e){
@@ -13654,6 +13771,53 @@ function _ytCreatePlayer(id) {
     });
     _musicActiveSource='youtube';
   } catch(e){ console.warn('[YT Player]', e); }
+}
+
+// ── Fallback compartilhado: embed simples via postMessage (sem a lib JS
+//    oficial). Usado tanto por quem escolheu o vídeo quanto por quem está
+//    só recebendo por sincronização — ANTES só quem escolhia o vídeo tinha
+//    esse fallback; quem recebia por Firebase e cujo navegador também
+//    bloqueava a API ficava com o player travado pra sempre, sem nenhum
+//    aviso nem alternativa. ──
+function _ytStartFallbackEmbed(id, sourceUrl) {
+  var iframe = document.getElementById('call-yt-iframe');
+  if (!iframe) return;
+  iframe.src = 'https://www.youtube-nocookie.com/embed/' + id +
+    '?autoplay=1&rel=0&playsinline=1&enablejsapi=1&mute=' + (_ytSoundUnlocked ? 0 : 1) +
+    '&origin=' + encodeURIComponent(location.origin);
+  _musicActiveSource = 'youtube-fallback';
+  _ytFallbackSubscribed = false;
+  iframe.onload = function () {
+    setTimeout(function () {
+      _ytFallbackPost(iframe, 'addEventListener', ['onStateChange']);
+      _ytFallbackSubscribed = true;
+      if (_ytSoundUnlocked) { _ytFallbackPost(iframe, 'unMute'); _ytHideUnmuteBtn(); }
+      else { _ytShowUnmuteBtn(); }
+    }, 300);
+  };
+  var notice = document.getElementById('call-yt-notice');
+  var openBtn = document.getElementById('call-yt-open-btn');
+  if (notice) {
+    notice.style.display = 'block';
+    notice.innerHTML = '⚠ O player avançado do YouTube não respondeu (provável bloqueio do navegador/extensão, ex: Brave Shields, uBlock). Ativamos o modo simples — os botões de play/pause/stop/volume/loop continuam funcionando.';
+  }
+  if (openBtn && sourceUrl) { openBtn.style.display = 'block'; openBtn.onclick = function () { window.open(sourceUrl, '_blank'); }; }
+}
+// ── Watchdog compartilhado: se depois de alguns segundos o player "de
+//    verdade" (API oficial) não ficou pronto — nem pra quem escolheu o
+//    vídeo, nem pra quem recebeu por sincronização — cai no fallback acima.
+function _ytWatchdog(id, sourceUrl) {
+  setTimeout(function () {
+    var stillNoPlayer = !_ytPlayer || typeof _ytPlayer.getPlayerState !== 'function';
+    var playerNeverReady = !_ytPlayerReady;
+    var curId = null;
+    try { curId = _ytPlayer && typeof _ytPlayer.getVideoData === 'function' ? _ytPlayer.getVideoData().video_id : null; } catch (e) {}
+    if (curId && curId !== id) return; // já trocou de vídeo nesse meio-tempo
+    if (window._ytApiScriptFailed || (!_ytApiReady && stillNoPlayer) || playerNeverReady) {
+      _ytStartFallbackEmbed(id, sourceUrl);
+      showToast('⚠ Player avançado bloqueado — usando modo simples de vídeo', 'warn');
+    }
+  }, 5000);
 }
 
 function callLoadYoutube() {
@@ -13675,15 +13839,14 @@ function callLoadYoutube() {
   if (!_ytApiReady && typeof YT !== 'undefined' && YT.Player) { _ytApiReady = true; }
   if (_ytApiReady) { _ytCreatePlayer(id); } else { _ytPendingId=id; }
   _musicActiveSource='youtube';
-  // Em mobile o iframe costuma ser bloqueado — mostra aviso e botão externo
-  var isMob=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-  if(isMob){
-    if(notice) notice.style.display='block';
-    if(openBtn){ openBtn.style.display='block'; openBtn.onclick=function(){ window.open(url,'_blank'); }; }
-  } else {
-    if(notice) notice.style.display='none';
-    if(openBtn) openBtn.style.display='none';
-  }
+  // CORRIGIDO: antes isto assumia de cara que o embed sempre falha no
+  // celular e já empurrava a pessoa pra abrir o YouTube por fora — o que
+  // matava qualquer chance de ouvir sincronizado dentro do app no celular,
+  // mesmo quando o embed funcionava normalmente (o caso mais comum). Agora
+  // só mostramos esse aviso se o player realmente falhar de verdade — ver
+  // _ytWatchdog logo abaixo, que roda em qualquer aparelho, não só celular.
+  if(notice) notice.style.display='none';
+  if(openBtn) openBtn.style.display='none';
   // Se o campo de nome estiver vazio, sugere o próprio link como identificação provisória
   var nameEl=document.getElementById('call-audio-name');
   if(nameEl && !nameEl.value.trim()) nameEl.value = 'Vídeo do YouTube';
@@ -13705,43 +13868,10 @@ function callLoadYoutube() {
   // então _ytPlayerReady também nunca vira true. AGORA checamos isso também:
   // se depois de alguns segundos o player não ficou pronto de verdade (não
   // só "não existe"), cai no mesmo fallback de embed simples.
-  var checkId = id, checkTs = Date.now();
-  setTimeout(function () {
-    if (checkId !== id) return; // usuário já trocou de vídeo nesse meio-tempo
-    var stillNoPlayer = !_ytPlayer || typeof _ytPlayer.getPlayerState !== 'function';
-    var playerNeverReady = !_ytPlayerReady;
-    if (window._ytApiScriptFailed || (!_ytApiReady && stillNoPlayer) || playerNeverReady) {
-      // ── Fallback: embed direto, sem a API JS do YouTube ──
-      // A API JS (iframe_api) é frequentemente o alvo de bloqueadores como
-      // Brave Shields/uBlock (é um script "de rastreamento" na visão deles),
-      // mas o EMBED do vídeo em si (youtube-nocookie.com/embed/...) quase
-      // sempre passa. Então, se a API não respondeu, troca pro embed puro —
-      // perde-se o controle fino de play/pause/volume pelos nossos botões,
-      // mas o vídeo passa a tocar de verdade em vez de ficar em branco.
-      var iframe = document.getElementById('call-yt-iframe');
-      if (iframe) {
-        // enablejsapi=1 + origin permitem controlar esse iframe via postMessage
-        // MESMO sem o script externo (que foi o que travou) — o player que já
-        // roda dentro do iframe entende esses comandos nativamente.
-        iframe.src = 'https://www.youtube-nocookie.com/embed/' + id +
-          '?autoplay=1&rel=0&playsinline=1&enablejsapi=1&origin=' + encodeURIComponent(location.origin);
-        _musicActiveSource = 'youtube-fallback';
-        _ytFallbackSubscribed = false;
-        iframe.onload = function () {
-          // Assina os eventos de mudança de estado (necessário pro loop manual
-          // funcionar nesse modo) e confirma que o iframe está pronto pra
-          // receber comandos de play/pause/stop/volume.
-          setTimeout(function () { _ytFallbackPost(iframe, 'addEventListener', ['onStateChange']); _ytFallbackSubscribed = true; }, 300);
-        };
-      }
-      if (notice) {
-        notice.style.display = 'block';
-        notice.innerHTML = '⚠ O player avançado do YouTube não respondeu (provável bloqueio do navegador/extensão, ex: Brave Shields, uBlock). Ativamos o modo simples — os botões de play/pause/stop/volume/loop abaixo continuam funcionando normalmente.';
-      }
-      if (openBtn) { openBtn.style.display = 'block'; openBtn.onclick = function () { window.open(url, '_blank'); }; }
-      showToast('⚠ Player avançado bloqueado — usando modo simples de vídeo', 'warn');
-    }
-  }, 5000);
+  // Ver _ytWatchdog: se o player oficial não responder em ~5s, cai sozinho
+  // no fallback de embed simples (mesma função usada também do lado de quem
+  // só está recebendo o vídeo sincronizado — ver window._applyRemoteMusicState).
+  _ytWatchdog(id, url);
 }
 
 function extractYoutubeId(url) {
@@ -13890,6 +14020,7 @@ function callAudioControl(action) {
     _stopAmbientAudioBroadcast();
     _broadcastMusicStop();
     _musicActiveSource = null;
+    _ytHideUnmuteBtn();
   }
   else if(action==='loop'){
     _musicLoopEnabled=!_musicLoopEnabled;
@@ -14394,12 +14525,30 @@ function saveStickers() {
 // divida uma campanha com o usuário atual (jogadores com ficha na mesma
 // campanha + o(s) Mestre(s) dela) — antes a lista trazia TODOS os usuários
 // não-mestre do app inteiro, e nem dava pra falar com o Mestre no PV.
+// CORRIGIDO: esta função (usada pra montar a lista de permissão de call E
+// as abas de chat privado) só reconhecia uma ficha como "de" um usuário
+// comparando o TEXTO digitado em "nome do player" contra o username da
+// conta (igual, letra por letra, sem espaço a mais). O resto do app já
+// tinha abandonado isso a favor do vínculo por ownerId (ID da conta —
+// ver _fichaEhMinha e o comentário logo ali), justamente porque esse texto
+// pode ser diferente do username de login (apelido, maiúscula/minúscula,
+// espaço extra etc.). Resultado: um jogador com ficha perfeitamente válida
+// na campanha podia simplesmente não aparecer nessa lista — e como é POR
+// ELA que o Mestre libera individualmente alguém pra call/chat privado,
+// a pessoa ficava sem conseguir entrar mesmo estando tudo "certo" nos
+// bastidores. Agora usa ownerId primeiro (com o mesmo fallback por nome
+// só pra fichas antigas sem ownerId).
 function _getChatPeers() {
   if(!currentUser) return [];
+  var _ehDoUsuario = function(p, u) {
+    if (!p) return false;
+    if (p.ownerId) return p.ownerId === u.id;
+    return !!(p.player && u.username && p.player.toLowerCase() === u.username.toLowerCase());
+  };
   var myCampIds = {};
   (data.campanhas||[]).forEach(function(c){ if(isMestreDa(c)) myCampIds[c.id] = true; });
   (data.players||[]).forEach(function(p){
-    if(p.player && p.player.toLowerCase() === currentUser.username.toLowerCase() && p.campanha) myCampIds[p.campanha] = true;
+    if(_ehDoUsuario(p, currentUser) && p.campanha) myCampIds[p.campanha] = true;
   });
   if(!Object.keys(myCampIds).length) {
     // ainda sem campanha própria registrada: mantém a lista completa pra não travar quem tá testando
@@ -14407,10 +14556,9 @@ function _getChatPeers() {
   }
   var peerIds = {};
   (data.players||[]).forEach(function(p){
-    if(p.campanha && myCampIds[p.campanha] && p.player) {
-      var u = (authUsers||[]).find(function(x){ return x.username && x.username.toLowerCase() === p.player.toLowerCase(); });
-      if(u) peerIds[u.id] = true;
-    }
+    if(!p.campanha || !myCampIds[p.campanha]) return;
+    var u = (authUsers||[]).find(function(x){ return _ehDoUsuario(p, x); });
+    if(u) peerIds[u.id] = true;
   });
   (data.campanhas||[]).forEach(function(c){ if(myCampIds[c.id] && c.mestreId) peerIds[c.mestreId] = true; });
   delete peerIds[currentUser.id];
@@ -16157,13 +16305,60 @@ var _fbSizeWarnedAt = 0;
 //  MESMO registro nos dois lados ao mesmo tempo ainda pode fazer um lado
 //  prevalecer), mas resolve o caso comum descrito acima.
 // ════════════════════════════════════════════════════════════════════════
-function _mergeArrById(remoteArr, localArr, nestedArrayKeys) {
+// ════════════════════════════════════════════════════════════════════════
+//  TÚMULOS (tombstones) — evita que exclusão "volte sozinha"
+//  ------------------------------------------------------------------------
+//  BUG: _mergeArrById acima resolve "meu salvamento apaga a entrada de
+//  outra pessoa que eu nem toquei" tratando qualquer registro que só existe
+//  no Firebase como "adicionado por outro dispositivo, preserva". Só que
+//  isso também vale pra um registro que VOCÊ MESMO acabou de excluir: ao
+//  clicar em excluir (ficha/campanha/item/origem/habilidade), o array local
+//  já fica sem o item, mas o Firebase ainda tem a cópia antiga (a exclusão
+//  ainda não chegou lá) — e como esse mesmo save() faz um get() do Firebase
+//  ANTES de gravar pra fazer o merge, ele lê a cópia antiga, não acha o id
+//  no array local (óbvio, você acabou de tirar) e devolve o item pro
+//  resultado mesclado, escrevendo-o de volta. Resultado: excluir qualquer
+//  coisa nunca "pegava" de verdade — reaparecia no salvamento seguinte.
+//  CORRIGIDO: toda exclusão agora grava um "túmulo" (id + validade) numa
+//  lista sincronizada (data._tombstones); o merge ignora qualquer item cujo
+//  id esteja marcado como excluído recentemente, em vez de ressuscitá-lo.
+// ════════════════════════════════════════════════════════════════════════
+var _TOMBSTONE_TTL_MS = 30*24*60*60*1000; // 30 dias — sobra pra propagar entre dispositivos, sem crescer pra sempre
+function _markDeleted(kind, id) {
+  if (id == null) return;
+  if (!data._tombstones) data._tombstones = [];
+  data._tombstones = data._tombstones.filter(function(t){ return !(t && t.kind===kind && t.id===id); });
+  data._tombstones.push({ kind: kind, id: id, ts: Date.now() });
+}
+window._markDeleted = _markDeleted; // chamado pelas funções deletePlayer/deleteCampanha/etc., que vivem no <script> não-module
+
+function _isTombstoned(kind, id, tombstones) {
+  if (id == null) return false;
+  var now = Date.now();
+  return (tombstones||[]).some(function(t){ return t && t.kind===kind && t.id===id && (now - t.ts) < _TOMBSTONE_TTL_MS; });
+}
+function _mergeTombstones(remoteT, localT) {
+  var map = {};
+  (remoteT||[]).concat(localT||[]).forEach(function(t){
+    if (!t || !t.kind || t.id == null) return;
+    var key = t.kind + '::' + t.id;
+    if (!map[key] || t.ts > map[key].ts) map[key] = t;
+  });
+  var now = Date.now();
+  return Object.keys(map).map(function(k){ return map[k]; }).filter(function(t){ return (now - t.ts) < _TOMBSTONE_TTL_MS; });
+}
+
+function _mergeArrById(remoteArr, localArr, nestedArrayKeys, kind, tombstones) {
   remoteArr = Array.isArray(remoteArr) ? remoteArr : [];
   localArr  = Array.isArray(localArr)  ? localArr  : [];
   var remoteMap = {};
   remoteArr.forEach(function(it){ if (it && it.id != null) remoteMap[it.id] = it; });
   var seen = {};
-  var merged = localArr.map(function(localIt) {
+  var merged = localArr.filter(function(localIt) {
+    // já excluído localmente há pouco — não deixa nem a própria cópia local
+    // "sobrar" aqui (defesa extra; normalmente localArr já não tem mais isso)
+    return !(kind && localIt && localIt.id != null && _isTombstoned(kind, localIt.id, tombstones));
+  }).map(function(localIt) {
     if (!localIt || localIt.id == null) return localIt;
     seen[localIt.id] = true;
     var remoteIt = remoteMap[localIt.id];
@@ -16186,18 +16381,22 @@ function _mergeArrById(remoteArr, localArr, nestedArrayKeys) {
     return out;
   });
   remoteArr.forEach(function(it) {
-    if (it && it.id != null && !seen[it.id]) merged.push(it); // só existe remoto (outro dispositivo) — preserva
+    if (!it || it.id == null || seen[it.id]) return;
+    if (kind && _isTombstoned(kind, it.id, tombstones)) return; // excluído (aqui ou em outro dispositivo) — não ressuscita
+    merged.push(it); // só existe remoto (outro dispositivo) — preserva
   });
   return merged;
 }
 function _mergeSharedData(remote, local) {
   if (!remote) return local;
   var merged = Object.assign({}, local);
-  merged.campanhas         = _mergeArrById(remote.campanhas, local.campanhas, ['convites', 'players']);
-  merged.players            = _mergeArrById(remote.players, local.players, []);
-  merged.customItems        = _mergeArrById(remote.customItems, local.customItems, []);
-  merged.customOrigens      = _mergeArrById(remote.customOrigens, local.customOrigens, []);
-  merged.customHabilidades  = _mergeArrById(remote.customHabilidades, local.customHabilidades, []);
+  var tombstones = _mergeTombstones(remote._tombstones, local._tombstones);
+  merged._tombstones        = tombstones;
+  merged.campanhas         = _mergeArrById(remote.campanhas, local.campanhas, ['convites', 'players'], 'campanhas', tombstones);
+  merged.players            = _mergeArrById(remote.players, local.players, [], 'players', tombstones);
+  merged.customItems        = _mergeArrById(remote.customItems, local.customItems, [], 'customItems', tombstones);
+  merged.customOrigens      = _mergeArrById(remote.customOrigens, local.customOrigens, [], 'customOrigens', tombstones);
+  merged.customHabilidades  = _mergeArrById(remote.customHabilidades, local.customHabilidades, [], 'customHabilidades', tombstones);
   return merged;
 }
 window._mergeSharedData = _mergeSharedData; // exposto pra depuração manual no console, se precisar
@@ -16295,7 +16494,7 @@ function _applyRemoteData(remote) {
   // "data.players.length" pelo app quebra a tela (foi isso que causou os
   // erros "Cannot read properties of undefined (reading 'length')").
   data = Object.assign(
-    { campanhas:[], players:[], customItems:[], customOrigens:[], customHabilidades:[] },
+    { campanhas:[], players:[], customItems:[], customOrigens:[], customHabilidades:[], _tombstones:[] },
     remote
   );
   try { localStorage.setItem('ymm_data', JSON.stringify(data)); } catch(e){}
@@ -17258,49 +17457,67 @@ function _startRealtimeSync() {
 
   try {
 
-  // ── Chat em tempo real ──
-  const chatRef = ref(db, 'Live/chat');
-  _knownLastChatTs = null;
-  const chatUnsub = onValue(chatRef, (snap) => {
-    window._syncHealth.chat = Date.now();
-    if (!snap.exists()) return;
-    const msgs = [];
-    snap.forEach(child => msgs.push(child.val()));
-    msgs.sort((a, b) => (a.ts || 0) - (b.ts || 0));
-    // Mantém só as últimas 200
-    liveSession.chat = msgs.slice(-200);
-    renderChatFeed();
-    renderChatFeedOv();
-    // ── Avisa com notificação nativa quando chega mensagem nova de outra
-    //    pessoa (não a primeira leitura, que é só o histórico existente) ──
-    var lastMsg = msgs[msgs.length - 1];
-    if (lastMsg) {
-      var isFromMe = currentUser && lastMsg.senderId === currentUser.id;
-      var visibleToMe = !lastMsg.pvTo || (currentUser && (lastMsg.pvTo === currentUser.id || lastMsg.senderId === currentUser.id));
-      if (_knownLastChatTs !== null && (lastMsg.ts || 0) > _knownLastChatTs &&
-          !isFromMe && !lastMsg.isSystem && lastMsg.type !== 'system' && visibleToMe) {
-        var preview = (lastMsg.text || lastMsg.msg || '📎 anexo');
-        if (preview.length > 80) preview = preview.slice(0, 80) + '…';
-        var label = lastMsg.pvTo ? ('🔒 ' + (lastMsg.sender || 'Alguém')) : ('💬 ' + (lastMsg.sender || 'Alguém'));
-        _fireNativeNotification(label, preview, 'chat-msg');
-      }
-      _knownLastChatTs = lastMsg.ts || Date.now();
-    }
-  }, _fbReadErrHandler('Live/chat'));
-  _rtListeners.chat = () => off(chatRef);
+  // ── Chat + Rolagens em tempo real — isolados por campanha ──
+  // CORRIGIDO: antes esses dois listeners liam sempre 'Live/chat' e
+  // 'Live/rolls' fixos, então TODAS as campanhas do sistema (de qualquer
+  // Mestre) compartilhavam o mesmo chat/rolagens — o que já funcionava "em
+  // tempo real" tecnicamente, mas misturado com gente de outras mesas.
+  // Agora cada campanha aberta tem seu próprio caminho (ver
+  // window._liveChatPath/_liveRollsPath) e window._resubscribeLiveChatRolls
+  // troca os listeners na hora certa quando a campanha ativa muda.
+  var _liveChatRollsRefs = { chat: null, rolls: null };
+  function _subscribeLiveChatRolls() {
+    if (_liveChatRollsRefs.chat) { try { off(_liveChatRollsRefs.chat); } catch(e){} }
+    if (_liveChatRollsRefs.rolls) { try { off(_liveChatRollsRefs.rolls); } catch(e){} }
 
-  // ── Rolls em tempo real ──
-  const rollRef = ref(db, 'Live/rolls');
-  const rollUnsub = onValue(rollRef, (snap) => {
-    window._syncHealth.rolls = Date.now();
-    if (!snap.exists()) return;
-    const rolls = [];
-    snap.forEach(child => rolls.push(child.val()));
-    rolls.sort((a, b) => (b.ts || 0) - (a.ts || 0));
-    liveSession.rolls = rolls.slice(0, 60);
-    renderRollFeed();
-  }, _fbReadErrHandler('Live/rolls'));
-  _rtListeners.rolls = () => off(rollRef);
+    var chatRef = ref(db, window._liveChatPath ? window._liveChatPath() : 'Live/chat');
+    _liveChatRollsRefs.chat = chatRef;
+    _knownLastChatTs = null;
+    liveSession.chat = []; renderChatFeed(); renderChatFeedOv(); // limpa a tela antes do 1º snapshot da campanha nova chegar
+    onValue(chatRef, (snap) => {
+      window._syncHealth.chat = Date.now();
+      if (!snap.exists()) { liveSession.chat = []; renderChatFeed(); renderChatFeedOv(); return; }
+      const msgs = [];
+      snap.forEach(child => msgs.push(child.val()));
+      msgs.sort((a, b) => (a.ts || 0) - (b.ts || 0));
+      // Mantém só as últimas 200
+      liveSession.chat = msgs.slice(-200);
+      renderChatFeed();
+      renderChatFeedOv();
+      // ── Avisa com notificação nativa quando chega mensagem nova de outra
+      //    pessoa (não a primeira leitura, que é só o histórico existente) ──
+      var lastMsg = msgs[msgs.length - 1];
+      if (lastMsg) {
+        var isFromMe = currentUser && lastMsg.senderId === currentUser.id;
+        var visibleToMe = !lastMsg.pvTo || (currentUser && (lastMsg.pvTo === currentUser.id || lastMsg.senderId === currentUser.id));
+        if (_knownLastChatTs !== null && (lastMsg.ts || 0) > _knownLastChatTs &&
+            !isFromMe && !lastMsg.isSystem && lastMsg.type !== 'system' && visibleToMe) {
+          var preview = (lastMsg.text || lastMsg.msg || '📎 anexo');
+          if (preview.length > 80) preview = preview.slice(0, 80) + '…';
+          var label = lastMsg.pvTo ? ('🔒 ' + (lastMsg.sender || 'Alguém')) : ('💬 ' + (lastMsg.sender || 'Alguém'));
+          _fireNativeNotification(label, preview, 'chat-msg');
+        }
+        _knownLastChatTs = lastMsg.ts || Date.now();
+      }
+    }, _fbReadErrHandler('Live/chat'));
+    _rtListeners.chat = () => off(chatRef);
+
+    var rollRef = ref(db, window._liveRollsPath ? window._liveRollsPath() : 'Live/rolls');
+    _liveChatRollsRefs.rolls = rollRef;
+    liveSession.rolls = []; renderRollFeed();
+    onValue(rollRef, (snap) => {
+      window._syncHealth.rolls = Date.now();
+      if (!snap.exists()) { liveSession.rolls = []; renderRollFeed(); return; }
+      const rolls = [];
+      snap.forEach(child => rolls.push(child.val()));
+      rolls.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+      liveSession.rolls = rolls.slice(0, 60);
+      renderRollFeed();
+    }, _fbReadErrHandler('Live/rolls'));
+    _rtListeners.rolls = () => off(rollRef);
+  }
+  window._resubscribeLiveChatRolls = _subscribeLiveChatRolls;
+  _subscribeLiveChatRolls();
 
   // ── Status da sessão (ativo/inativo) ──
   const sessRef = ref(db, 'Live/session');
@@ -17460,8 +17677,8 @@ window.pushChatMsg = function(msg) {
   // ANTES: essa chamada não tinha .catch() nenhum — se um GIF/figurinha/imagem
   // fosse grande demais ou o login tivesse expirado, a mensagem simplesmente
   // não chegava aos outros e ninguém ficava sabendo (falha 100% silenciosa).
-  push(ref(db, 'Live/chat'), msg).catch(function(e) {
-    _fbHandleWriteError(e, function(){ push(ref(db, 'Live/chat'), msg).catch(function(){}); }, 'mensagem do chat');
+  push(ref(db, window._liveChatPath ? window._liveChatPath() : 'Live/chat'), msg).catch(function(e) {
+    _fbHandleWriteError(e, function(){ push(ref(db, window._liveChatPath ? window._liveChatPath() : 'Live/chat'), msg).catch(function(){}); }, 'mensagem do chat');
   });
   // Local imediato (sempre aparece pra quem enviou, mesmo se a sincronização falhar)
   liveSession.chat.push(msg);
@@ -17534,7 +17751,7 @@ window.pushRoll = function(entry) {
   if (!entry.avatar && currentUser) entry.avatar = currentUser.avatar || null;
   entry.ts = Date.now();
   // Envia ao Firebase (todos veem)
-  push(ref(db, 'Live/rolls'), entry).catch(function(e){ _fbHandleWriteError(e, function(){ push(ref(db,'Live/rolls'), entry).catch(function(){}); }, 'rolagem de dado'); });
+  push(ref(db, window._liveRollsPath ? window._liveRollsPath() : 'Live/rolls'), entry).catch(function(e){ _fbHandleWriteError(e, function(){ push(ref(db, window._liveRollsPath ? window._liveRollsPath() : 'Live/rolls'), entry).catch(function(){}); }, 'rolagem de dado'); });
   // Local imediato
   liveSession.rolls.unshift(entry);
   if (liveSession.rolls.length > 60) liveSession.rolls.length = 60;
@@ -20216,7 +20433,7 @@ window.plyOpen = function() {
     var r1 = window._ref(window.db,'Live/currentDisplay');
     window._onValue(r1, function(s){ _plyMedia(s.exists()?s.val():null); }, window._fbReadErrHandler && window._fbReadErrHandler('Live/currentDisplay (tela do player)'));
     _plyUnsub.push(function(){ window._off(r1); });
-    var r2 = window._ref(window.db,'Live/rolls');
+    var r2 = window._ref(window.db, window._liveRollsPath ? window._liveRollsPath() : 'Live/rolls');
     window._onValue(r2, function(s){
       if(!s.exists()) return;
       var a=[]; s.forEach(function(c){a.push(c.val());}); a.sort(function(x,y){return (y.ts||0)-(x.ts||0);});
