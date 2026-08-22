@@ -17872,13 +17872,46 @@ function _startRealtimeSync() {
   // fallback pra quando ainda não há nenhum Mestre publicando nada
   // (ex.: sessão ainda não foi aberta por ninguém desta mesa).
   // ══════════════════════════════════════════════════════════════════
+  // ══════════════════════════════════════════════════════════════════
+  // CORRIGIDO — "Live/activeCampanhaId" é um nó ÚNICO E GLOBAL (não por
+  // campanha). Antes, QUALQUER conta logada — de QUALQUER campanha —
+  // adotava cegamente o valor publicado ali, mesmo sem pertencer àquela
+  // campanha. Resultado: bastava outro Mestre (de outra mesa, inclusive
+  // gente completamente alheia usando o mesmo backend) abrir a própria
+  // campanha ou dar toggle na sessão pra ele mesmo mudar, silenciosamente,
+  // o caminho de chat/rolagens de TODO MUNDO no app inteiro pra campanha
+  // dele — inclusive gente de uma campanha totalmente diferente. Isso batia
+  // exatamente com o sintoma "às vezes sincroniza, às vezes não, pra gente
+  // da MESMA campanha": cada pessoa podia ser "puxada" de volta pro node
+  // errado a qualquer momento, dependendo de quem mexeu por último nesse
+  // nó global, sem relação nenhuma com a campanha real de cada um. Agora só
+  // adota o broadcast se a conta de fato pertence a essa campanha (dono ou
+  // ficha vinculada), OU se ainda não tem nenhuma campanha própria
+  // resolvida (fallback pra sessão nova, sem dados carregados ainda).
+  // ══════════════════════════════════════════════════════════════════
+  function _pertenceACampanha(campId) {
+    if (!campId || !currentUser) return false;
+    var camp = (data.campanhas || []).find(function(c) { return c.id === campId; });
+    if (camp && typeof isMestreDa === 'function' && isMestreDa(camp)) return true;
+    return (data.players || []).some(function(p) {
+      if (p.campanha !== campId) return false;
+      if (p.ownerId) return p.ownerId === currentUser.id;
+      return !!(p.player && currentUser.username && p.player.toLowerCase() === currentUser.username.toLowerCase());
+    });
+  }
+  window._pertenceACampanha = _pertenceACampanha;
+
   const activeCampRef = ref(db, 'Live/activeCampanhaId');
   onValue(activeCampRef, (snap) => {
     if (!snap.exists()) return;
     var broadcastId = snap.val();
-    if (broadcastId && broadcastId !== window._activeCampanhaId && typeof window._setActiveCampanha === 'function') {
+    if (!broadcastId || broadcastId === window._activeCampanhaId) return;
+    var podeAdotar = !window._activeCampanhaId || _pertenceACampanha(broadcastId);
+    if (podeAdotar && typeof window._setActiveCampanha === 'function') {
       console.log('[Chat/Rolagens] Adotando campanha publicada pelo Mestre: ' + broadcastId + ' (era: ' + (window._activeCampanhaId || 'nenhuma') + ')');
       window._setActiveCampanha(broadcastId);
+    } else if (!podeAdotar) {
+      console.log('[Chat/Rolagens] Ignorando campanha publicada (' + broadcastId + ') — esta conta não pertence a ela, mantendo: ' + window._activeCampanhaId);
     }
   }, _fbReadErrHandler('Live/activeCampanhaId'));
   _rtListeners.activeCamp = () => off(activeCampRef);
