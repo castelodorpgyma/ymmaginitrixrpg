@@ -17655,6 +17655,22 @@ function _subscribeCallRoomExtras(roomId) {
       _screenPreviewOk = false;
       _pendingScreenStream = null;
       if (typeof window.showScreenInvite === 'function') window.showScreenInvite(v.name || 'Alguém');
+      // CORRIGIDO: mesmo com o Firebase agora avisado ANTES de a trilha
+      // WebRTC começar a ser enviada, ainda existe uma janela residual (a
+      // rede não é determinística) em que o vídeo chega e é classificado
+      // errado como "câmera da pessoa" antes desta marcação atualizar
+      // aqui. Se isso já aconteceu, corrige agora: se o stream que
+      // guardamos como "câmera remota" desse participante é, na verdade,
+      // o mesmo streamId da transmissão de tela, tira ele de lá e trata
+      // como transmissão de tela de verdade.
+      if (_remoteCamStreams && _remoteCamStreams[v.by] && _remoteCamStreams[v.by].id === v.streamId) {
+        var misclassified = _remoteCamStreams[v.by];
+        delete _remoteCamStreams[v.by];
+        var wrongVidEl = document.getElementById('call-remote-vid-' + v.by);
+        if (wrongVidEl) { wrongVidEl.srcObject = null; wrongVidEl.style.display = 'none'; }
+        _pendingScreenStream = misclassified;
+        if (_screenPreviewOk && typeof window._attachPendingScreenShare === 'function') window._attachPendingScreenShare();
+      }
     } else {
       if (typeof window.hideScreenInvite === 'function') window.hideScreenInvite();
       if (!v.active) {
@@ -17834,8 +17850,18 @@ window._joinCallRoom = async function(roomId) {
     const signals = [];
     snap.forEach(c => signals.push({ key: c.key, ...c.val() }));
     for (const sig of signals) {
-      await _handleSignal(roomId, sig);
-      remove(ref(db, 'calls/' + roomId + '/signals/' + _myCallId + '/' + sig.key));
+      // CORRIGIDO: se _handleSignal() falhasse em UM sinal (ex.: o bug de
+      // addTrack duplicado ao lado, ou qualquer outro erro inesperado), o
+      // "await" rejeitava e o laço parava ali mesmo — todo sinal SEGUINTE
+      // deste mesmo lote (ex.: candidatos ICE que chegaram junto com a
+      // oferta) nunca era processado nem removido, silenciosamente. Agora
+      // uma falha num sinal não impede os outros de serem tratados.
+      try {
+        await _handleSignal(roomId, sig);
+      } catch(e) {
+        console.warn('[WebRTC] Falha ao processar sinal', sig.type, 'de', sig.from, ':', e);
+      }
+      remove(ref(db, 'calls/' + roomId + '/signals/' + _myCallId + '/' + sig.key)).catch(function(){});
     }
   }, _fbReadErrHandler('calls/'+roomId+'/signals/'+_myCallId+' (sinalização WebRTC)'));
 
@@ -17912,9 +17938,31 @@ async function _handleSignal(roomId, sig) {
 
   if (sig.type === 'offer') {
     const pc = _createPeerConn(roomId, fromUid);
-    if (callState.micStream) callState.micStream.getTracks().forEach(t => pc.addTrack(t, callState.micStream));
-    if (callState.camStream) callState.camStream.getTracks().forEach(t => pc.addTrack(t, callState.camStream));
-    if (window._ambientAudioStream) window._ambientAudioStream.getTracks().forEach(t => pc.addTrack(t, window._ambientAudioStream));
+    // CORRIGIDO — CAUSA RAIZ de "meu amigo não vê minha câmera/transmissão
+    // de tela": _createPeerConn() retorna a MESMA conexão já existente
+    // quando essa oferta é uma RENEGOCIAÇÃO (câmera ligada, tela
+    // compartilhada, etc. no MEIO da call) — não uma conexão nova. Este
+    // trecho tentava adicionar as trilhas de mic/câmera de QUEM ESTÁ
+    // RESPONDENDO de novo, mesmo que elas já estivessem nessa mesma
+    // conexão desde a entrada na call. addTrack() com uma trilha que já
+    // foi adicionada ANTES nessa mesma conexão lança uma exceção
+    // (InvalidAccessError) — e como isso não tinha try/catch, a exceção
+    // interrompia a função na hora: setRemoteDescription/createAnswer/
+    // setLocalDescription e o envio da resposta NUNCA rodavam. Ou seja:
+    // toda vez que ALGUÉM ligava a câmera ou começava a compartilhar a
+    // tela depois de já estar na call, quem recebia a oferta travava
+    // silenciosamente e nunca respondia — a pessoa que ligou a câmera
+    // ficava esperando pra sempre uma resposta que nunca vinha. Agora só
+    // adiciona a trilha se ela ainda não estiver nessa conexão.
+    function _addTrackIfNew(track, stream) {
+      try {
+        var already = pc.getSenders().some(function(s){ return s.track && s.track.id === track.id; });
+        if (!already) pc.addTrack(track, stream);
+      } catch(e) { console.warn('[WebRTC] Erro ao adicionar track própria ao responder oferta:', e); }
+    }
+    if (callState.micStream) callState.micStream.getTracks().forEach(t => _addTrackIfNew(t, callState.micStream));
+    if (callState.camStream) callState.camStream.getTracks().forEach(t => _addTrackIfNew(t, callState.camStream));
+    if (window._ambientAudioStream) window._ambientAudioStream.getTracks().forEach(t => _addTrackIfNew(t, window._ambientAudioStream));
     await pc.setRemoteDescription({ type: 'offer', sdp: sig.sdp });
     await _flushPendingIce(pc); // v202608182100 — ver comentário na declaração de _flushPendingIce
     const answer = await pc.createAnswer();
@@ -18570,7 +18618,17 @@ function _notifyMediaTransmission(gmName, mediaType) {
       // Acabamos de COMEÇAR a compartilhar — a prévia local já foi mostrada pela função original
       var track = callState.screenStream.getVideoTracks()[0];
       _screenTrackId = track ? track.id : null;
-      window._rtcAddMediaTrack(callState.screenStream);
+      // CORRIGIDO: antes o addTrack (que já dispara toda a renegociação/ICE
+      // pela rede local, geralmente RÁPIDA já que a conexão de áudio já
+      // estava de pé) rodava ANTES de avisar o Firebase que isso é
+      // transmissão de tela. Como o aviso do Firebase precisa viajar até o
+      // servidor e voltar pro outro participante — normalmente mais lento
+      // que a renegociação P2P — o vídeo podia chegar no outro lado ANTES
+      // da marcação "isso é tela". _attachRemoteStream() então não
+      // reconhecia o stream como transmissão de tela (isScreenShare virava
+      // false) e tratava como se fosse a câmera da pessoa, escondendo a
+      // transmissão de tela de verdade. Agora avisa o Firebase PRIMEIRO,
+      // dando a ele uma vantagem de tempo antes do vídeo em si chegar.
       if (_myCallId) {
         set(ref(db, 'calls/'+_curCallRoom()+'/screenShare'), {
           active: true,
@@ -18580,6 +18638,7 @@ function _notifyMediaTransmission(gmName, mediaType) {
           ts: Date.now()
         }).catch(function(e){ _fbHandleWriteError(e, null, 'compartilhar tela'); });
       }
+      window._rtcAddMediaTrack(callState.screenStream);
     }
   };
 
