@@ -4125,12 +4125,12 @@ window.authTab = function(tab) {
      acesso ao console do Firebase pra resolver. Esse banner fica na tela até
      ser fechado manualmente, e já traz a regra certa pronta pra copiar, pra
      quem administra o projeto não precisar perguntar "qual regra eu colo?". -->
-<div id="fb-rules-banner" style="display:none;position:fixed;left:50%;top:14px;transform:translateX(-50%);z-index:10300;max-width:min(560px,92vw);background:rgba(20,4,4,.97);border:1px solid rgba(255,70,70,.5);border-radius:10px;padding:14px 16px;box-shadow:0 12px 40px rgba(0,0,0,.6);font-family:'Share Tech Mono',monospace;color:rgba(255,210,210,.95)">
+<div id="fb-rules-banner" style="display:none;position:fixed;right:14px;bottom:14px;left:auto;top:auto;transform:none;z-index:10300;width:min(340px,88vw);max-height:70vh;overflow-y:auto;background:rgba(20,4,4,.97);border:1px solid rgba(255,70,70,.5);border-radius:10px;padding:12px 14px;box-shadow:0 12px 40px rgba(0,0,0,.6);font-family:'Share Tech Mono',monospace;color:rgba(255,210,210,.95)">
   <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:8px">
-    <div style="font-size:.72rem;font-weight:700;color:#ff8888">⚠ REGRA DO FIREBASE ESTÁ BLOQUEANDO O APP</div>
-    <button onclick="document.getElementById('fb-rules-banner').style.display='none'" style="background:none;border:none;color:rgba(255,210,210,.7);cursor:pointer;font-size:1rem;line-height:1;padding:0 2px">✕</button>
+    <div style="font-size:.68rem;font-weight:700;color:#ff8888">⚠ Regra do Firebase está bloqueando parte do app</div>
+    <button onclick="document.getElementById('fb-rules-banner').style.display='none';document.getElementById('fb-rules-banner').dataset.dismissedAt=String(Date.now())" style="background:none;border:none;color:rgba(255,210,210,.7);cursor:pointer;font-size:1rem;line-height:1;padding:0 2px;flex-shrink:0">✕</button>
   </div>
-  <div id="fb-rules-banner-detail" style="font-size:.6rem;line-height:1.6;color:rgba(255,220,220,.85);margin-bottom:10px"></div>
+  <div id="fb-rules-banner-detail" style="font-size:.58rem;line-height:1.7;color:rgba(255,220,220,.85);margin-bottom:10px"></div>
   <div style="font-size:.55rem;line-height:1.5;color:rgba(255,220,220,.75);margin-bottom:6px">Quem administra o projeto no Firebase precisa colar isso em Realtime Database → Regras → Publicar:</div>
   <pre style="background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:8px 10px;font-size:.58rem;overflow-x:auto;margin-bottom:8px">{
   "rules": {
@@ -7680,18 +7680,45 @@ function showToast(msg, type, durationMs) {
 // Firebase) precisa chamá-las — nada de repetir o bug do renderSoundboard/
 // _cleanupWebRTC (funções do lado errado da fronteira module/script).
 var _fbRulesBannerShownAt = 0;
-function _showFbRulesBanner(detail) {
+// v202608221950 — CORRIGIDO: antes esta função SUBSTITUÍA o texto do banner
+// a cada chamada, então se "Live/chat" e "Live/rolls" (ou qualquer outro par
+// de nós) falhassem quase ao mesmo tempo, só o último aparecia — a pessoa via
+// o aviso "piscar" entre mensagens diferentes e nunca tinha o quadro completo
+// numa olhada só. Agora cada problema distinto (identificado por "key") fica
+// guardado numa lista e o banner mostra todos os que ainda estão ativos,
+// um por linha, em vez de ficar reescrevendo o mesmo espaço.
+var _fbRulesIssues = {};
+function _showFbRulesBanner(detail, key) {
   var banner = document.getElementById('fb-rules-banner');
   if (!banner) return;
   var now = Date.now();
+  if (detail) _fbRulesIssues[key || detail] = detail;
   // Não reabre sozinho se a pessoa já fechou há menos de 1 min — evita
   // reaparecer a cada novo listener que bater na mesma regra quebrada.
   if (banner.dataset.dismissedAt && (now - Number(banner.dataset.dismissedAt)) < 60000) return;
   var detailEl = document.getElementById('fb-rules-banner-detail');
-  if (detailEl && detail) detailEl.textContent = detail;
+  if (detailEl) {
+    var keys = Object.keys(_fbRulesIssues);
+    detailEl.innerHTML = keys.map(function(k) {
+      var t = _fbRulesIssues[k].replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      return '• ' + t;
+    }).join('<br><br>');
+  }
   banner.style.display = 'block';
   _fbRulesBannerShownAt = now;
 }
+// Usado pelos toasts avulsos (escrita/leitura) pra não empilhar em cima do
+// banner fixo um segundo aviso dizendo exatamente a mesma coisa — se o
+// banner já está visível (ou foi fechado há pouco tempo, ou seja, a pessoa
+// já está ciente do problema), o toast extra só seria ruído.
+function _fbRulesBannerActiveOrDismissed() {
+  var banner = document.getElementById('fb-rules-banner');
+  if (!banner) return false;
+  if (banner.style.display === 'block') return true;
+  if (banner.dataset.dismissedAt && (Date.now() - Number(banner.dataset.dismissedAt)) < 60000) return true;
+  return false;
+}
+window._fbRulesBannerActiveOrDismissed = _fbRulesBannerActiveOrDismissed;
 (function() {
   var banner = document.getElementById('fb-rules-banner');
   if (!banner) return;
@@ -16162,9 +16189,12 @@ window._runWhenAuthReady = function(fn) {
 var _fbLastPermToastAt = 0;
 function _fbShowPermToastThrottled() {
   var now = Date.now();
+  var bannerHandledIt = false;
   if (typeof window._showFbRulesBanner === 'function') {
-    window._showFbRulesBanner('Uma escrita no banco (chat, ficha, avatar da call, dados ao vivo etc.) foi recusada pela regra do Firebase.');
+    bannerHandledIt = typeof window._fbRulesBannerActiveOrDismissed === 'function' && window._fbRulesBannerActiveOrDismissed();
+    window._showFbRulesBanner('Uma escrita no banco (chat, ficha, avatar da call, dados ao vivo etc.) foi recusada pela regra do Firebase.', 'write');
   }
+  if (bannerHandledIt) return; // banner fixo já avisou — evita toast duplicado
   if (now - _fbLastPermToastAt < 15000) return;
   _fbLastPermToastAt = now;
   if (typeof showToast === 'function') {
@@ -16226,9 +16256,12 @@ window._forceRelogin = function() {
 var _fbLastReadPermToastAt = 0;
 function _fbShowReadPermToastThrottled(label, consequence) {
   var now = Date.now();
+  var bannerHandledIt = false;
   if (typeof window._showFbRulesBanner === 'function') {
-    window._showFbRulesBanner('Sem permissão para ler "' + label + '" — ' + (consequence || 'esse recurso pode não funcionar') + '.');
+    bannerHandledIt = typeof window._fbRulesBannerActiveOrDismissed === 'function' && window._fbRulesBannerActiveOrDismissed();
+    window._showFbRulesBanner('Sem permissão para ler "' + label + '" — ' + (consequence || 'esse recurso pode não funcionar') + '.', label);
   }
+  if (bannerHandledIt) return; // banner fixo já reúne todos os nós afetados — evita toast duplicado
   if (now - _fbLastReadPermToastAt < 15000) return;
   _fbLastReadPermToastAt = now;
   if (typeof showToast === 'function') {
