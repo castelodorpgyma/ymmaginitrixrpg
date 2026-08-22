@@ -6014,6 +6014,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
         <span id="fb-conn-dot" title="Status do Firebase" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#888;margin-right:6px;vertical-align:middle"></span>
         <button id="call-diag-btn" onclick="runCallDiagnostics()" style="display:block;width:100%;margin-top:8px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);border-radius:6px;color:rgba(255,255,255,0.65);font-family:'Share Tech Mono',monospace;font-size:.52rem;letter-spacing:.08em;padding:8px;cursor:pointer;transition:all .15s" onmouseover="this.style.background='rgba(255,255,255,.09)'" onmouseout="this.style.background='rgba(255,255,255,.04)'">🔧 TESTAR CONEXÃO (sem precisar do F12)</button>
         <div id="call-diag-result" style="display:none;margin-top:8px;padding:10px 12px;border-radius:6px;font-family:'Share Tech Mono',monospace;font-size:.56rem;line-height:1.8;white-space:pre-wrap"></div>
+        <div id="call-live-health" style="margin-top:8px;padding:8px 10px;border-radius:6px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.1);font-family:'Share Tech Mono',monospace;font-size:.52rem;line-height:1.9;white-space:pre-wrap;color:rgba(255,255,255,.6)"></div>
       </div>
 
       <!-- STATUS DOS PLAYERS AO VIVO -->
@@ -16093,6 +16094,7 @@ function _applyRemoteData(remote) {
 }
 
 onValue(_sharedDataRef, function(snap) {
+  window._syncHealth.sharedData = Date.now();
   var isFirstSync = !_dataSyncSeeded;
 
   if (!snap.exists()) {
@@ -17008,6 +17010,12 @@ window._fireNativeNotification = _fireNativeNotification;
 let _rtListeners = {};
 var _knownLastChatTs = null; // null = ainda não recebeu o primeiro snapshot (evita notificar o histórico inteiro na entrada)
 
+// v202608221100 — Painel de status ao vivo (ver mais abaixo, perto de
+// renderCallParticipants) precisa saber QUANDO cada canal recebeu dados
+// pela última vez, pra distinguir "nunca recebeu nada" (bloqueado) de
+// "recebe normalmente, só não tem novidade agora" (funcionando).
+window._syncHealth = { chat:0, rolls:0, session:0, sharedData:0, presence:0, callMembers:0, callSignals:0 };
+
 function _startRealtimeSync() {
   _stopRealtimeSync();
   _requestNotificationPermission();
@@ -17024,6 +17032,7 @@ function _startRealtimeSync() {
   const chatRef = ref(db, 'Live/chat');
   _knownLastChatTs = null;
   const chatUnsub = onValue(chatRef, (snap) => {
+    window._syncHealth.chat = Date.now();
     if (!snap.exists()) return;
     const msgs = [];
     snap.forEach(child => msgs.push(child.val()));
@@ -17053,6 +17062,7 @@ function _startRealtimeSync() {
   // ── Rolls em tempo real ──
   const rollRef = ref(db, 'Live/rolls');
   const rollUnsub = onValue(rollRef, (snap) => {
+    window._syncHealth.rolls = Date.now();
     if (!snap.exists()) return;
     const rolls = [];
     snap.forEach(child => rolls.push(child.val()));
@@ -17065,6 +17075,7 @@ function _startRealtimeSync() {
   // ── Status da sessão (ativo/inativo) ──
   const sessRef = ref(db, 'Live/session');
   onValue(sessRef, (snap) => {
+    window._syncHealth.session = Date.now();
     if (!snap.exists()) return;
     const s = snap.val();
     if (typeof s.active === 'boolean' && s.active !== liveSession.active) {
@@ -17097,6 +17108,7 @@ function _startRealtimeSync() {
   // ── Players online (presença) ──
   const presRef = ref(db, 'presence');
   onValue(presRef, (snap) => {
+    window._syncHealth.presence = Date.now();
     if (!snap.exists()) return;
     const online = [];
     snap.forEach(child => { if (child.val().online) online.push(child.val()); });
@@ -17503,7 +17515,7 @@ window._testFirebaseRoundtrip = async function() {
   try {
     if (!window.auth || !window.auth.currentUser) return { ok:false, reason:'sem-login' };
     var uid = window.auth.currentUser.uid;
-    var testRef = ref(db, 'diagnostics/' + uid + '/ping');
+    var testRef = ref(db, 'presence/' + uid + '/_diagPing');
     var stamp = Date.now();
     var writeOk = await Promise.race([
       set(testRef, stamp).then(function(){ return true; }).catch(function(){ return false; }),
@@ -17520,6 +17532,51 @@ window._testFirebaseRoundtrip = async function() {
     return { ok:false, reason: (e && e.code) || (e && e.message) || 'erro-desconhecido', connected: window._fbConnected };
   }
 };
+
+// v202608221100 — Painel "STATUS AO VIVO" — roda sozinho a cada 1s, sem
+// precisar clicar em nada. Mostra, pra cada canal, "há quanto tempo recebeu
+// dados pela última vez" (chat/rolagens/sessão/dados/presença/membros da
+// call/sinalização WebRTC) e o estado de conexão de cada peer da call.
+// "nunca" = esse canal NUNCA recebeu nem uma única atualização desde que a
+// página carregou — é o sinal mais forte de bloqueio real (regra do
+// Firebase, rede, etc). Um número tipo "há 2s" é canal saudável mesmo que
+// não tenha novidade agora, porque o Firebase manda o snapshot inicial
+// imediatamente ao se inscrever, com ou sem dados dentro.
+function _fmtAgo(ts) {
+  if (!ts) return 'nunca ❌';
+  var s = Math.round((Date.now() - ts) / 1000);
+  if (s < 2) return 'agora ✅';
+  return 'há ' + s + 's ✅';
+}
+function _renderLiveHealthPanel() {
+  var box = document.getElementById('call-live-health');
+  if (!box) return;
+  var h = window._syncHealth || {};
+  var lines = [];
+  lines.push('STATUS AO VIVO (atualiza sozinho):');
+  lines.push('Firebase socket: ' + (window._fbConnected === true ? 'conectado ✅' : window._fbConnected === false ? 'DESCONECTADO ❌' : 'checando…'));
+  lines.push('Chat geral/pv: ' + _fmtAgo(h.chat));
+  lines.push('Rolagens: ' + _fmtAgo(h.rolls));
+  lines.push('Dados ao vivo (fichas): ' + _fmtAgo(h.sharedData));
+  lines.push('Presença (quem tá online): ' + _fmtAgo(h.presence));
+  lines.push('Membros da call: ' + _fmtAgo(h.callMembers));
+  lines.push('Sinalização WebRTC: ' + _fmtAgo(h.callSignals));
+  var peers = window._peerConnHealth || {};
+  var peerUids = Object.keys(peers);
+  if (peerUids.length) {
+    lines.push('— Peers na call —');
+    peerUids.forEach(function(uid) {
+      var name = (window._callMembersCache && window._callMembersCache[uid] && window._callMembersCache[uid].username) || uid;
+      var st = peers[uid].state;
+      var icon = st === 'connected' ? '✅' : (st === 'failed' || st === 'closed') ? '❌' : '⏳';
+      lines.push(name + ': ' + st + ' ' + icon);
+    });
+  } else {
+    lines.push('— Nenhum peer conectado ainda —');
+  }
+  box.textContent = lines.join('\n');
+}
+setInterval(_renderLiveHealthPanel, 1000);
 
 window.runCallDiagnostics = async function runCallDiagnostics() {
   var btn = document.getElementById('call-diag-btn');
@@ -17924,6 +17981,7 @@ window._joinCallRoom = async function(roomId) {
   if (_callSignalUnsub) { try { _callSignalUnsub(); } catch(e){} }
   _callSignalUnsub = () => off(sigRef);
   onValue(sigRef, async (snap) => {
+    window._syncHealth.callSignals = Date.now();
     if (!snap.exists()) return;
     const signals = [];
     snap.forEach(c => signals.push({ key: c.key, ...c.val() }));
@@ -17953,6 +18011,7 @@ window._joinCallRoom = async function(roomId) {
   const membersRef = ref(db, 'calls/' + roomId + '/members');
   _membersUnsub = () => off(membersRef);
   onValue(membersRef, async (snap) => {
+    window._syncHealth.callMembers = Date.now();
     // Uma leitura bem-sucedida chegou — se o banner de "sem permissão" estava
     // visível (de uma tentativa anterior que falhou), esconde: a leitura já
     // está funcionando de verdade.
@@ -18149,6 +18208,8 @@ function _createPeerConn(roomId, peerUid) {
   }
 
   pc.onconnectionstatechange = () => {
+    window._peerConnHealth = window._peerConnHealth || {};
+    window._peerConnHealth[peerUid] = { state: pc.connectionState, at: Date.now() };
     console.log('[WebRTC] Estado da conexão com', peerUid, ':', pc.connectionState, '(tentativa', pc._reconnectAttempts, ')');
 
     if (pc.connectionState === 'connected') {
