@@ -5837,6 +5837,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   <div class="topbar">
     <h1><i data-lucide="radio-tower" style="width:22px;height:22px;vertical-align:-4px;margin-right:6px;color:var(--c-accent)"></i><span>Sessão</span></h1>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <select id="sessao-camp-switch" onchange="_switchSessaoCampanha(this.value)" title="Campanha ativa — chat, rolagens e call ficam isolados por esta campanha. Todo mundo da mesa precisa estar na MESMA aqui pra sincronizar."
+        style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09);border-radius:8px;padding:6px 10px;color:var(--c-text);font-family:'Share Tech Mono',monospace;font-size:.58rem;outline:none;cursor:pointer;max-width:180px">
+        <option value="">📍 Sem campanha (chat legado)</option>
+      </select>
       <div id="live-status-badge" class="live-badge">
         <span class="live-dot"></span>
         <span id="live-status-text">OFFLINE</span>
@@ -8221,7 +8225,7 @@ function showView(v) {
   if(v==='referencia') { renderOrigens(); renderCustomOrigens(); renderCustomItems(); }
   setTimeout(function(){ if(window.lucide) lucide.createIcons(); }, 50);
   if(v==='equipamentos') { renderCustomItems(); }
-  if(v==='sessao') { renderMediaLibrary(); renderRollFeed(); renderChatFeed(); renderChatTabs(); renderLivePlayersStatus(); updateChatSenders(); setTimeout(initCallCard,80); setTimeout(function(){ if(typeof _syncCallEntryBtn==='function') _syncCallEntryBtn(); },80); }
+  if(v==='sessao') { renderMediaLibrary(); renderRollFeed(); renderChatFeed(); renderChatTabs(); renderLivePlayersStatus(); updateChatSenders(); _syncSessaoCampSwitch(); setTimeout(initCallCard,80); setTimeout(function(){ if(typeof _syncCallEntryBtn==='function') _syncCallEntryBtn(); },80); }
 }
 
 // ===== MODAIS =====
@@ -10991,6 +10995,11 @@ window._setActiveCampanha = function(id) {
   if (changed && newId && typeof window._migrateLegacyLiveData === 'function') {
     try { window._migrateLegacyLiveData(newId); } catch(e) { console.error('[_setActiveCampanha] migração de dados antigos falhou:', e); }
   }
+  // Mantém o seletor visível de "campanha ativa" (tela de Sessão) sempre
+  // batendo com a realidade, mesmo quando quem mudou foi outro código
+  // (broadcast do mestre, abrir detalhe da campanha, etc.) e não a própria
+  // pessoa mexendo no seletor.
+  if (typeof window._syncSessaoCampSwitch === 'function') { try { window._syncSessaoCampSwitch(); } catch(e) {} }
 };
 // ══════════════════════════════════════════════════════════════════
 // CORRIGIDO — chat/rolagens "não sincronizavam pra ninguém"
@@ -11017,9 +11026,48 @@ function _resolveMyCampanhaId() {
     if (isMine && p.campanha) ids[p.campanha]=true;
   });
   var keys = Object.keys(ids);
-  return keys.length ? keys[0] : null;
+  if (!keys.length) return null;
+  if (keys.length === 1) return keys[0];
+  // Mais de uma campanha possível pra essa conta (mestre de várias, ou
+  // personagens em mesas diferentes) — "keys[0]" sozinho é arbitrário (só
+  // depende da ordem de inserção) e faz cada conta da MESMA mesa adivinhar
+  // uma campanha DIFERENTE, quebrando a sincronia de chat/call. Prioriza:
+  // 1) a campanha marcada como "ativa" (status), 2) a que foi desbloqueada
+  // (entrou) por último neste aparelho, 3) por fim, a primeira encontrada.
+  var ativa = (data.campanhas||[]).find(function(c){ return ids[c.id] && c.status === 'ativa'; });
+  if (ativa) return ativa.id;
+  var unlocked = getUnlockedCampanhaIds();
+  for (var i = unlocked.length - 1; i >= 0; i--) { if (ids[unlocked[i]]) return unlocked[i]; }
+  return keys[0];
 }
 window._resolveMyCampanhaId = _resolveMyCampanhaId;
+
+// ── Seletor visível de "campanha ativa" na tela de Sessão ──
+// Chat geral, PVs, rolagens e call são todos isolados por campanha ativa
+// (window._activeCampanhaId) — se duas pessoas da MESMA mesa estiverem com
+// campanhas ativas diferentes (ex.: uma resolveu sozinha errado, ou nunca
+// abriu a tela da campanha), elas nunca vão se ver em tempo real, mesmo
+// sem nenhum erro aparecer. Este seletor deixa isso visível e dá um jeito
+// manual e imediato de todo mundo se alinhar na mesma campanha.
+function _syncSessaoCampSwitch() {
+  var sel = document.getElementById('sessao-camp-switch');
+  if (!sel) return;
+  var acessiveis = (data.campanhas||[]).filter(isCampanhaAcessivel);
+  sel.innerHTML = '<option value="">📍 Sem campanha (chat legado)</option>' +
+    acessiveis.map(c=>`<option value="${c.id}">📍 ${c.nome}</option>`).join('');
+  sel.value = window._activeCampanhaId || '';
+}
+window._syncSessaoCampSwitch = _syncSessaoCampSwitch;
+
+function _switchSessaoCampanha(id) {
+  if (id) {
+    var c = _findCampanha(id);
+    if (!c || !isCampanhaAcessivel(c)) { showToast('⚠ Você não tem acesso a essa campanha', 'warn'); _syncSessaoCampSwitch(); return; }
+  }
+  if (typeof window._setActiveCampanha === 'function') window._setActiveCampanha(id || null);
+  showToast(id ? '📍 Campanha ativa alterada — chat/rolagens/call migrando...' : '📍 Voltando pro chat legado (sem campanha)', 'ok');
+}
+window._switchSessaoCampanha = _switchSessaoCampanha;
 
 var liveSession = {
   active: false,
