@@ -14833,6 +14833,15 @@ function renderChatFeedOv() {
 }
 
 // ── Send text ──
+// CORRIGIDO: esta variável era LIDA em _sendChatReady/_sendChatOvReady mas só
+// era CRIADA dentro de replyTo()/cancelReply() — ou seja, na primeira
+// mensagem enviada em qualquer sessão (sem ninguém ter clicado em
+// "responder" ainda), o código tentava ler ._id de uma variável que nunca
+// tinha existido e travava com "ReferenceError: _chatReplyState is not
+// defined" — quebrando o envio pra TODO MUNDO na campanha (geral e PV),
+// já que o erro acontecia antes até de chamar pushChatMsg(). Declarando
+// aqui, no topo, ela sempre existe desde o carregamento da página.
+var _chatReplyState = { id: null, sender: null, text: null };
 function chatKeydown(e, which) {
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault();
@@ -14849,12 +14858,23 @@ function _sendChatReady() {
   var inp = document.getElementById('chat-inp');
   var text = inp ? inp.value.trim() : '';
   if(!text) return;
-  inp.value = '';
-  var msg = { text: text, pvTo: chatState.activeTab !== 'geral' ? chatState.activeTab : null, _ts: Date.now() };
-  if (_chatReplyState.id) { msg.replyTo = { id: _chatReplyState.id, sender: _chatReplyState.sender, text: _chatReplyState.text }; }
-  cancelReply();
-  pushChatMsg(msg);
-  setTimeout(function(){ var f=document.getElementById('chat-feed'); if(f) f.scrollTop=f.scrollHeight; }, 50);
+  // CORRIGIDO: qualquer erro daqui pra baixo (mesmo um imprevisto, não só o
+  // _chatReplyState que já existia) agora é pego — antes, se algo quebrasse
+  // no meio, o texto já tinha sido apagado do campo (linha abaixo) e a
+  // mensagem simplesmente sumia, sem nenhum aviso pra quem digitou. Agora o
+  // campo só é limpo depois que a montagem da mensagem dá certo, e se ainda
+  // assim algo falhar, aparece um toast em vez de falhar em silêncio.
+  try {
+    var msg = { text: text, pvTo: chatState.activeTab !== 'geral' ? chatState.activeTab : null, _ts: Date.now() };
+    if (_chatReplyState.id) { msg.replyTo = { id: _chatReplyState.id, sender: _chatReplyState.sender, text: _chatReplyState.text }; }
+    cancelReply();
+    inp.value = '';
+    pushChatMsg(msg);
+    setTimeout(function(){ var f=document.getElementById('chat-feed'); if(f) f.scrollTop=f.scrollHeight; }, 50);
+  } catch(e) {
+    console.error('[Chat] Falha ao enviar mensagem:', e);
+    if (typeof showToast === 'function') showToast('⚠ Não deu pra enviar a mensagem — tente de novo.', 'err');
+  }
 }
 
 function sendChatOv() {
@@ -14864,11 +14884,16 @@ function _sendChatOvReady() {
   var inp = document.getElementById('chat-inp-ov');
   var text = inp ? inp.value.trim() : '';
   if(!text) return;
-  inp.value = '';
-  var msg = { text: text, pvTo: chatState.activeTab !== 'geral' ? chatState.activeTab : null, _ts: Date.now() };
-  if (_chatReplyState.id) { msg.replyTo = { id: _chatReplyState.id, sender: _chatReplyState.sender, text: _chatReplyState.text }; }
-  cancelReply();
-  pushChatMsg(msg);
+  try {
+    var msg = { text: text, pvTo: chatState.activeTab !== 'geral' ? chatState.activeTab : null, _ts: Date.now() };
+    if (_chatReplyState.id) { msg.replyTo = { id: _chatReplyState.id, sender: _chatReplyState.sender, text: _chatReplyState.text }; }
+    cancelReply();
+    inp.value = '';
+    pushChatMsg(msg);
+  } catch(e) {
+    console.error('[Chat] Falha ao enviar mensagem (overlay):', e);
+    if (typeof showToast === 'function') showToast('⚠ Não deu pra enviar a mensagem — tente de novo.', 'err');
+  }
 }
 
 // ── Reply ──
