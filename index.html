@@ -17361,6 +17361,7 @@ window.db               = db;
 // especificamente está acessível).
 window._fbConnected = null;
 onValue(ref(db, '.info/connected'), function(snap) {
+  var wasConnected = window._fbConnected;
   window._fbConnected = !!snap.val();
   console.log('[Firebase] socket ' + (window._fbConnected ? 'CONECTADO ✅' : 'DESCONECTADO ❌'));
   var dot = document.getElementById('fb-conn-dot');
@@ -17368,7 +17369,59 @@ onValue(ref(db, '.info/connected'), function(snap) {
     dot.style.background = window._fbConnected ? '#2ecc71' : '#e74c3c';
     dot.title = window._fbConnected ? 'Firebase conectado' : 'Firebase DESCONECTADO — nada em tempo real vai funcionar até reconectar';
   }
+  // ══════════════════════════════════════════════════════════════════
+  // CORRIGIDO — "uma pessoa manda, os outros nunca recebem, sem erro
+  // nenhum" mesmo com o socket voltando a ficar CONECTADO
+  // ------------------------------------------------------------------
+  // O SDK do Firebase normalmente reata os listeners onValue() sozinho
+  // quando o socket reconecta — mas em sessões longas, trocas de rede
+  // (wifi -> 4G), aba minimizada/dormindo no celular, ou uma extensão do
+  // navegador que interfere só na conexão de streaming (não na leitura
+  // inicial), o listener pode ficar "vivo" tecnicamente mas nunca mais
+  // disparar de novo — sem NENHUM erro, porque tecnicamente nada quebrou,
+  // só parou de notificar. Isso é indistinguível de "ninguém mandou nada"
+  // de fora, só que aqui é o oposto do bug já corrigido de campanha
+  // errada: a pessoa está no nó certo, só não está mais "ouvindo" de
+  // verdade. AGORA: toda vez que o socket volta de DESCONECTADO pra
+  // CONECTADO, força uma reassinatura completa do chat/rolagens (e da
+  // lista de usuários), do zero — o pior caso é reassinar algo que já
+  // estava funcionando (inofensivo), o melhor caso é recuperar sozinho
+  // de um listener que tinha ficado mudo, sem precisar a pessoa dar F5.
+  // ══════════════════════════════════════════════════════════════════
+  if (window._fbConnected && wasConnected === false) {
+    console.log('[Firebase] Reconectou — reassinando chat/rolagens/usuários do zero por precaução.');
+    try { if (typeof window._resubscribeLiveChatRolls === 'function') window._resubscribeLiveChatRolls(); } catch(e) { console.error('[Reconexão] Falha ao reassinar chat/rolagens:', e); }
+    try { if (typeof window._resubscribeUsersLive === 'function') window._resubscribeUsersLive(); } catch(e) { console.error('[Reconexão] Falha ao reassinar usuários:', e); }
+  }
 });
+
+// ══════════════════════════════════════════════════════════════════
+// VIGIA DE CHAT "MUDO" — cobre o caso em que o socket NUNCA reporta
+// desconexão (.info/connected fica true o tempo todo) mas o listener do
+// chat mesmo assim para de disparar — ex.: alguma extensão de privacidade
+// que deixa passar o handshake inicial do WebSocket mas descarta frames
+// específicos depois, ou um bug pontual do próprio SDK numa aba que ficou
+// muito tempo aberta. Sem isso, essa pessoa fica presa recebendo só o
+// snapshot inicial pra sempre, com tudo "parecendo" conectado. A cada 30s,
+// se já tem campanha resolvida e o chat nunca recebeu NADA (nem o
+// snapshot inicial — "chat: 0") depois de um tempo razoável, ou não recebe
+// nada por mais de 90s enquanto o socket diz estar conectado, força uma
+// reassinatura — mesma lógica seguríssima do caso de reconexão acima.
+// ══════════════════════════════════════════════════════════════════
+(function() {
+  var _lastChatWatchdogFix = 0;
+  setInterval(function() {
+    if (!window._fbConnected) return; // deixa o handler de reconexão acima cuidar
+    if (!window._activeCampanhaId) return; // ainda sem campanha resolvida, nada a checar
+    var h = window._syncHealth || {};
+    var ageMs = h.chat ? (Date.now() - h.chat) : Infinity;
+    if (ageMs > 90000 && (Date.now() - _lastChatWatchdogFix) > 90000) {
+      _lastChatWatchdogFix = Date.now();
+      console.warn('[Vigia do chat] Socket conectado mas chat não recebe nada há ' + Math.round(ageMs/1000) + 's — forçando reassinatura.');
+      try { if (typeof window._resubscribeLiveChatRolls === 'function') window._resubscribeLiveChatRolls(); } catch(e) { console.error('[Vigia do chat] Falha ao reassinar:', e); }
+    }
+  }, 15000);
+})();
 // Expõe para funções legadas
 window._fbSignIn        = _fbSignIn;
 window._fbSignUp        = _fbCreateUser;
@@ -17699,6 +17752,12 @@ function _startRealtimeSync() {
   try {
     off(_usersRef);
     _subscribeUsersLive();
+    // Exposto pro vigia de reconexão (perto de '.info/connected', logo
+    // acima neste mesmo módulo) poder reassinar users/ do zero também.
+    window._resubscribeUsersLive = function() {
+      try { off(_usersRef); } catch(e) {}
+      _subscribeUsersLive();
+    };
   } catch(e) {
     console.error('[_startRealtimeSync] users/ falhou:', e);
     if (typeof showToast === 'function') showToast('✕ Falha ao ligar sincronização de usuários: ' + (e && e.message || e), 'err');
