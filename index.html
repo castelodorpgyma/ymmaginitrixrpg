@@ -13580,6 +13580,7 @@ function _broadcastMusicState(patch) {
   var base = {
     active: true,
     by: window._myCallId,
+    bySession: window._myCallSessionId || null, // ver comentário em _initWebRTC
     byName: (typeof currentUser !== 'undefined' && currentUser && (currentUser.username || currentUser.nome)) || 'Alguém',
     type: _musicActiveSource === 'local' ? 'localfile' : 'youtube',
     name: _musicTrackName || '',
@@ -13588,6 +13589,7 @@ function _broadcastMusicState(patch) {
   };
   var payload = Object.assign(base, patch || {});
   var room = (typeof _curCallRoom === 'function') ? _curCallRoom() : 'main';
+  console.log('[Música] Transmitindo estado pra sala "'+room+'":', payload);
   try {
     window._set(fb.ref(fb.db, 'calls/' + room + '/music'), payload).catch(function(e) {
       // CORRIGIDO: mesmo bug — sem isto, se o áudio ambiente falhasse ao
@@ -13603,7 +13605,7 @@ function _broadcastMusicStop() {
   if (typeof window._myCallId !== 'string' || !window._myCallId) return;
   var fb = _musicFbRefs(); if (!fb) return;
   var room = (typeof _curCallRoom === 'function') ? _curCallRoom() : 'main';
-  try { window._set(fb.ref(fb.db, 'calls/' + room + '/music'), { active:false, by: window._myCallId, ts: Date.now() }); } catch(e){}
+  try { window._set(fb.ref(fb.db, 'calls/' + room + '/music'), { active:false, by: window._myCallId, bySession: window._myCallSessionId || null, ts: Date.now() }); } catch(e){}
 }
 
 // ── Aplica o estado de música RECEBIDO de outro participante (chamado
@@ -18134,6 +18136,18 @@ window.runCallDiagnostics = async function runCallDiagnostics() {
 function _initWebRTC(profile) {
   _myCallId = profile.id;
   window._myCallId = profile.id;
+  // CORRIGIDO: até aqui, o "eco" da música (ignorar o próprio estado que eu
+  // acabei de mandar pro Firebase voltando pra mim mesmo) era detectado
+  // comparando `by === _myCallId`, ou seja, o ID DA CONTA. Se a mesma conta
+  // estivesse aberta em duas abas/dispositivos ao mesmo tempo (comum ao
+  // testar: dois navegadores logados no mesmo usuário), a aba B recebia o
+  // estado da aba A e achava que era "eco do que ELA MESMA tinha acabado de
+  // mandar" — e simplesmente ignorava tudo, mesmo sem ter tocado nada. Por
+  // fora, isso é indistinguível de "a sincronização não funciona". Agora
+  // cada ABA tem seu próprio ID de sessão aleatório, usado só pra essa
+  // checagem de eco — a comparação de conta continua existindo como
+  // fallback pra dados antigos que não tenham esse campo ainda.
+  window._myCallSessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).slice(2);
   _subscribeCallRoomExtras('main');
   _watchIncomingPrivateCalls(profile.id);
   _watchGroupCallActivity(profile.id);
@@ -18242,12 +18256,16 @@ function _subscribeCallRoomExtras(roomId) {
   // compartilhada, mute forçado, áudio ambiente — nada disso é essencial
   // pra ver/ouvir o resto da campanha) impedia o CÓDIGO SEGUINTE de
   // _joinCallRoom de sequer rodar — ou seja, "membros da call: nunca" e
-  // "sinalização: nunca" mesmo com a call "aberta" na tela. Agora cada
-  // parte liga isolada; uma travar não impede as outras nem os listeners
-  // essenciais que vêm depois.
-  try {
+  // "sinalização: nunca" mesmo com a call "aberta" na tela.
+  // CORRIGIDO — 202608221812: o try/catch acima cobria os TRÊS listeners
+  // (tela/mute/música) de uma vez só. Isso significa que se o PRIMEIRO
+  // (tela compartilhada) desse qualquer erro síncrono ao assinar, os OUTROS
+  // DOIS — incluindo o de música — nunca chegavam a ser registrados,
+  // mesmo sendo problemas completamente independentes. Cada um agora tem
+  // seu próprio try/catch: um travar de verdade não impede mais os outros.
 
   // ── Observa transmissão de tela: quem NÃO está transmitindo recebe um convite opt-in ──
+  try {
   if (_screenShareUnsub) { try { _screenShareUnsub(); } catch(e){} }
   _screenShareUnsub = onValue(ref(db, 'calls/' + roomId + '/screenShare'), function(snap) {
     var v = snap.val() || { active:false };
@@ -18284,8 +18302,10 @@ function _subscribeCallRoomExtras(roomId) {
       }
     }
   }, _fbReadErrHandler('calls/'+roomId+'/screenShare'));
+  } catch(e) { console.error('[_subscribeCallRoomExtras] Falha ao assinar tela compartilhada (não afeta o resto):', e); }
 
   // ── Observa se o Mestre/permissão me silenciou à força ──
+  try {
   if (_ownMuteUnsub) { try { _ownMuteUnsub(); } catch(e){} }
   _ownMuteUnsub = onValue(ref(db, 'calls/' + roomId + '/members/' + _myCallId + '/forceMuted'), function(snap) {
     var forced = !!snap.val();
@@ -18299,23 +18319,32 @@ function _subscribeCallRoomExtras(roomId) {
     var btn = document.getElementById('ctrl-mic');
     if (btn) btn.classList.toggle('force-muted', forced);
   }, _fbReadErrHandler('calls/'+roomId+'/members/'+_myCallId+'/forceMuted'));
+  } catch(e) { console.error('[_subscribeCallRoomExtras] Falha ao assinar mute forçado (não afeta o resto):', e); }
 
   // ── Observa o ÁUDIO AMBIENTE (música/YouTube) compartilhado na sala ──
   // Ver bloco "SINCRONIZAÇÃO DO ÁUDIO AMBIENTE" no painel de música (outro
   // <script>, fora deste módulo) pra entender o formato de `v` e por que
   // isso existe — resumo: antes, música tocada por alguém na call nunca
   // chegava aos outros participantes; isso corrige.
+  try {
   if (_musicShareUnsub) { try { _musicShareUnsub(); } catch(e){} }
   _musicShareUnsub = onValue(ref(db, 'calls/' + roomId + '/music'), function(snap) {
     var v = snap.val() || { active:false };
     _musicShareInfo = v;
-    if (v.by === _myCallId) return; // é o meu próprio estado ecoando de volta — ignora
+    console.log('[Música] Estado recebido da sala "'+roomId+'":', v);
+    // CORRIGIDO: ver comentário em _initWebRTC — antes comparava só `by`
+    // (ID da CONTA), o que fazia a própria pessoa ser ignorada como "eco"
+    // se tivesse a mesma conta aberta em duas abas/aparelhos. Agora usa o
+    // ID de SESSÃO (por aba) quando disponível; só cai pro campo antigo
+    // `by` se o dado não tiver `bySession` (ex.: gravado por uma versão
+    // anterior do app ainda aberta em outra aba).
+    var isEcho = v.bySession ? (v.bySession === window._myCallSessionId) : (v.by === _myCallId);
+    if (isEcho) { console.log('[Música] Ignorado (é o meu próprio estado ecoando).'); return; }
     if (typeof window._applyRemoteMusicState === 'function') window._applyRemoteMusicState(v);
   }, _fbReadErrHandler('calls/'+roomId+'/music (áudio ambiente compartilhado)'));
-
   } catch(e) {
-    console.error('[_subscribeCallRoomExtras] Falha (não afeta membros/sinalização, que ligam depois):', e);
-    if (typeof showToast === 'function') showToast('⚠ Alguns recursos extras da call (tela/mute/áudio ambiente) falharam ao ligar: ' + (e && e.message || e), 'warn');
+    console.error('[_subscribeCallRoomExtras] Falha ao assinar áudio ambiente:', e);
+    if (typeof showToast === 'function') showToast('⚠ O áudio ambiente compartilhado falhou ao ligar: ' + (e && e.message || e), 'warn');
   }
 }
 
