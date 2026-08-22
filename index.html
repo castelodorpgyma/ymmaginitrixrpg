@@ -12652,6 +12652,12 @@ function _startPrivateCallReady(peerId, withVideo) {
         video: !!withVideo,
         room: _privateCallRoomId(currentUser.id, peerId),
         ts: Date.now()
+      }).catch(function(e) {
+        // CORRIGIDO: mesmo bug do avatar/personagem da call — sem isto, se
+        // essa escrita falhasse (permissão, offline), a pessoa chamada NUNCA
+        // recebia o toque, e quem ligou nunca saberia o motivo.
+        console.error('[Call] Falha ao notificar chamada privada:', e);
+        if (typeof _fbHandleWriteError === 'function') _fbHandleWriteError(e, null, 'aviso de chamada privada');
       });
     } catch(e) { console.warn('[Call] Não foi possível notificar o player', e); }
   }
@@ -12690,6 +12696,13 @@ function _fbPublishCallAccess(active) {
       permissions: active ? callState.callPermissions : [],
       by: currentUser.id,
       ts: Date.now()
+    }).catch(function(e) {
+      // CORRIGIDO: mesmo bug — sem isso, se essa escrita falhasse, o resto
+      // da campanha simplesmente nunca ficava sabendo que a call abriu
+      // (ninguém via o botão de entrar acender), sem NENHUM aviso pro
+      // Mestre de que algo deu errado.
+      console.error('[Call] Falha ao publicar acesso da call:', e);
+      if (typeof _fbHandleWriteError === 'function') _fbHandleWriteError(e, function(){ _fbPublishCallAccess(active); }, 'status da call para a campanha');
     });
   } catch(e) { console.warn('[Call] Erro ao publicar acesso da call:', e); }
 }
@@ -13414,7 +13427,13 @@ function _broadcastMusicState(patch) {
   var payload = Object.assign(base, patch || {});
   var room = (typeof _curCallRoom === 'function') ? _curCallRoom() : 'main';
   try {
-    window._set(fb.ref(fb.db, 'calls/' + room + '/music'), payload);
+    window._set(fb.ref(fb.db, 'calls/' + room + '/music'), payload).catch(function(e) {
+      // CORRIGIDO: mesmo bug — sem isto, se o áudio ambiente falhasse ao
+      // sincronizar, tocava normal pra quem apertou play e ninguém mais
+      // ouvia, sem nenhum aviso.
+      console.error('[Música] Falha ao sincronizar estado (async):', e);
+      if (typeof _fbHandleWriteError === 'function') _fbHandleWriteError(e, null, 'áudio ambiente compartilhado');
+    });
   } catch (e) { console.warn('[Música] Falha ao sincronizar estado:', e); }
 }
 function _broadcastMusicStop() {
@@ -13803,7 +13822,27 @@ function _callRefreshAvatarPreview() {
 function _callSyncCustomAvatarToRoom(dataUrl) {
   try {
     if (window._ref && window._set && window.db && window._myCallId && callState && callState.active) {
-      window._set(window._ref(window.db, 'calls/'+_curCallRoom()+'/members/'+window._myCallId+'/customAvatar'), dataUrl || null);
+      // CORRIGIDO — causa raiz de "minha foto/GIF da call aparece só pra mim,
+      // nunca pro resto da campanha": window._set() é ASSÍNCRONO (devolve uma
+      // Promise). O try/catch aqui em volta só pega erro SÍNCRONO — nunca
+      // pegava quando a escrita falhava de verdade mais tarde (permissão do
+      // Firebase, imagem grande demais pro nó, rede instável), porque a
+      // Promise rejeitada nunca tinha ninguém tratando o .catch() dela. O
+      // resultado: falha 100% silenciosa — sua prévia local (que já vem do
+      // localStorage, sem depender do Firebase) continuava mostrando a
+      // imagem certinho pra VOCÊ, enquanto ninguém mais na call recebia a
+      // atualização, sem nenhum aviso em lugar nenhum. Agora a Promise é
+      // tratada: erro real vira toast (via _fbHandleWriteError, com retry
+      // automático se for token expirado) em vez de sumir sem rastro.
+      window._set(window._ref(window.db, 'calls/'+_curCallRoom()+'/members/'+window._myCallId+'/customAvatar'), dataUrl || null)
+        .catch(function(e) {
+          console.error('[callAvatar] Falha ao sincronizar avatar da call pros outros:', e);
+          if (typeof _fbHandleWriteError === 'function') {
+            _fbHandleWriteError(e, function(){ _callSyncCustomAvatarToRoom(dataUrl); }, 'avatar da call');
+          } else if (typeof showToast === 'function') {
+            showToast('⚠ Seu ícone/GIF da call pode não ter chegado pros outros jogadores', 'err');
+          }
+        });
     }
   } catch(e) { /* offline ou fora da call — tudo bem, fica só local */ }
 }
@@ -13853,7 +13892,18 @@ window.callGetCustomChar = function() {
 function _callSyncCustomCharToRoom(charObj) {
   try {
     if (window._ref && window._set && window.db && window._myCallId && callState && callState.active) {
-      window._set(window._ref(window.db, 'calls/'+_curCallRoom()+'/members/'+window._myCallId+'/customChar'), charObj || null);
+      // CORRIGIDO — mesmo bug do avatar (ver _callSyncCustomAvatarToRoom):
+      // escrita assíncrona sem .catch() fazia falhas de sincronização do
+      // nome/status do personagem sumirem em silêncio, sem avisar ninguém.
+      window._set(window._ref(window.db, 'calls/'+_curCallRoom()+'/members/'+window._myCallId+'/customChar'), charObj || null)
+        .catch(function(e) {
+          console.error('[callChar] Falha ao sincronizar dados do personagem na call:', e);
+          if (typeof _fbHandleWriteError === 'function') {
+            _fbHandleWriteError(e, function(){ _callSyncCustomCharToRoom(charObj); }, 'dados do personagem na call');
+          } else if (typeof showToast === 'function') {
+            showToast('⚠ Seus dados de personagem podem não ter chegado pros outros jogadores', 'err');
+          }
+        });
     }
   } catch(e) { /* offline ou fora da call — tudo bem, fica só local */ }
 }
@@ -14125,7 +14175,10 @@ function callForceMuteToggle(uid) {
   // Lê estado atual via a lista já renderizada (data-uid) para decidir o toggle
   var card = document.querySelector('.call-participant[data-uid="'+uid+'"]');
   var currentlyMuted = card && card.querySelector('.call-part-mute-btn.is-muted');
-  window._set(fmRef, !currentlyMuted);
+  window._set(fmRef, !currentlyMuted).catch(function(e) {
+    console.error('[call] Falha ao (des)silenciar participante:', e);
+    if (typeof _fbHandleWriteError === 'function') _fbHandleWriteError(e, null, 'silenciar participante');
+  });
   showToast(currentlyMuted ? '🔊 Participante reativado' : '🔇 Participante silenciado','ok');
   setTimeout(renderCallParticipants, 300);
 }
