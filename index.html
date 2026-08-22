@@ -16156,7 +16156,10 @@ onValue(_sharedDataRef, function(snap) {
 // authUsers, então gente nova aparece pra todo mundo assim que se
 // cadastra — sem precisar recarregar nem logar de novo.
 const _usersRef = ref(db, 'users');
-onValue(_usersRef, function(snap) {
+var _usersSyncEverSucceeded = false;
+function _subscribeUsersLive() {
+  onValue(_usersRef, function(snap) {
+  _usersSyncEverSucceeded = true;
   if (!snap.exists()) return;
   var changed = false;
   snap.forEach(function(c) {
@@ -16190,7 +16193,25 @@ onValue(_usersRef, function(snap) {
   if (err && err.code === 'PERMISSION_DENIED' && typeof showToast === 'function') {
     showToast('⚠ Sem permissão para ver outros jogadores (regra do Firebase) — a lista de permissão de call pode ficar incompleta.', 'err');
   }
-});
+  });
+}
+// CORRIGIDO (a causa raiz de verdade de "não dá pra ligar pra ninguém",
+// desta vez de verdade): esta assinatura rodava aqui, no nível raiz do
+// script — ou seja, no exato instante em que o módulo carrega, quase
+// sempre ANTES do login terminar de restaurar a sessão. Se acontecesse
+// de tentar ler "users/" um instante antes da autenticação completar, o
+// Firebase negava (corretamente — regra exige auth != null) e o onValue
+// NUNCA tenta de novo sozinho depois, mesmo com você já logado 2 segundos
+// depois. Resultado: authUsers ficava só com o que já estava salvo no
+// localStorage deste navegador — gente nova, de outro aparelho, nunca
+// aparecia pra ligar. É EXATAMENTE o mesmo problema que já corrigimos no
+// teleprompter e no soundboard — só que este é o mais crítico dos três,
+// porque é o que decide quem aparece pra você poder chamar. Agora chama
+// de novo aqui dentro de _startRealtimeSync(), que só roda depois do
+// login realmente confirmado — então mesmo que a 1ª tentativa (lá em
+// cima) tivesse sido cedo demais e falhado, esta segunda garante que
+// funciona.
+_subscribeUsersLive();
 
 // ── Presença online ──
 let _presenceRef = null;
@@ -16955,6 +16976,14 @@ var _knownLastChatTs = null; // null = ainda não recebeu o primeiro snapshot (e
 function _startRealtimeSync() {
   _stopRealtimeSync();
   _requestNotificationPermission();
+
+  // CORRIGIDO: garante que a lista de usuários (quem aparece pra ligar)
+  // esteja sempre assinada de verdade neste ponto — depois do login
+  // confirmado — não importa se a tentativa lá em cima (no carregamento
+  // do módulo) chegou cedo demais e falhou. off() primeiro evita duas
+  // cópias do mesmo listener rodando ao mesmo tempo.
+  off(_usersRef);
+  _subscribeUsersLive();
 
   // ── Chat em tempo real ──
   const chatRef = ref(db, 'Live/chat');
