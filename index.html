@@ -13043,7 +13043,23 @@ function callToggleScreen() {
     showToast('🖥 Compartilhamento encerrado','ok');
     return;
   }
-  callStartScreenShare(false);
+  // CORRIGIDO — CAUSA RAIZ de "ninguém vê a tela de ninguém": esta função
+  // chamava callStartScreenShare(false) sem "return", e callStartScreenShare
+  // por sua vez também não devolvia a Promise do getDisplayMedia(). Como o
+  // hook que soma a parte de rede (WebRTC + aviso no Firebase, mais abaixo
+  // no arquivo, em "_hookScreenShareWebRTC") faz "await _origToggleScreen()"
+  // pra só então checar se a transmissão ficou ativa, e essa função sempre
+  // "terminava" (resolvia o await) na hora — MUITO antes do usuário sequer
+  // escolher a janela/aba no seletor do navegador, que é assíncrono — a
+  // checagem sempre encontrava screenState ainda como "requesting", nunca
+  // "active". Resultado: a prévia LOCAL sempre aparecia certinha (isso é
+  // feito dentro do próprio callStartScreenShare, por isso quem compartilha
+  // sempre viu a própria tela), mas o aviso no Firebase e a trilha de vídeo
+  // via WebRTC NUNCA eram enviados pros outros participantes — silenciosamente,
+  // sem nenhum erro. Agora devolve a Promise de verdade, então quem espera
+  // por ela (o hook de WebRTC) só continua depois que a captura de tela
+  // realmente terminou (com sucesso OU cancelada).
+  return callStartScreenShare(false);
 }
 
 // ── Menu de opções de compartilhamento (com ou sem áudio do sistema) ──
@@ -13073,7 +13089,11 @@ function callStartScreenShare(withAudio) {
   callState.screenState='requesting'; _syncScreenBtn('requesting');
   showToast('🖥 Selecione a janela/aba para compartilhar...','warn');
 
-  navigator.mediaDevices.getDisplayMedia({video:{cursor:'always'}, audio:!!withAudio})
+  // CORRIGIDO — ver comentário grande em callToggleScreen(): esta função
+  // precisa DEVOLVER a Promise do getDisplayMedia (com "return" aqui na
+  // frente), senão quem chama isso com "await" (o hook de WebRTC) nunca
+  // espera de verdade a escolha da janela/aba terminar.
+  return navigator.mediaDevices.getDisplayMedia({video:{cursor:'always'}, audio:!!withAudio})
     .then(function(stream){
       callState.screenStream=stream; callState.screenState='active'; callState.screenOn=true;
       callState.screenHasAudio = stream.getAudioTracks().length > 0;
