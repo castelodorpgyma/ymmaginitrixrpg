@@ -13591,6 +13591,52 @@ function callSetThreshold(el) {
   var ve=document.getElementById('call-speak-threshold-val'); if(ve) ve.textContent=el.value;
   el.style.setProperty('--p',(el.value/60*100)+'%');
 }
+// ══════════════════════════════════════════════════════════════════════
+//  CORRIGIDO — CRASH CRÍTICO "IndexSizeError: volume (2) fora do intervalo
+//  [0,1]": o controle de volume de SAÍDA vai até 200% (ver #call-out-vol,
+//  max="200" — um "turbo" de propósito, pra ouvir bem mesmo quem fala
+//  baixinho no mic), mas o código aplicava esse valor direto na
+//  propriedade nativa <audio>.volume, que só aceita de 0 a 1. Qualquer
+//  arrasto do slider acima da metade (>100%) derrubava a call inteira com
+//  esse erro. Agora o "boost" acima de 100% é feito de verdade via um
+//  GainNode da Web Audio API (que não tem esse limite de 0–1) — o
+//  <audio>.volume nativo fica travado em 1 e quem manda no volume real
+//  passa a ser o ganho. Em navegadores sem suporte a Web Audio, cai pro
+//  comportamento antigo, só que travado (sem quebrar) em 100%.
+// ══════════════════════════════════════════════════════════════════════
+var _callGainNodes = (typeof WeakMap !== 'undefined') ? new WeakMap() : null;
+function _callSharedAudioCtx() {
+  if (!window._callAudioCtxInst) {
+    try { window._callAudioCtxInst = new (window.AudioContext || window.webkitAudioContext)(); }
+    catch(e) { window._callAudioCtxInst = null; }
+  }
+  return window._callAudioCtxInst;
+}
+function _applyCallVolume(el, vol) {
+  if (!el) return;
+  vol = Math.max(0, vol || 0);
+  var ctx = _callSharedAudioCtx();
+  if (!ctx || !_callGainNodes) { el.volume = Math.min(1, vol); return; } // sem Web Audio: só cobre até 100%, mas não quebra
+  var gain = _callGainNodes.get(el);
+  if (!gain) {
+    try {
+      var source = ctx.createMediaElementSource(el);
+      gain = ctx.createGain();
+      source.connect(gain);
+      gain.connect(ctx.destination);
+      _callGainNodes.set(el, gain);
+    } catch(e) {
+      // Elemento já tinha uma source node (ou navegador sem suporte) — cai
+      // pro volume nativo, limitado a 100% pra não voltar a quebrar.
+      console.warn('[Call] GainNode indisponível pra este elemento, volume limitado a 100%:', e);
+      el.volume = Math.min(1, vol);
+      return;
+    }
+  }
+  el.volume = 1; // volume nativo fixo em 100% — quem controla agora é o gain
+  gain.gain.value = vol;
+  if (ctx.state === 'suspended') { try { ctx.resume(); } catch(e){} }
+}
 function callSetOutVol(el) {
   var val=parseInt(el.value); callState.outVol=val/100;
   var ve=document.getElementById('call-out-vol-val'); if(ve) ve.textContent=val+'%';
@@ -13600,7 +13646,7 @@ function callSetOutVol(el) {
   // ficava sempre travado no padrão do navegador (100%), então mexer no
   // controle não tinha nenhum efeito audível.
   if (typeof _remoteAudioEls !== 'undefined') {
-    Object.values(_remoteAudioEls).forEach(function(a){ a.volume = callState.outVol; });
+    Object.values(_remoteAudioEls).forEach(function(a){ _applyCallVolume(a, callState.outVol); });
   }
 }
 function callSetMusicVol(el) {
@@ -19654,7 +19700,12 @@ function _attachRemoteStream(uid, stream) {
   }
   el.srcObject = stream;
   el.dataset.streamId = stream.id; // usado acima pra reconhecer uma 2ª trilha de áudio como música, não como um novo "microfone"
-  el.volume = (typeof callState !== 'undefined' && callState.outVol != null) ? callState.outVol : 1.0;
+  // CORRIGIDO: usa _applyCallVolume (GainNode) em vez de atribuir direto em
+  // .volume — callState.outVol pode chegar a 2.0 (slider de saída vai até
+  // 200%) e .volume nativo só aceita 0–1, o que quebrava a call assim que
+  // alguém novo entrava com o "turbo" de volume já ligado (mesmo bug do
+  // callSetOutVol, ver comentário lá).
+  _applyCallVolume(el, (typeof callState !== 'undefined' && callState.outVol != null) ? callState.outVol : 1.0);
   // CORRIGIDO — o elemento de áudio remoto (a VOZ da outra pessoa) só tinha
   // o atributo "autoplay", sem nunca chamar .play() de verdade — diferente
   // de TODO outro elemento de mídia da call (vídeo local, vídeo remoto,
