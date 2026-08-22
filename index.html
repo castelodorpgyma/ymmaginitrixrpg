@@ -21063,6 +21063,39 @@ function _injectUI() {
       rc.insertAdjacentElement('afterbegin',p);
     }
   }
+  // ══════════════════════════════════════════════════════════════════
+  // CORRIGIDO — Tracker Qualidade YMA agora é injetado AQUI, dentro do
+  // mesmo _injectUI() determinístico que já cuida do Teleprompter, em vez
+  // de um MutationObserver GLOBAL separado (observando document.body
+  // inteiro, subtree+attributes) que competia com este código pela MESMA
+  // posição ("primeiro filho" da coluna direita da Sessão). Os dois
+  // sistemas rodavam em momentos diferentes e imprevisíveis — um no
+  // clique de "Sessão" (showView), o outro em QUALQUER mutação da página
+  // inteira — então qual painel ficava por cima do outro dependia de qual
+  // dos dois terminava de rodar primeiro: uma corrida (race condition)
+  // que podia dar ordem diferente a cada vez que a aba era aberta. Agora
+  // só existe UM caminho, com ordem fixa (Teleprompter sempre primeiro,
+  // Tracker sempre logo depois), e o Tracker é atualizado de novo toda
+  // vez que a Sessão é reaberta — antes só era preenchido uma única vez,
+  // na criação, e nunca mais refletia NEX/patente atualizados dos players.
+  // ══════════════════════════════════════════════════════════════════
+  if (currentUser) {
+    var col = document.querySelector('#view-sessao .grid2 > div:last-child');
+    if (col) {
+      var track = document.getElementById('_yma_track_card');
+      if (!track) {
+        track = document.createElement('div');
+        track.className='card'; track.id='_yma_track_card'; track.style.padding='14px';
+        track.innerHTML='<div class="card-title" style="margin-bottom:10px">⬡ Tracker Qualidade YMA dos Players</div>'
+          +'<div id="_yma_track_body"><div style="font-family:\'Share Tech Mono\',monospace;font-size:.56rem;color:rgba(255,255,255,0.72);text-align:center;padding:12px">// Nenhum personagem cadastrado //</div></div>';
+        // Insere logo depois do Teleprompter (se existir) ou como primeiro filho
+        var tpEl = document.getElementById('tp-panel-gm');
+        if (tpEl) tpEl.insertAdjacentElement('afterend', track);
+        else col.insertBefore(track, col.firstChild);
+      }
+      if (typeof opUpdateYMATracker === 'function') { try { opUpdateYMATracker(); } catch(e) { console.error('[Tracker YMA] falha ao atualizar:', e); } }
+    }
+  }
 }
 
 // Patch renderRollFeed → atualiza tela do player e histórico abertos
@@ -22862,24 +22895,15 @@ function opSalvarItem(pid){
 }
 
 /* ══ TRACKER YMA NA SESSÃO ══ */
-(function(){
-  // Injeta tracker de NEX dos players no card de sessão
-  var observer=new MutationObserver(function(){
-    var sessaoView=document.getElementById('view-sessao');
-    if(!sessaoView||!sessaoView.classList.contains('active'))return;
-    var existing=document.getElementById('_yma_track_card');
-    if(existing)return;
-    var col=sessaoView.querySelector('.grid2 > div:last-child');
-    if(!col)return;
-    var card=document.createElement('div');
-    card.className='card';card.id='_yma_track_card';card.style.padding='14px';
-    card.innerHTML='<div class="card-title" style="margin-bottom:10px">⬡ Tracker Qualidade YMA dos Players</div>'
-      +'<div id="_yma_track_body"><div style="font-family:\'Share Tech Mono\',monospace;font-size:.56rem;color:rgba(255,255,255,0.72);text-align:center;padding:12px">// Nenhum personagem cadastrado //</div></div>';
-    col.insertBefore(card, col.firstChild);
-    opUpdateYMATracker();
-  });
-  observer.observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['class']});
-})();
+// CORRIGIDO — a injeção do card do Tracker foi movida pra dentro de
+// _injectUI() (ver comentário grande lá, perto do painel do Teleprompter),
+// que já roda de forma determinística no login e sempre que a aba Sessão é
+// aberta. O MutationObserver global que existia aqui foi removido: ele
+// observava a página INTEIRA (subtree+attributes) só pra conseguir plugar
+// este único card, competindo em corrida com _injectUI pela mesma posição
+// no DOM — dois sistemas escrevendo no mesmo lugar em momentos
+// imprevisíveis é exatamente o tipo de coisa que causa "a tela da Sessão
+// vem diferente cada vez que abro".
 
 // ══════════════════════════════════════════════════════════════════
 // PODERES POR PATENTE — Seção da Ficha
