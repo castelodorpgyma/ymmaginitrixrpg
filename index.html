@@ -10848,6 +10848,17 @@ window._setActiveCampanha = function(id) {
   if (changed && typeof window._resubscribeLiveChatRolls === 'function') {
     try { window._resubscribeLiveChatRolls(); } catch(e) { console.error('[_setActiveCampanha] resubscribe falhou:', e); }
   }
+  // Mesma lógica pro isolamento da CALL por campanha (Fase 3): status
+  // "call ao vivo"/permissões, faixinha de "quem está em call" e o aviso
+  // de "alguém entrou na call" precisam trocar pra sala da campanha nova,
+  // senão continuariam escutando (e avisando sobre) a call da campanha
+  // anterior.
+  if (changed && typeof window._resubscribeCallAccessListeners === 'function') {
+    try { window._resubscribeCallAccessListeners(); } catch(e) { console.error('[_setActiveCampanha] resubscribe (call access) falhou:', e); }
+  }
+  if (changed && typeof window._resubscribeGroupCallActivity === 'function') {
+    try { window._resubscribeGroupCallActivity(); } catch(e) { console.error('[_setActiveCampanha] resubscribe (call activity) falhou:', e); }
+  }
   // Copia (sem apagar nada do lugar antigo) qualquer mensagem/rolagem que
   // ainda esteja presa no caminho antigo e global "Live/chat"/"Live/rolls"
   // (de antes desta campanha ter um caminho isolado) pro caminho certo desta
@@ -12402,10 +12413,24 @@ var callState = {
 function _privateCallRoomId(idA, idB) {
   return 'dm_' + [idA, idB].sort().join('_');
 }
-// ── Sala de call que está ativa AGORA (grupo 'main' ou privada de um DM) ──
-function _curCallRoom() {
-  return window._activeCallRoomId || 'main';
+// ── Sala de call de GRUPO de uma campanha específica. ANTES toda campanha
+// caía sempre na mesma sala 'main' — ou seja, o site tratava TODAS as
+// campanhas como se fossem uma só (todo mundo, de qualquer mesa, entrava
+// junto na mesma call). Agora cada campanha tem sua própria sala isolada
+// ('camp_<id>'); só o legado sem nenhuma campanha ativa cai em 'main'. ──
+function _callRoomForCampanha(campId) {
+  return campId ? ('camp_' + campId) : 'main';
 }
+window._callRoomForCampanha = _callRoomForCampanha;
+
+// ── Sala de call que está ativa AGORA (grupo da CAMPANHA ativa, ou a sala
+// privada de um DM). window._activeCallRoomId funciona como "pino": uma vez
+// dentro de uma sala (grupo ou privada), fica nela até sair — daí a
+// prioridade abaixo. Fora de uma call, cai no cálculo por campanha. ──
+function _curCallRoom() {
+  return window._activeCallRoomId || _callRoomForCampanha(window._activeCampanhaId);
+}
+window._curCallRoom = _curCallRoom;
 
 // ── Verifica suporte real a mediaDevices ──
 function _mediaAvailable() {
@@ -12707,6 +12732,115 @@ function _syncCallEntryBtn() {
   }
 }
 
+// ══════════════════════════════════════════════════════════════════════
+//  SELETOR DE CAMPANHA PRA CALL (correção do bug crítico de isolamento)
+//  ------------------------------------------------------------------------
+//  Lista as campanhas em que o usuário atual realmente está registrado:
+//  como Mestre (dono/criador) e/ou como jogador (tem ficha vinculada).
+//  Usado tanto pra decidir sozinho (só 1 campanha) quanto pra alimentar o
+//  seletor visual quando há mais de uma.
+// ══════════════════════════════════════════════════════════════════════
+function _userCampanhasDisponiveis() {
+  if (!currentUser || !data || !data.campanhas || !data.campanhas.length) return [];
+  var vistas = {};
+  var out = [];
+  data.campanhas.forEach(function(c) {
+    if (!c || vistas[c.id]) return;
+    var souMestre = isMestreDa(c);
+    var temFicha = (data.players || []).some(function(p) {
+      return p.campanha === c.id && typeof _fichaEhMinha === 'function' && _fichaEhMinha(p);
+    });
+    if (souMestre || temFicha) {
+      vistas[c.id] = true;
+      out.push({ camp: c, souMestre: souMestre });
+    }
+  });
+  // Campanhas ativas primeiro, depois ordem alfabética — facilita achar a
+  // mesa "de hoje" quando a pessoa participa de várias.
+  out.sort(function(a, b) {
+    var aAtiva = a.camp.status === 'ativa', bAtiva = b.camp.status === 'ativa';
+    if (aAtiva !== bAtiva) return aAtiva ? -1 : 1;
+    return (a.camp.nome || '').localeCompare(b.camp.nome || '');
+  });
+  return out.map(function(x) { return x.camp; });
+}
+
+// ── Modal de seleção: "Em qual campanha você quer entrar na call?" ──
+// Criado dinamicamente (mesmo padrão usado nos modais de inventário/item),
+// não precisa existir fixo no HTML.
+function _showCallCampanhaPicker(camps, onPick) {
+  var ex = document.getElementById('call-camp-picker'); if (ex) ex.remove();
+  var ov = document.createElement('div');
+  ov.className = 'modal-overlay open';
+  ov.id = 'call-camp-picker';
+  ov.onclick = function(e) { if (e.target === ov) ov.remove(); };
+
+  var statusLabel = { planejando: '◉ Planejando', ativa: '● Ativa', pausada: '◐ Pausada', concluida: '○ Concluída' };
+
+  var cardsHtml = camps.map(function(c) {
+    var st = c.status || 'planejando';
+    var nPlayers = (data.players || []).filter(function(p) { return p.campanha === c.id; }).length;
+    var souMestre = isMestreDa(c);
+    return '<button type="button" class="ccp-card" data-camp-id="' + _esc(c.id) + '" '
+      + 'style="all:unset;cursor:pointer;display:flex;align-items:center;gap:12px;width:100%;padding:12px 14px;border-radius:12px;'
+      + 'background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.08);transition:border-color .15s,background .15s;box-sizing:border-box;margin-bottom:8px">'
+      + '<div style="width:42px;height:42px;flex:none;border-radius:10px;overflow:hidden;background:rgba(255,255,255,.05);display:flex;align-items:center;justify-content:center;font-size:1.2rem">'
+      + (c.banner ? '<img src="' + c.banner + '" style="width:100%;height:100%;object-fit:cover">' : '🗺')
+      + '</div>'
+      + '<div style="flex:1;min-width:0;text-align:left">'
+      + '<div style="font-family:\'Bebas Neue\',sans-serif;letter-spacing:.02em;font-size:1.05rem;color:var(--c-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + _esc(c.nome || 'Sem nome') + '</div>'
+      + '<div style="font-family:\'Share Tech Mono\',monospace;font-size:.55rem;color:var(--c-muted);letter-spacing:.05em;text-transform:uppercase;display:flex;gap:8px;align-items:center;margin-top:2px">'
+      + '<span>' + (souMestre ? '⚔ Você é o Mestre' : '🎭 Você joga aqui') + '</span>'
+      + '<span style="opacity:.6">·</span>'
+      + '<span>' + (statusLabel[st] || st) + '</span>'
+      + '<span style="opacity:.6">·</span>'
+      + '<span>' + nPlayers + ' player' + (nPlayers !== 1 ? 's' : '') + '</span>'
+      + '</div>'
+      + '<div class="ccp-live-badge" data-live-for="' + _esc(c.id) + '" style="display:none;margin-top:4px;font-family:\'Share Tech Mono\',monospace;font-size:.52rem;letter-spacing:.06em;color:rgba(120,255,170,.9)">🟢 CALL AO VIVO AGORA</div>'
+      + '</div>'
+      + '<span style="font-size:1.1rem;opacity:.5;flex:none">›</span>'
+      + '</button>';
+  }).join('');
+
+  ov.innerHTML = '<div class="modal" style="max-width:440px">'
+    + '<button class="modal-close" onclick="document.getElementById(\'call-camp-picker\').remove()">✕</button>'
+    + '<div class="modal-title"><i data-lucide="phone-call" style="width:18px;height:18px;vertical-align:-3px;margin-right:6px"></i>Entrar na call — qual campanha?</div>'
+    + '<div style="font-family:\'Share Tech Mono\',monospace;font-size:.58rem;color:var(--c-muted);letter-spacing:.03em;margin:-6px 0 14px">'
+    + '// você está em mais de uma campanha — cada uma tem sua própria call, escolha em qual entrar'
+    + '</div>'
+    + '<div>' + cardsHtml + '</div>'
+    + '</div>';
+
+  document.body.appendChild(ov);
+  if (window.lucide && typeof window.lucide.createIcons === 'function') { try { window.lucide.createIcons(); } catch (e) {} }
+
+  ov.querySelectorAll('.ccp-card').forEach(function(btn) {
+    btn.addEventListener('mouseenter', function(){ btn.style.borderColor = 'rgba(210,40,40,.35)'; btn.style.background = 'rgba(255,255,255,.06)'; });
+    btn.addEventListener('mouseleave', function(){ btn.style.borderColor = 'rgba(255,255,255,.08)'; btn.style.background = 'rgba(255,255,255,.035)'; });
+    btn.addEventListener('click', function() {
+      var id = btn.getAttribute('data-camp-id');
+      ov.remove();
+      if (typeof onPick === 'function') onPick(id);
+    });
+  });
+
+  // Mostra, sem bloquear a abertura do modal, se a call de cada campanha já
+  // está rolando agora (leitura avulsa — não fica escutando pra não abrir
+  // vários listeners toda vez que o seletor aparece).
+  if (window.db && window._ref && window._get) {
+    camps.forEach(function(c) {
+      var room = (typeof window._callRoomForCampanha === 'function') ? window._callRoomForCampanha(c.id) : 'main';
+      window._get(window._ref(window.db, 'calls/' + room + '/access')).then(function(snap) {
+        var val = snap && snap.exists && snap.exists() ? snap.val() : null;
+        if (val && val.active) {
+          var badge = ov.querySelector('.ccp-live-badge[data-live-for="' + c.id + '"]');
+          if (badge) badge.style.display = '';
+        }
+      }).catch(function(){ /* leitura opcional, ignora falha silenciosamente */ });
+    });
+  }
+}
+
 // v202608181817 — Blindado com try/catch: se QUALQUER coisa aqui dentro
 // quebrar (erro de JS), antes o clique simplesmente "não fazia nada" pro
 // jogador — sem toast, sem overlay abrindo, nada visível — só um erro no
@@ -12739,9 +12873,65 @@ function _openCallOverlayImplReady() {
 
   // Guarda 1: precisa estar em alguma campanha (checagem por usuário, não
   // "existe alguma campanha no sistema inteiro")
-  if (!_userTemCampanha()) {
+  var minhasCamps = _userCampanhasDisponiveis();
+  if (!minhasCamps.length) {
     showToast('⚠ Crie ou entre em uma campanha antes de usar a call','warn'); return;
   }
+
+  // Já estou dentro de uma call de grupo nesta aba — só reabre o overlay,
+  // NÃO precisa perguntar de novo em qual campanha entrar (o WebRTC já
+  // está conectado na sala certa).
+  if (callState.active && !callState.privateWith) {
+    _openCallOverlayForCampanha(window._activeCampanhaId, isMestre);
+    return;
+  }
+
+  // CORREÇÃO CRÍTICA — antes o botão de call sempre jogava todo mundo na
+  // MESMA sala ('main'), então duas campanhas diferentes rodando ao mesmo
+  // tempo caíam na call uma da outra. Se a pessoa está em mais de uma
+  // campanha (é mestre de mais de uma e/ou tem fichas em mais de uma),
+  // pergunta explicitamente em qual delas ela quer entrar na call, em vez
+  // de adivinhar (ou pior, usar sempre a mesma sala global).
+  if (minhasCamps.length > 1) {
+    _showCallCampanhaPicker(minhasCamps, function(campId) {
+      _openCallOverlayForCampanha(campId, isMestre);
+    });
+    return;
+  }
+
+  // Só uma campanha disponível: nem precisa perguntar, mas garante que ela
+  // fique marcada como a campanha ATIVA (senão chat/rolagens/call de cada
+  // um podem ficar apontando pra lugares diferentes).
+  _openCallOverlayForCampanha(minhasCamps[0].id, isMestre);
+}
+
+// ── Continuação de _openCallOverlayImplReady depois que a campanha da call
+// já está decidida (só havia uma, ou o usuário escolheu no seletor). ──
+function _openCallOverlayForCampanha(campId, isMestre) {
+  var trocandoCampanha = campId !== window._activeCampanhaId;
+  if (trocandoCampanha && typeof window._setActiveCampanha === 'function') {
+    window._setActiveCampanha(campId);
+  }
+  // Se acabamos de trocar de campanha, callState.groupLive/callPermissions
+  // ainda podem estar com o valor da campanha ANTERIOR por uma fração de
+  // segundo, até o listener novo (window._resubscribeCallAccessListeners)
+  // responder — o que faria a Guarda 2 abaixo negar (ou liberar) acesso
+  // com base no status errado. Busca o valor fresco da sala certa ANTES de
+  // decidir — só pra quem não é Mestre (só ele fica sujeito a esse gate) e
+  // só quando a campanha realmente mudou.
+  if (trocandoCampanha && !isMestre && window.db && window._ref && window._get) {
+    var _room = _callRoomForCampanha(campId);
+    window._get(window._ref(window.db, 'calls/' + _room + '/access')).then(function(snap) {
+      var val = snap && snap.exists && snap.exists() ? snap.val() : null;
+      callState.groupLive = !!(val && val.active);
+      callState.callPermissions = (val && Array.isArray(val.permissions)) ? val.permissions : [];
+      _openCallOverlayForCampanhaContinue(isMestre);
+    }).catch(function(){ _openCallOverlayForCampanhaContinue(isMestre); });
+    return;
+  }
+  _openCallOverlayForCampanhaContinue(isMestre);
+}
+function _openCallOverlayForCampanhaContinue(isMestre) {
 
   // Guarda 2: player precisa de autorização do mestre
   if (!isMestre) {
@@ -12760,7 +12950,7 @@ function _openCallOverlayImplReady() {
     callState.active = false;
     clearInterval(callState.timerInterval); callState.timerInterval = null;
     callState.privateWith = null; callState.privateWithName = null;
-    window._activeCallRoomId = 'main';
+    window._activeCallRoomId = null; // recalcula pra sala de GRUPO da campanha ativa
   }
 
   // Mostrar banner se file://
@@ -12877,7 +13067,7 @@ function _fbPublishCallAccess(active) {
     // que devia durar entre calls, não algo amarrado a "call está ao vivo
     // agora" — são dois conceitos diferentes (active = a call está rolando
     // agora; permissions = quem tem esse direito quando ela estiver).
-    window._set(window._ref(window.db, 'calls/main/access'), {
+    window._set(window._ref(window.db, 'calls/' + _curCallRoom() + '/access'), {
       active: !!active,
       permissions: callState.callPermissions,
       by: currentUser.id,
@@ -12936,9 +13126,13 @@ function _startCall() {
   // privada dm_..._... quando é uma chamada 1:1) — o mesmo valor usado em
   // todo o resto do sistema de call (_curCallRoom(), sinalização, etc).
   if (window.db && window._ref && typeof window._joinCallRoom === 'function') {
+    // CORRIGIDO — bug crítico de isolamento: antes a sala de call de grupo
+    // era SEMPRE 'main', então TODAS as campanhas do site caíam na mesma
+    // sala e viravam uma call só. Agora usa a sala isolada da campanha
+    // ATIVA (ver _callRoomForCampanha) — cada campanha tem sua própria call.
     var _room = callState.privateWith
       ? _privateCallRoomId(currentUser.id, callState.privateWith)
-      : 'main';
+      : _callRoomForCampanha(window._activeCampanhaId);
     window._joinCallRoom(_room).catch(function(e){
       console.warn('[Call] WebRTC join:', e);
       // CORRIGIDO — 202608221900: antes esse erro só ia pro console — se
@@ -17422,6 +17616,57 @@ onValue(ref(db, '.info/connected'), function(snap) {
     }
   }, 15000);
 })();
+
+// ══════════════════════════════════════════════════════════════════
+// RESYNC TOTAL — um único ponto que reassina TUDO que é tempo real
+// (chat/rolagens, lista de usuários, e um refetch manual de sharedData
+// por garantia). Usado pelos gatilhos abaixo. Forçar reassinatura de algo
+// que já estava funcionando é inofensivo (o pior caso é reassinar à toa);
+// o ganho é recuperar sozinho de um listener morto sem precisar de F5.
+// ══════════════════════════════════════════════════════════════════
+window._forceFullResync = function(motivo) {
+  console.log('[Resync total] Disparado por: ' + (motivo || '?'));
+  try { if (typeof window._resubscribeLiveChatRolls === 'function') window._resubscribeLiveChatRolls(); } catch(e) { console.error('[Resync total] chat/rolagens falhou:', e); }
+  try { if (typeof window._resubscribeUsersLive === 'function') window._resubscribeUsersLive(); } catch(e) { console.error('[Resync total] usuários falhou:', e); }
+  try {
+    get(_sharedDataRef).then(function(snap) {
+      if (!snap.exists()) return;
+      var remote = snap.val();
+      var remoteStr = JSON.stringify(remote);
+      if (remoteStr === _lastSyncedDataStr) return; // já está em dia
+      if (_pendingLocalPush) return; // não pisa numa alteração local ainda subindo
+      _lastSyncedDataStr = remoteStr;
+      _applyRemoteData(remote);
+      console.log('[Resync total] sharedData estava desatualizado — corrigido via refetch manual.');
+    }).catch(function(e){ console.warn('[Resync total] refetch de sharedData falhou:', e && (e.code||e.message)); });
+  } catch(e) { console.error('[Resync total] sharedData falhou:', e); }
+};
+
+// ══════════════════════════════════════════════════════════════════
+// CORRIGIDO — a outra causa mais comum de "parou de sincronizar do
+// nada": a aba ficou em segundo plano por um tempo (celular com tela
+// bloqueada, notebook fechado/hibernado, troca de app por minutos/horas)
+// e o navegador congela/mata a conexão persistente com o Firebase pra
+// economizar bateria — sem disparar '.info/connected:false' de forma
+// confiável em todos os navegadores, então nem o handler de reconexão
+// acima percebe. Quando a pessoa volta pro app, a aba "acorda" mas o
+// WebSocket pode ter morrido silenciosamente enquanto isso. Agora, toda
+// vez que a aba volta a ficar visível (ou a página volta do cache do
+// botão voltar/avançar, ou a internet do aparelho volta), força uma
+// reassinatura completa — cobre exatamente o cenário mais comum em
+// celular: deixar o app aberto, fazer outra coisa, e voltar depois.
+// ══════════════════════════════════════════════════════════════════
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState === 'visible' && window.currentUser) {
+    window._forceFullResync('aba voltou a ficar visível');
+  }
+});
+window.addEventListener('pageshow', function(e) {
+  if (window.currentUser) window._forceFullResync('página restaurada (voltar/avançar ou volta do sleep)');
+});
+window.addEventListener('online', function() {
+  if (window.currentUser) window._forceFullResync('internet do aparelho voltou');
+});
 // Expõe para funções legadas
 window._fbSignIn        = _fbSignIn;
 window._fbSignUp        = _fbCreateUser;
@@ -17526,58 +17771,79 @@ onValue(gcRef, function(snap) {
 // avisa os players (em qualquer conta/navegador) que o Mestre iniciou a call,
 // sem precisar dar F5. Antes essa informação (callState.active/callPermissions)
 // só existia na memória do navegador de quem clicou, nunca chegava aos outros.
-const callAccessRef = ref(db, 'calls/main/access');
+// CORRIGIDO — bug crítico de isolamento entre campanhas: estes dois
+// listeners eram presos pra sempre em 'calls/main/access' e 'calls/main/
+// members', então TODA campanha do site enxergava (e avisava sobre) a MESMA
+// call — era literalmente impossível ter duas mesas jogando ao mesmo tempo
+// sem uma achar que a call da outra é a sua própria. Agora viram funções
+// que reassinam na sala da campanha ATIVA (window._activeCampanhaId),
+// chamadas de novo sempre que a campanha ativa muda (ver _setActiveCampanha
+// -> window._resubscribeCallAccessListeners, script principal).
 var _groupLiveWasActive = false; // detecta a TRANSIÇÃO false→true, pra não avisar de novo a cada leitura repetida do mesmo estado
-onValue(callAccessRef, function(snap) {
-  var val = snap.exists() ? snap.val() : null;
-  var isNowLive = !!(val && val.active);
-  // v202608181835 — Notificação de "call de grupo começou" pra quem NÃO
-  // está nela ainda. Antes essa mudança só atualizava um estado silencioso
-  // (callState.groupLive) — o player só saberia que a call começou se
-  // abrisse a aba de sessão por conta própria e reparasse no botão. Agora
-  // avisa ativamente, com um botão de "Entrar" direto no aviso — do mesmo
-  // jeito que já funciona pra chamada privada (dmCalls/atender-recusar).
-  if (isNowLive && !_groupLiveWasActive && currentUser && !callState.active) {
-    showToast('📞 A call de grupo começou! <button onclick="openCallOverlay()" style="margin-left:8px;padding:3px 10px;border-radius:6px;border:1px solid rgba(87,242,135,.4);background:rgba(35,165,90,.25);color:rgba(150,240,180,.95);cursor:pointer;font-family:inherit">Entrar</button>', 'ok', 12000);
-  }
-  _groupLiveWasActive = isNowLive;
-  callState.groupLive = isNowLive;
-  callState.callPermissions = (val && Array.isArray(val.permissions)) ? val.permissions : [];
-  if (typeof _syncCallEntryBtn === 'function') try{ _syncCallEntryBtn(); }catch(e){}
-  if (typeof renderCallPermList === 'function' && callState.active) try{ renderCallPermList(); }catch(e){}
-// CORRIGIDO: este listener (o que avisa "a call de grupo começou" e mantém
-// callState.groupLive/callPermissions atualizados pra QUALQUER jogador, mesmo
-// sem o overlay de call aberto) era o ÚNICO onValue relacionado a call sem
-// callback de erro em todo o arquivo — se a regra do Firebase negasse a
-// leitura de "calls/main/access", ele falhava 100% em silêncio: nenhum toast
-// de "call começou" aparecia pra ninguém, e sem nenhuma pista do motivo.
-}, _fbReadErrHandler('calls/main/access (aviso de call de grupo ativa)'));
+var _callAccessUnsub = null;
+var _callLiveStripUnsub = null;
+function _subscribeCallAccessListeners() {
+  if (_callAccessUnsub) { try { _callAccessUnsub(); } catch(e){} _callAccessUnsub = null; }
+  if (_callLiveStripUnsub) { try { _callLiveStripUnsub(); } catch(e){} _callLiveStripUnsub = null; }
+  var _room = (typeof window._curCallRoom === 'function') ? window._curCallRoom() : 'main';
+  _groupLiveWasActive = false; // sala nova: não repete aviso baseado no estado da sala anterior
 
-// v202608190800 — Faixinha "quem está em call" tipo Discord (ver
-// #call-live-strip no HTML). Roda SEMPRE que logado, mostrando quem está na
-// call de grupo mesmo pra quem não entrou nela ainda — antes só dava pra
-// saber "a call começou" pelo toast, sem ver QUEM já tá dentro.
-const _callLiveStripRef = ref(db, 'calls/main/members');
-onValue(_callLiveStripRef, function(snap) {
-  var strip = document.getElementById('call-live-strip');
-  var avEl = document.getElementById('call-live-strip-avatars');
-  var txtEl = document.getElementById('call-live-strip-text');
-  if (!strip || !avEl || !txtEl) return; // tela ainda não montou essa parte
-  var members = [];
-  if (snap.exists()) snap.forEach(function(c){ members.push(c.val()); });
-  if (!members.length) { strip.style.display = 'none'; return; }
-  avEl.innerHTML = members.slice(0, 5).map(function(m){
-    var av = m.customAvatar;
-    var initial = ((m.username||'?')[0]||'?').toUpperCase();
-    var style = 'width:20px;height:20px;border-radius:50%;margin-left:-6px;border:1.5px solid #0f1115;background:#2a2d34;display:flex;align-items:center;justify-content:center;font-size:.5rem;color:rgba(255,255,255,.8);overflow:hidden';
-    return av
-      ? '<img src="'+av+'" style="'+style+'object-fit:cover" title="'+_esc(m.username||'')+'">'
-      : '<span style="'+style+'" title="'+_esc(m.username||'')+'">'+initial+'</span>';
-  }).join('');
-  var nomes = members.map(function(m){ return m.username||'?'; });
-  txtEl.textContent = members.length + (members.length===1?' pessoa em call: ':' pessoas em call: ') + nomes.join(', ');
-  strip.style.display = 'flex';
-}, _fbReadErrHandler ? _fbReadErrHandler('calls/main/members (indicador de quem está em call)') : undefined);
+  var callAccessRef = ref(db, 'calls/' + _room + '/access');
+  _callAccessUnsub = () => off(callAccessRef);
+  onValue(callAccessRef, function(snap) {
+    var val = snap.exists() ? snap.val() : null;
+    var isNowLive = !!(val && val.active);
+    // v202608181835 — Notificação de "call de grupo começou" pra quem NÃO
+    // está nela ainda. Antes essa mudança só atualizava um estado silencioso
+    // (callState.groupLive) — o player só saberia que a call começou se
+    // abrisse a aba de sessão por conta própria e reparasse no botão. Agora
+    // avisa ativamente, com um botão de "Entrar" direto no aviso — do mesmo
+    // jeito que já funciona pra chamada privada (dmCalls/atender-recusar).
+    if (isNowLive && !_groupLiveWasActive && currentUser && !callState.active) {
+      showToast('📞 A call de grupo começou! <button onclick="openCallOverlay()" style="margin-left:8px;padding:3px 10px;border-radius:6px;border:1px solid rgba(87,242,135,.4);background:rgba(35,165,90,.25);color:rgba(150,240,180,.95);cursor:pointer;font-family:inherit">Entrar</button>', 'ok', 12000);
+    }
+    _groupLiveWasActive = isNowLive;
+    callState.groupLive = isNowLive;
+    callState.callPermissions = (val && Array.isArray(val.permissions)) ? val.permissions : [];
+    if (typeof _syncCallEntryBtn === 'function') try{ _syncCallEntryBtn(); }catch(e){}
+    if (typeof renderCallPermList === 'function' && callState.active) try{ renderCallPermList(); }catch(e){}
+  // CORRIGIDO: este listener (o que avisa "a call de grupo começou" e mantém
+  // callState.groupLive/callPermissions atualizados pra QUALQUER jogador, mesmo
+  // sem o overlay de call aberto) era o ÚNICO onValue relacionado a call sem
+  // callback de erro em todo o arquivo — se a regra do Firebase negasse a
+  // leitura de "calls/<sala>/access", ele falhava 100% em silêncio: nenhum
+  // toast de "call começou" aparecia pra ninguém, e sem nenhuma pista do motivo.
+  }, _fbReadErrHandler('calls/'+_room+'/access (aviso de call de grupo ativa)'));
+
+  // v202608190800 — Faixinha "quem está em call" tipo Discord (ver
+  // #call-live-strip no HTML). Roda SEMPRE que logado, mostrando quem está na
+  // call de grupo mesmo pra quem não entrou nela ainda — antes só dava pra
+  // saber "a call começou" pelo toast, sem ver QUEM já tá dentro.
+  var _callLiveStripRef = ref(db, 'calls/' + _room + '/members');
+  _callLiveStripUnsub = () => off(_callLiveStripRef);
+  onValue(_callLiveStripRef, function(snap) {
+    var strip = document.getElementById('call-live-strip');
+    var avEl = document.getElementById('call-live-strip-avatars');
+    var txtEl = document.getElementById('call-live-strip-text');
+    if (!strip || !avEl || !txtEl) return; // tela ainda não montou essa parte
+    var members = [];
+    if (snap.exists()) snap.forEach(function(c){ members.push(c.val()); });
+    if (!members.length) { strip.style.display = 'none'; return; }
+    avEl.innerHTML = members.slice(0, 5).map(function(m){
+      var av = m.customAvatar;
+      var initial = ((m.username||'?')[0]||'?').toUpperCase();
+      var style = 'width:20px;height:20px;border-radius:50%;margin-left:-6px;border:1.5px solid #0f1115;background:#2a2d34;display:flex;align-items:center;justify-content:center;font-size:.5rem;color:rgba(255,255,255,.8);overflow:hidden';
+      return av
+        ? '<img src="'+av+'" style="'+style+'object-fit:cover" title="'+_esc(m.username||'')+'">'
+        : '<span style="'+style+'" title="'+_esc(m.username||'')+'">'+initial+'</span>';
+    }).join('');
+    var nomes = members.map(function(m){ return m.username||'?'; });
+    txtEl.textContent = members.length + (members.length===1?' pessoa em call: ':' pessoas em call: ') + nomes.join(', ');
+    strip.style.display = 'flex';
+  }, _fbReadErrHandler ? _fbReadErrHandler('calls/'+_room+'/members (indicador de quem está em call)') : undefined);
+}
+window._resubscribeCallAccessListeners = _subscribeCallAccessListeners;
+_subscribeCallAccessListeners(); // assinatura inicial (cai em 'main' até uma campanha ficar ativa)
 
 // ────────────────────────────────────────────────────────────────────────
 //  AUTH STATE — APENAS para sessões persistidas (reload de página)
@@ -18571,20 +18837,25 @@ function _initWebRTC(profile) {
   // checagem de eco — a comparação de conta continua existindo como
   // fallback pra dados antigos que não tenham esse campo ainda.
   window._myCallSessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).slice(2);
-  _subscribeCallRoomExtras('main');
+  _subscribeCallRoomExtras((typeof window._curCallRoom === 'function') ? window._curCallRoom() : 'main');
   _watchIncomingPrivateCalls(profile.id);
   _watchGroupCallActivity(profile.id);
 }
 
-// ── Avisa quando alguém da campanha entra na call de GRUPO (sala 'main')
-//    enquanto EU não estou nela — antes só existia aviso de chamada
-//    PRIVADA (dmCalls), então uma call de grupo começando passava
+// ── Avisa quando alguém da campanha entra na call de GRUPO (sala isolada
+//    DESSA campanha, não mais sempre 'main' — mesmo bug de isolamento
+//    descrito acima) enquanto EU não estou nela — antes só existia aviso de
+//    chamada PRIVADA (dmCalls), então uma call de grupo começando passava
 //    batido: ninguém via nem ouvia nada até abrir a aba de call na mão. ──
 var _groupCallMembersUnsub = null;
 var _knownGroupCallMembers = null; // null = ainda não recebeu o primeiro snapshot
+var _groupCallActivityMyId = null;
 function _watchGroupCallActivity(myId) {
+  _groupCallActivityMyId = myId || _groupCallActivityMyId;
   if (_groupCallMembersUnsub) { try { _groupCallMembersUnsub(); } catch(e){} }
-  var mRef = ref(db, 'calls/main/members');
+  _knownGroupCallMembers = null; // sala nova: recomeça sem avisar sobre quem já estava na sala antiga
+  var _room = (typeof window._curCallRoom === 'function') ? window._curCallRoom() : 'main';
+  var mRef = ref(db, 'calls/' + _room + '/members');
   _groupCallMembersUnsub = () => off(mRef);
   onValue(mRef, function(snap) {
     var current = {};
@@ -18592,7 +18863,7 @@ function _watchGroupCallActivity(myId) {
     var isFirstSnapshot = (_knownGroupCallMembers === null);
     if (!isFirstSnapshot) {
       Object.keys(current).forEach(function(uid) {
-        if (uid === myId) return; // sou eu mesmo
+        if (uid === _groupCallActivityMyId) return; // sou eu mesmo
         if (_knownGroupCallMembers[uid]) return; // já sabia que essa pessoa estava
         // Alguém novo entrou na call de grupo — só avisa se eu não estiver nela
         if (!callState.active || callState.privateWith) {
@@ -18605,8 +18876,13 @@ function _watchGroupCallActivity(myId) {
       });
     }
     _knownGroupCallMembers = current;
-  }, _fbReadErrHandler('calls/main/members (aviso de call de grupo)'));
+  }, _fbReadErrHandler('calls/'+_room+'/members (aviso de call de grupo)'));
 }
+// Reassina na sala da campanha ativa sempre que ela mudar (ver
+// _setActiveCampanha no script principal).
+window._resubscribeGroupCallActivity = function() {
+  if (_groupCallActivityMyId) _watchGroupCallActivity(_groupCallActivityMyId);
+};
 
 // ── "Toca" no outro lado de uma chamada privada: escuta convites endereçados
 //    a este usuário em dmCalls/<meuId> e mostra um aviso pra atender/recusar.
@@ -19677,7 +19953,7 @@ window.endCall = function() {
     if (callState.privateWith) { try { remove(ref(db, 'dmCalls/' + callState.privateWith)); } catch(e){} }
   }
   callState.privateWith = null; callState.privateWithName = null;
-  window._activeCallRoomId = 'main';
+  window._activeCallRoomId = null; // recalcula pra sala de GRUPO da campanha ativa
   var cov = document.getElementById('call-overlay');
   if (cov) cov.classList.remove('private-call');
   _updatePrivateCallBanner();
