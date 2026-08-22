@@ -18209,6 +18209,18 @@ function _renderLiveHealthPanel() {
   var lines = [];
   lines.push('STATUS AO VIVO (atualiza sozinho):');
   lines.push('Firebase socket: ' + (window._fbConnected === true ? 'conectado ✅' : window._fbConnected === false ? 'DESCONECTADO ❌' : 'checando…'));
+  // ── Diagnóstico de desalinhamento de campanha ──
+  // Se duas pessoas da MESMA mesa estiverem com _activeCampanhaId diferentes
+  // (ou uma delas null), elas leem/escrevem em nós DIFERENTES do Firebase —
+  // cada uma "funciona" pra si mesma, mas nunca se encontram no chat/rolagens.
+  // Mostrar aqui o ID e o caminho real permite comparar entre os navegadores
+  // de todo mundo na mesa e achar quem está desalinhado, sem precisar abrir
+  // o console. Compare esta linha entre o Mestre e os jogadores: tem que ser
+  // IDÊNTICA para todos que estão na mesma campanha.
+  var _campId = window._activeCampanhaId;
+  var _chatPath = window._liveChatPath ? window._liveChatPath() : 'Live/chat';
+  lines.push('Campanha ativa: ' + (_campId ? _campId : '⚠ NENHUMA (usando caminho antigo/global — se outra pessoa da mesa JÁ tem uma campanha ativa, vocês NÃO se veem)'));
+  lines.push('Caminho do chat: ' + _chatPath);
   lines.push('Chat geral/pv: ' + _fmtAgo(h.chat));
   lines.push('Rolagens: ' + _fmtAgo(h.rolls));
   lines.push('Dados ao vivo (fichas): ' + _fmtAgo(h.sharedData));
