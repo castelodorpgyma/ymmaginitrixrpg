@@ -15911,6 +15911,15 @@ function _fbHandleWriteError(e, retryFn, label) {
     showToast('⚠ Não foi possível sincronizar com o Firebase agora — tentando de novo...', 'warn');
   }
 }
+// CORRIGIDO — 202608221930: esta função é chamada de vários pontos FORA do
+// módulo (avatar/personagem da call, chat, rolagens, teleprompter, tela
+// compartilhada, status de call para a campanha) através de
+// "typeof _fbHandleWriteError === 'function'" ou "window._fbHandleWriteError".
+// Como ela nunca tinha sido de fato atribuída a window, essa checagem SEMPRE
+// dava falso vindo de fora do módulo — toda falha de escrita nesses recursos
+// caía direto no "else" genérico (um aviso sem retry), em vez de tentar
+// renovar o token e reenviar automaticamente como o código já previa.
+window._fbHandleWriteError = _fbHandleWriteError;
 window._forceRelogin = function() {
   try { signOut(auth); } catch(e) {}
   if (typeof showToast === 'function') showToast('🔄 Sessão encerrada — faça login novamente.', 'warn');
@@ -18024,6 +18033,19 @@ function _cleanupWebRTC() {
   _pendingScreenStream = null; _screenPreviewOk = false; _screenTrackId = null;
   if (typeof window.hideScreenInvite === 'function') window.hideScreenInvite();
 }
+// CORRIGIDO — 202608221930 — CAUSA RAIZ PROVÁVEL DE "NINGUÉM CONSEGUE MAIS
+// VER CÂMERA/DADOS/CHAT UNS DOS OUTROS NA CALL": endCall(), que mora no
+// OUTRO <script> (fora deste módulo), só chama esta função através de
+// "typeof _cleanupWebRTC === 'function'". Como _cleanupWebRTC nunca tinha
+// sido atribuída a window, essa checagem sempre dava falso vinda de fora do
+// módulo — ou seja, todo "Encerrar call" (ou logout) NUNCA fechava as
+// RTCPeerConnections antigas nem cancelava os listeners de sinalização/
+// membros/tela/mute/música. Na vez seguinte que alguém entrava na call, as
+// conexões e listeners novos se acumulavam em cima dos antigos, ainda vivos
+// e recebendo os mesmos eventos do Firebase — o que explica travar câmera,
+// áudio e dados ao vivo pra todo mundo, exatamente do jeito relatado (dos
+// dois lados ao mesmo tempo, depois que uma call anterior tinha sido usada).
+window._cleanupWebRTC = _cleanupWebRTC;
 
 // Chamado só no LOGOUT de fato (ver onAuthStateChanged) — aí sim a
 // identidade precisa ser limpa, já que ninguém está autenticado.
@@ -19277,6 +19299,14 @@ document.addEventListener('ymm-fb-ready', _sbLoadPublic);
 if (window._fbReady) _sbLoadPublic();
 
 // ── Renderização (com abas) ──
+// CORRIGIDO — 202608221930: esta função vive dentro do <script type="module">,
+// então por padrão NÃO é global. O hook de loginSuccess (outro <script>, sem
+// "module", lá em cima perto da linha 15425) chama renderSoundboard() direto
+// em todo login — sem essa exposição em window, isso sempre lançava
+// "renderSoundboard is not defined" (visível como toast de erro assíncrono,
+// já que a chamada acontece dentro de um setTimeout encadeado a partir do
+// loginSuccess). Expondo aqui, a chamada de fora do módulo passa a encontrar
+// a função via window (resolução padrão de identificador global no navegador).
 function renderSoundboard() {
   var listEl = document.getElementById('sb-list'); if (!listEl) return;
   var isMestre = _sbIsMestre();
@@ -19310,6 +19340,7 @@ function renderSoundboard() {
       + '</div>';
   }).join('');
 }
+window.renderSoundboard = renderSoundboard; // ver comentário acima da declaração
 
 function switchSoundboardTab(tab) {
   if (tab==='master' && !_sbIsMestre()) return; // trava extra além do botão nem aparecer
@@ -19466,6 +19497,11 @@ function _sbClearPendingFile() {
   var pickedEl = document.getElementById('sb-file-picked');
   if (pickedEl) { pickedEl.style.display = 'none'; pickedEl.textContent = ''; }
 }
+// CORRIGIDO — 202608221930: mesmo problema do renderSoundboard — o campo de
+// URL do som (fora do módulo) chama isso direto no oninput; sem expor em
+// window, dava "_sbClearPendingFile is not defined" toda vez que alguém
+// digitava uma URL de áudio com um arquivo já selecionado.
+window._sbClearPendingFile = _sbClearPendingFile;
 
 function removeSoundboardItem(id, scope) {
   if (scope==='master' && !_sbIsMestre()) return;
