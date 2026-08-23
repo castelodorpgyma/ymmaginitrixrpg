@@ -9177,6 +9177,30 @@ function isMestreDa(c) {
       c.mestreUsername.toLowerCase() === currentUser.username.toLowerCase()) return true;
   return false;
 }
+// ══════════════════════════════════════════════════════════════════
+// NOVO — versão ESTRITA de "essa campanha é minha", sem o fallback
+// legado de isMestreDa() acima ("!c.mestreId → qualquer mestre serve").
+// ------------------------------------------------------------------
+// isMestreDa() foi pensada pra PERMISSÃO DE EDIÇÃO (ex.: pode editar
+// essa campanha antiga que não tem mestreId salvo? Sim, se você é
+// mestre). Isso é razoável pra edição, mas é PERIGOSO pra decidir "com
+// qual campanha o chat/rolagens/call desta conta sincroniza"
+// (_resolveMyCampanhaId, _pertenceACampanha) — nesse uso, o fallback
+// legado faz QUALQUER conta mestre/ambos "pertencer" a QUALQUER
+// campanha antiga sem mestreId, mesmo sem nenhuma relação real com ela.
+// Isso é especialmente perigoso pra contas "Mestre & Player" (mestre de
+// uma mesa, jogador convidado em outra) — usa esta versão estrita em
+// qualquer lugar que decide "qual chat é o meu", nunca isMestreDa().
+// ══════════════════════════════════════════════════════════════════
+function _souDonoDeVerdade(c) {
+  if (!currentUser || !c) return false;
+  if (c.mestreId && c.mestreId === currentUser.id) return true;
+  var isMestreRole = currentUser.role === 'mestre' || currentUser.role === 'ambos';
+  if (isMestreRole && c.mestreUsername && currentUser.username &&
+      c.mestreUsername.toLowerCase() === currentUser.username.toLowerCase()) return true;
+  return false;
+}
+window._souDonoDeVerdade = _souDonoDeVerdade;
 
 // ── Catálogo global de campanhas (todas, incluindo Firebase) ──
 var _catalogoCampanhas = []; // cache sincronizado do Firebase
@@ -11036,7 +11060,28 @@ window._setActiveCampanha = function(id) {
 function _resolveMyCampanhaId() {
   if (typeof currentUser === 'undefined' || !currentUser) return null;
   var ids = {};
-  (data.campanhas||[]).forEach(function(c){ if(typeof isMestreDa==='function' && isMestreDa(c)) ids[c.id]=true; });
+  // ══════════════════════════════════════════════════════════════════
+  // CORRIGIDO — "mensagem só aparece pra quem mandou, nunca pra quem
+  // deveria estar na mesma mesa", achado numa conta "Mestre & Player"
+  // ------------------------------------------------------------------
+  // Antes, esta função usava isMestreDa(c) pra decidir "essa campanha é
+  // minha" — mas isMestreDa() tem um fallback pensado pra PERMISSÃO DE
+  // EDIÇÃO de campanhas antigas (de antes de existir o campo mestreId):
+  // "if (!c.mestreId) return isMestreRole" — ou seja, QUALQUER conta com
+  // papel mestre/ambos é tratada como dona de QUALQUER campanha antiga
+  // sem mestreId salvo, mesmo sem ligação nenhuma com ela. Isso é
+  // aceitável pra "pode editar", mas é ERRADO pra "é essa a campanha
+  // dessa conta pro chat sincronizar" — uma conta "Mestre & Player" (ex.:
+  // alguém que é mestre de UMA mesa mas também joga em OUTRA como
+  // convidado) podia acabar "adotando" uma campanha legada qualquer sem
+  // nenhuma relação real com ela, silenciosamente, sem erro nenhum — e
+  // com isso ler/escrever chat num nó do Firebase que ninguém mais da
+  // mesa de verdade está usando. Agora esta função checa posse de forma
+  // estrita (bate o id da conta OU o username de quem criou a campanha),
+  // sem essa muleta legada — que continua existindo em isMestreDa() só
+  // pra permissão de edição, não pra decidir qual chat é "meu".
+  // ══════════════════════════════════════════════════════════════════
+  (data.campanhas||[]).forEach(function(c){ if(typeof window._souDonoDeVerdade==='function' && window._souDonoDeVerdade(c)) ids[c.id]=true; });
   (data.players||[]).forEach(function(p){
     var isMine = p.ownerId ? p.ownerId===currentUser.id : !!(p.player && currentUser.username && p.player.toLowerCase()===currentUser.username.toLowerCase());
     if (isMine && p.campanha) ids[p.campanha]=true;
@@ -18647,7 +18692,7 @@ function _startRealtimeSync() {
   function _pertenceACampanha(campId) {
     if (!campId || !currentUser) return false;
     var camp = (data.campanhas || []).find(function(c) { return c.id === campId; });
-    if (camp && typeof isMestreDa === 'function' && isMestreDa(camp)) return true;
+    if (camp && typeof window._souDonoDeVerdade === 'function' && window._souDonoDeVerdade(camp)) return true;
     return (data.players || []).some(function(p) {
       if (p.campanha !== campId) return false;
       if (p.ownerId) return p.ownerId === currentUser.id;
@@ -23800,8 +23845,8 @@ function opUpdateYMATracker(){
   var sb=document.getElementById('_sb-version');
   if(sb)sb.textContent='YMMAGINITRIX · v14';
   var wm=document.querySelector('[data-ymm-wm]');
-  if(wm)wm.textContent='YMMAGINITRIX v14.1-chatfix · 2026';
-  console.log('%c YMMAGINITRIX v14.1-chatfix · IlusYmas + NEX + Condições YMA ','background:#330066;color:#cc44ff;font-size:13px;font-weight:bold;padding:4px 8px;border-radius:4px');
+  if(wm)wm.textContent='YMMAGINITRIX v14.2-campfix · 2026';
+  console.log('%c YMMAGINITRIX v14.2-campfix · IlusYmas + NEX + Condições YMA ','background:#330066;color:#cc44ff;font-size:13px;font-weight:bold;padding:4px 8px;border-radius:4px');
 })();
 </script>
 
