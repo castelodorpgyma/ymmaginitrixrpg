@@ -15479,6 +15479,23 @@ function _populateChatCampFilter() {
 function _onChatCampFilterChange(val) {
   chatState.campFilter = val || '';
   try { localStorage.setItem('ymm_chat_camp_filter', chatState.campFilter); } catch(e){}
+  // CORRIGIDO 2026-08-23 (CAMADA 6 — CAUSA RAIZ REAL) — este seletor só
+  // trocava chatState.campFilter, uma variável cosmética usada em
+  // _getChatPeers() (lista de PV) mas NUNCA lida por getChatMessages(),
+  // que decide quais mensagens aparecem no #geral usando SÓ
+  // window._activeCampanhaId. Resultado: escolher "campanha X" aqui
+  // mudava a etiqueta do filtro, mas as mensagens continuavam vindo de
+  // qualquer campanha que estivesse ativa de verdade no momento — e como
+  // liveSession.chat só contém o que está assinado (get/onChildAdded) no
+  // caminho da campanha ATIVA, o efeito prático era mensagens de uma
+  // campanha aparecendo no #geral enquanto o filtro dizia outra. Agora
+  // este seletor troca a campanha ativa de verdade — a mesma função usada
+  // ao "entrar" numa campanha — o que também reassina os listeners de
+  // chat/rolagens pro caminho certo (ver window._setActiveCampanha), então
+  // filtro, dados carregados e mensagens mostradas nunca mais divergem.
+  if (val && val !== window._activeCampanhaId && typeof window._setActiveCampanha === 'function') {
+    window._setActiveCampanha(val);
+  }
   // se a conversa aberta agora não pertence mais à campanha filtrada, volta pro #geral
   if(chatState.activeTab !== 'geral') {
     var stillPeer = _getChatPeers().some(function(u){ return u.id === chatState.activeTab; });
@@ -15578,7 +15595,16 @@ function getChatMessages(tabKey) {
     // Mensagens de quem você mutou (local, só pra você) somem do #geral —
     // mutar não te tira de PVs abertas de propósito com essa pessoa.
     var muted = (typeof _getMutedSet === 'function') ? _getMutedSet() : [];
-    var activeCamp = window._activeCampanhaId || null;
+    // CORRIGIDO 2026-08-23 (CAMADA 6) — prioriza o filtro manual escolhido
+    // no próprio painel de chat (chatState.campFilter) sobre a campanha
+    // ativa global. Isso é o mesmo critério já usado em _getChatPeers()
+    // (lista de PV) — antes só ele levava o filtro em conta, enquanto
+    // getChatMessages() (o que decide as mensagens do #geral) ignorava
+    // completamente, causando a divergência "filtro diz X, mensagens são
+    // de Y". _onChatCampFilterChange já promove o filtro escolhido a
+    // campanha ativa de verdade, então isto aqui é só uma segunda trava
+    // pro instante entre a escolha e a reassinatura terminar.
+    var activeCamp = chatState.campFilter || window._activeCampanhaId || null;
     if (!activeCamp && typeof _resolveMyCampanhaId === 'function') {
       try { activeCamp = _resolveMyCampanhaId(); } catch(e) {}
     }
@@ -17479,20 +17505,40 @@ try {
         if (!_campIdParaEnvio && typeof _resolveMyCampanhaId === 'function') {
           try { _campIdParaEnvio = _resolveMyCampanhaId(); } catch(e) {}
         }
+        // CORRIGIDO 2026-08-23 (CAMADA 7 — BLOQUEIO NA ORIGEM) — as camadas
+        // anteriores confiavam no filtro de LEITURA (getChatMessages) pra
+        // esconder mensagens sem campanha correta, mas ainda ESCREVIAM no
+        // nó antigo/global 'Live/chat' quando nenhuma campanha resolvia.
+        // Isso é o próprio vazamento se QUALQUER filtro de leitura tiver
+        // uma brecha (nova ou já existente) — depender só da leitura pra
+        // proteger a escrita é frágil. Agora, sem campanha resolvida de
+        // jeito nenhum, a mensagem NUNCA é gravada em 'Live/chat': fica
+        // só localmente pra quem digitou, com aviso claro, até a campanha
+        // resolver. Isso elimina de vez a possibilidade de qualquer
+        // mensagem parar no nó compartilhado entre todas as mesas.
+        if (!_campIdParaEnvio) {
+          console.warn('[Chat] Envio bloqueado — nenhuma campanha resolvida ainda, recusando gravar no nó global compartilhado.');
+          if (typeof showToast === 'function') showToast('⚠ Aguardando a campanha carregar — tente enviar de novo em instantes.', 'warn');
+          if (typeof window._ingestChatMsg === 'function') {
+            msg.campanhaId = null;
+            window._ingestChatMsg(msg, { silent: true });
+          }
+          return;
+        }
         // Trava extra (além do caminho isolado no Firebase): toda mensagem
         // carrega o id da campanha em que foi de fato enviada. Mesmo que
         // algum dia um caminho/roteamento saia errado, o filtro do #geral
         // (ver getChatMessages) descarta qualquer mensagem cujo
         // campanhaId não bata com a campanha ativa — nunca mais mistura
         // conversas de mesas diferentes.
-        msg.campanhaId = _campIdParaEnvio || null;
+        msg.campanhaId = _campIdParaEnvio;
         // Usa o MESMO id recém-resolvido pra montar o caminho — antes esta
         // linha chamava window._liveChatPath() de novo, que olha só pra
         // window._activeCampanhaId (sem o fallback acima); então mesmo
         // com campanhaId certo gravado na mensagem, ela ainda ia parar no
         // nó global 'Live/chat' se _activeCampanhaId não tivesse resolvido
         // — certa por dentro, no lugar errado por fora.
-        var _path = _campIdParaEnvio ? ('campanhas/' + _campIdParaEnvio + '/live/chat') : (window._liveChatPath ? window._liveChatPath() : 'Live/chat');
+        var _path = 'campanhas/' + _campIdParaEnvio + '/live/chat';
         window._lastSentChatAt = Date.now();
         window._lastSentChatPath = _path;
         // CORRIGIDO 2026-08-23 (CAMADA 2) — registra esta mensagem como
@@ -19368,6 +19414,23 @@ function _startRealtimeSync() {
   var _seenChatIds = {};
   function _ingestChatMsg(v, opts) {
     if (!v || !v.id) return false;
+    // CORRIGIDO 2026-08-23 (CAMADA 8 — TRAVA NA ENTRADA) — até aqui, toda
+    // trava contra mensagem de campanha errada morava em getChatMessages,
+    // só na hora de DECIDIR O QUE MOSTRAR. Isso protege a tela, mas deixa
+    // a mensagem estranha sentada em liveSession.chat mesmo assim — um
+    // lugar a menos pra checar é um lugar a mais onde um bug futuro (ou já
+    // existente e ainda não achado) pode vazar. Agora a mensagem nem entra
+    // na lista se o campanhaId dela não bater com a campanha ativa desta
+    // conta — igual ao filtro de exibição, mas uma camada antes, então
+    // mesmo se algum outro trecho do código passar a ler liveSession.chat
+    // direto (sem passar por getChatMessages), não tem como misturar mesas.
+    if (!v.pvTo && v.type !== 'system' && !v.isSystem) {
+      var _myActiveCamp = chatState.campFilter || window._activeCampanhaId || null;
+      if (!_myActiveCamp || v.campanhaId !== _myActiveCamp) {
+        console.warn('[Chat] Mensagem descartada na entrada — campanhaId "'+(v.campanhaId||'(nenhum)')+'" não bate com a campanha ativa "'+(_myActiveCamp||'(nenhuma)')+'".');
+        return false;
+      }
+    }
     window._syncHealth.chat = Date.now();
     if (_seenChatIds[v.id]) return false; // já está na tela — não duplica
     _seenChatIds[v.id] = true;
