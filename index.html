@@ -10988,7 +10988,7 @@ window._setActiveCampanha = function(id) {
   // <script type="module">), senão continuaria vendo — e mandando
   // mensagem/rolagem pra — a mesa anterior.
   if (changed && typeof window._resubscribeLiveChatRolls === 'function') {
-    try { window._resubscribeLiveChatRolls(); } catch(e) { console.error('[_setActiveCampanha] resubscribe falhou:', e); }
+    try { window._resubscribeLiveChatRolls(true); } catch(e) { console.error('[_setActiveCampanha] resubscribe falhou:', e); }
   }
   // Mesma lógica pro isolamento da CALL por campanha (Fase 3): status
   // "call ao vivo"/permissões, faixinha de "quem está em call" e o aviso
@@ -11659,18 +11659,18 @@ function onRoletaDone(winIdx) {
   // Broadcast to chat if enabled
   var broadcast = document.getElementById('roleta-broadcast');
   if (broadcast && broadcast.checked && liveSession) {
+    // CORRIGIDO: este bloco montava a mensagem e dava liveSession.chat.push()
+    // direto, sem passar por pushChatMsg() — ou seja, o resultado da roleta
+    // NUNCA era mandado pro Firebase, só aparecia pra quem girou a roleta
+    // (e sumia no próximo F5, já que só ficava na memória/localStorage
+    // local). Agora usa pushChatMsg(), a mesma função do chat normal, que
+    // é quem de fato grava em campanhas/<id>/live/chat e sincroniza pra
+    // todo mundo em tempo real.
     var msg = {
-      id: 'roleta_' + Date.now(),
       type: 'roleta',
-      sender: currentUser ? currentUser.username : 'Mestre',
-      avatar: currentUser ? currentUser.avatar : null,
-      text: '🎰 **ROLETA** — Resultado: **' + winner + '**' + (targetName !== 'Todos' ? ' (para ' + targetName + ')' : ''),
-      ts: Date.now()
+      text: '🎰 **ROLETA** — Resultado: **' + winner + '**' + (targetName !== 'Todos' ? ' (para ' + targetName + ')' : '')
     };
-    if (!liveSession.chat) liveSession.chat = [];
-    liveSession.chat.push(msg);
-    saveLive();
-    renderChatFeed();
+    if (typeof pushChatMsg === 'function') pushChatMsg(msg);
   }
 }
 
@@ -17844,7 +17844,7 @@ onValue(ref(db, '.info/connected'), function(snap) {
   // ══════════════════════════════════════════════════════════════════
   if (window._fbConnected && wasConnected === false) {
     console.log('[Firebase] Reconectou — reassinando chat/rolagens/usuários do zero por precaução.');
-    try { if (typeof window._resubscribeLiveChatRolls === 'function') window._resubscribeLiveChatRolls(); } catch(e) { console.error('[Reconexão] Falha ao reassinar chat/rolagens:', e); }
+    try { if (typeof window._resubscribeLiveChatRolls === 'function') window._resubscribeLiveChatRolls(true); } catch(e) { console.error('[Reconexão] Falha ao reassinar chat/rolagens:', e); }
     try { if (typeof window._resubscribeUsersLive === 'function') window._resubscribeUsersLive(); } catch(e) { console.error('[Reconexão] Falha ao reassinar usuários:', e); }
   }
 });
@@ -18300,7 +18300,42 @@ function _startRealtimeSync() {
   // window._liveChatPath/_liveRollsPath) e window._resubscribeLiveChatRolls
   // troca os listeners na hora certa quando a campanha ativa muda.
   var _liveChatRollsRefs = { chat: null, rolls: null };
-  function _subscribeLiveChatRolls() {
+  // ══════════════════════════════════════════════════════════════════
+  // CORRIGIDO — "chat não sincroniza em tempo real E nem 'gruda' as
+  // mensagens", causa raiz real (achada lendo o log do console: a própria
+  // mensagem enviada por quem manda NUNCA disparava o onValue de volta,
+  // sem nenhum erro de permissão)
+  // ------------------------------------------------------------------
+  // window._resubscribeLiveChatRolls (= esta função) é chamada por VÁRIOS
+  // gatilhos diferentes: troca de campanha, reconexão do socket, o "Vigia
+  // do chat", E toda vez que a aba volta a ficar visível/volta do
+  // cache/a internet volta (visibilitychange/pageshow/online, mais abaixo
+  // neste módulo). Esses três últimos podem disparar em rajada (ex.: mais
+  // de um evento 'visibilitychange' em sequência rápida, comum em alguns
+  // navegadores/extensões) — e cada chamada fazia off() + onValue() de
+  // NOVO na hora, incondicionalmente. Desligar e religar o listener do
+  // Firebase rápido demais e repetidamente impede o SDK de deixar a
+  // inscrição realmente "estável": ela fica sendo trocada de dono o tempo
+  // todo antes de qualquer atualização em tempo real conseguir chegar —
+  // o que bate exatamente com o sintoma (nem tempo real, nem mensagem
+  // "grudando", já que a cada reassinatura a lista local é zerada e
+  // reconstruída do zero). Agora, reassinaturas pedidas sem force=true
+  // (a maioria dos gatilhos automáticos) são ignoradas se a última
+  // reassinatura de verdade foi há menos de 4s — o pior caso é esperar
+  // uns segundos a mais pra reassinar de novo, o que não faz diferença
+  // nenhuma pra esses gatilhos (nenhum deles precisa ser instantâneo).
+  // Troca de campanha e reconexão do socket (window._fbConnected voltando
+  // a true) continuam forçando na hora (force=true), porque aí sim é
+  // importante trocar de nó/religar sem atraso.
+  // ══════════════════════════════════════════════════════════════════
+  var _lastChatSubscribeAt = 0;
+  function _subscribeLiveChatRolls(force) {
+    var _now = Date.now();
+    if (!force && _lastChatSubscribeAt && (_now - _lastChatSubscribeAt) < 4000) {
+      console.log('[Chat/Rolagens] Reassinatura ignorada (debounce) — a última foi há ' + Math.round((_now - _lastChatSubscribeAt)/1000) + 's, evitando religar o listener em rajada.');
+      return;
+    }
+    _lastChatSubscribeAt = _now;
     if (_liveChatRollsRefs.chat) { try { off(_liveChatRollsRefs.chat); } catch(e){} }
     if (_liveChatRollsRefs.rolls) { try { off(_liveChatRollsRefs.rolls); } catch(e){} }
 
