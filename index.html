@@ -32,8 +32,13 @@
         pessoa no topo do card — movida pro canto inferior, sobre um degradê
         escuro junto do nome/cargo. -->
 
-<!-- PWA -->
-<link rel="manifest" href="manifest.json">
+<!-- PWA — CORRIGIDO: manifest.json 404 (o arquivo separado nunca foi parado
+     no repositório, então todo carregamento da página batia um 404 na aba
+     Rede/Console). Em vez de depender de outro arquivo existir no lugar
+     certo do repo, o manifest agora vai embutido aqui mesmo como data: URI
+     — funciona igual pro navegador, mas nunca mais dá 404, não importa
+     quais outros arquivos existam (ou não) no repositório. -->
+<link rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22Ymmaginitrix%22%2C%22short_name%22%3A%22Ymmaginitrix%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%230a0a0a%22%2C%22theme_color%22%3A%22%23c81414%22%7D">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -23845,8 +23850,8 @@ function opUpdateYMATracker(){
   var sb=document.getElementById('_sb-version');
   if(sb)sb.textContent='YMMAGINITRIX · v14';
   var wm=document.querySelector('[data-ymm-wm]');
-  if(wm)wm.textContent='YMMAGINITRIX v14.2-campfix · 2026';
-  console.log('%c YMMAGINITRIX v14.2-campfix · IlusYmas + NEX + Condições YMA ','background:#330066;color:#cc44ff;font-size:13px;font-weight:bold;padding:4px 8px;border-radius:4px');
+  if(wm)wm.textContent='YMMAGINITRIX v14.3-manifest · 2026';
+  console.log('%c YMMAGINITRIX v14.3-manifest · IlusYmas + NEX + Condições YMA ','background:#330066;color:#cc44ff;font-size:13px;font-weight:bold;padding:4px 8px;border-radius:4px');
 })();
 </script>
 
