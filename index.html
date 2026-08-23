@@ -16757,6 +16757,12 @@ try {
         var _path = window._liveChatPath ? window._liveChatPath() : 'Live/chat';
         window._lastSentChatAt = Date.now();
         window._lastSentChatPath = _path;
+        // CORRIGIDO 2026-08-23 (CAMADA 2) — registra esta mensagem como
+        // "pendente" por 15s: _applyChatSnap (em qualquer chamada, de
+        // qualquer origem — onValue, poll de reforço, reconferência) vai
+        // mantê-la na tela mesmo se algum snapshot chegar sem ela nesse
+        // intervalo, em vez de deixar ela sumir.
+        if (typeof window._trackPendingSentChatMsg === 'function') window._trackPendingSentChatMsg(msg);
         console.log('[Chat] Enviando mensagem pro Firebase em "' + _path + '":', msg.text || '(mídia)');
         push(ref(db, _path), msg).then(function(){
           console.log('[Chat] ✅ Mensagem confirmada no Firebase em "' + _path + '"');
@@ -18476,6 +18482,41 @@ function _startRealtimeSync() {
   // novo chegar e substituir (sem hiato vazio no meio).
   var _lastChatPath = null, _lastRollsPath = null;
 
+  // ══════════════════════════════════════════════════════════════════
+  // CORRIGIDO 2026-08-23 (CAMADA 2, "à prova de bala") — proteção que NÃO
+  // depende de eu ter achado a causa exata da corrida. Não importa qual
+  // seja o motivo (resubscribe, replicação atrasada, poll de 8s cruzando
+  // com o onValue, qualquer coisa que eu ainda não tenha visto): uma
+  // mensagem que EU acabei de mandar não pode sumir da minha tela por
+  // causa de um snapshot que ainda não é a versão final/completa do
+  // Firebase. _pendingSentChatMsgs guarda (por até 15s) toda mensagem
+  // própria recém-enviada; QUALQUER snapshot aplicado depois disso é
+  // mesclado com essas mensagens pendentes antes de substituir a tela —
+  // nunca simplesmente sobrescreve. Depois de 15s (tempo de sobra pra
+  // qualquer sincronização real terminar), a mensagem já deve estar no
+  // snapshot de verdade e sai da lista de pendências sozinha.
+  // ══════════════════════════════════════════════════════════════════
+  var _pendingSentChatMsgs = [];
+  window._trackPendingSentChatMsg = function(msg) {
+    _pendingSentChatMsgs.push({ msg: msg, until: Date.now() + 15000 });
+  };
+  function _mergePendingIntoMsgs(msgs) {
+    var _now = Date.now();
+    var _stillPending = [];
+    var _presentIds = {};
+    msgs.forEach(function(m){ if (m && m.id) _presentIds[m.id] = true; });
+    _pendingSentChatMsgs.forEach(function(p) {
+      if (p.until < _now) return; // expirou, descarta — ou já apareceu no snapshot real, ou realmente falhou
+      _stillPending.push(p);
+      if (p.msg && p.msg.id && !_presentIds[p.msg.id]) {
+        console.warn('[Chat] Snapshot chegou sem uma mensagem própria enviada há pouco — mantendo ela na tela até o Firebase confirmar (ou até 15s).');
+        msgs.push(p.msg);
+      }
+    });
+    _pendingSentChatMsgs = _stillPending;
+    return msgs;
+  }
+
   // ── Funções reutilizáveis pra aplicar um snapshot do chat/rolagens —
   // usadas tanto pelo onValue (tempo real) quanto pelo poll de reforço
   // logo abaixo (ver window._pollChatRollsFallback). ──
@@ -18500,15 +18541,19 @@ function _startRealtimeSync() {
       // ══════════════════════════════════════════════════════════════
       var _sentRecently = window._lastSentChatAt && (Date.now() - window._lastSentChatAt) < 20000
         && window._lastSentChatPath === (window._liveChatPath ? window._liveChatPath() : 'Live/chat');
-      if (_sentRecently && liveSession.chat && liveSession.chat.length) {
+      if ((_sentRecently && liveSession.chat && liveSession.chat.length) || _pendingSentChatMsgs.length) {
         console.warn('[Chat] Leitura vazia logo após enviar mensagem neste caminho — não confiando de primeira, conferindo de novo antes de limpar a tela.');
         var _recheckPath = window._liveChatPath ? window._liveChatPath() : 'Live/chat';
         setTimeout(function() {
           try {
             get(ref(db, _recheckPath)).then(function(freshSnap) {
-              if (!freshSnap.exists()) {
+              if (!freshSnap.exists() && !_pendingSentChatMsgs.length) {
                 console.warn('[Chat] Confirmado: caminho realmente está vazio — limpando a tela agora.');
                 liveSession.chat = []; renderChatFeed(); renderChatFeedOv();
+              } else if (!freshSnap.exists()) {
+                // vazio no Firebase mas ainda temos mensagem(ns) pendente(s) — mantém na tela
+                liveSession.chat = _mergePendingIntoMsgs([]);
+                renderChatFeed(); renderChatFeedOv();
               } else {
                 console.log('[Chat] Falso alarme — a mensagem estava lá, só a leitura anterior chegou cedo demais. Aplicando dado real.');
                 _applyChatSnap(freshSnap);
@@ -18522,6 +18567,7 @@ function _startRealtimeSync() {
     }
     const msgs = [];
     snap.forEach(child => msgs.push(child.val()));
+    _mergePendingIntoMsgs(msgs);
     msgs.sort((a, b) => (a.ts || 0) - (b.ts || 0));
     // Mantém só as últimas 200
     liveSession.chat = msgs.slice(-200);
@@ -18555,6 +18601,39 @@ function _startRealtimeSync() {
 
   function _subscribeLiveChatRolls(force) {
     var _now = Date.now();
+    var _chatPathCheck  = window._liveChatPath  ? window._liveChatPath()  : 'Live/chat';
+    var _rollsPathCheck = window._liveRollsPath ? window._liveRollsPath() : 'Live/rolls';
+    // ══════════════════════════════════════════════════════════════════
+    // CORRIGIDO 2026-08-23 (ATÔMICO) — "mensagem confirmada no Firebase,
+    // mas some da tela e nunca chega pra ninguém"
+    // ------------------------------------------------------------------
+    // Causa raiz real (achada no log ao vivo): "aba voltou a ficar
+    // visível" (e outros gatilhos de resync automático: pageshow, online,
+    // o vigia periódico do chat) chamavam esta função SEM force — e o
+    // código então desligava (off) e religava (onValue) o listener do
+    // Firebase, MESMO quando o caminho lido era exatamente o mesmo de
+    // antes. onValue já é um listener PERSISTENTE: ele não precisa (e não
+    // deve) ser trocado só porque a aba ganhou foco — ele continua vivo e
+    // recebendo tudo sozinho o tempo todo, em segundo plano. Desligar e
+    // religar ele bem no instante em que uma mensagem tinha acabado de
+    // ser confirmada criava uma corrida com o Firebase: o primeiro
+    // snapshot do listener NOVO podia chegar antes do dado recém-escrito
+    // terminar de propagar, e esse snapshot "incompleto" substituía
+    // liveSession.chat inteiro — apagando a mensagem que tinha acabado de
+    // aparecer. E como TODO participante da campanha tem esse mesmo
+    // resync automático ligado, isso "some pra todo mundo" e não só pra
+    // quem mandou. Agora: se o caminho não mudou e já existe um listener
+    // vivo assinado nele, uma chamada sem force é só um NO-OP — não tem
+    // nada pra religar, o listener já está fazendo o trabalho. Só religa
+    // de verdade quando o caminho muda (troca de campanha) ou quando
+    // force=true é passado por um motivo que exige religar (reconexão de
+    // verdade do socket do Firebase, troca de campanha).
+    // ══════════════════════════════════════════════════════════════════
+    if (!force && _liveChatRollsRefs.chat && _liveChatRollsRefs.rolls &&
+        _chatPathCheck === _lastChatPath && _rollsPathCheck === _lastRollsPath) {
+      console.log('[Chat/Rolagens] Resync ignorado — já assinado em "'+_chatPathCheck+'", o listener continua vivo sozinho, nada pra religar.');
+      return;
+    }
     if (!force && _lastChatSubscribeAt && (_now - _lastChatSubscribeAt) < 4000) {
       console.log('[Chat/Rolagens] Reassinatura ignorada (debounce) — a última foi há ' + Math.round((_now - _lastChatSubscribeAt)/1000) + 's, evitando religar o listener em rajada.');
       return;
@@ -18563,7 +18642,7 @@ function _startRealtimeSync() {
     if (_liveChatRollsRefs.chat) { try { off(_liveChatRollsRefs.chat); } catch(e){} }
     if (_liveChatRollsRefs.rolls) { try { off(_liveChatRollsRefs.rolls); } catch(e){} }
 
-    var _chatPath = window._liveChatPath ? window._liveChatPath() : 'Live/chat';
+    var _chatPath = _chatPathCheck;
     var chatRef = ref(db, _chatPath);
     _liveChatRollsRefs.chat = chatRef;
     console.log('[Chat/Rolagens] Campanha ativa: '+(window._activeCampanhaId||'(nenhuma — usando caminho antigo Live/chat)')+' — lendo de: '+_chatPath);
