@@ -18329,6 +18329,19 @@ function _startRealtimeSync() {
   // importante trocar de nó/religar sem atraso.
   // ══════════════════════════════════════════════════════════════════
   var _lastChatSubscribeAt = 0;
+  // CORRIGIDO — mensagens "sumindo"/parecendo não salvar mesmo com a
+  // sincronização ok: toda vez que esta função rodava (inclusive em
+  // reconexões automáticas da MESMA campanha, não só troca de campanha),
+  // ela zerava liveSession.chat/rolls na hora e só preenchia de novo
+  // quando o próximo snapshot do Firebase chegasse. Numa reconexão comum
+  // isso é rápido, mas ainda assim pisca a tela vazia; se o snapshot
+  // demorasse (rede ruim) ou a reassinatura seguinte disparasse antes
+  // dele chegar, dava a impressão de "apagou minhas mensagens". Agora só
+  // limpamos a tela na hora quando o CAMINHO realmente muda (troca de
+  // campanha de verdade) — numa reassinatura da mesma campanha, as
+  // mensagens que já estavam na tela continuam visíveis até o snapshot
+  // novo chegar e substituir (sem hiato vazio no meio).
+  var _lastChatPath = null, _lastRollsPath = null;
   function _subscribeLiveChatRolls(force) {
     var _now = Date.now();
     if (!force && _lastChatSubscribeAt && (_now - _lastChatSubscribeAt) < 4000) {
@@ -18339,11 +18352,14 @@ function _startRealtimeSync() {
     if (_liveChatRollsRefs.chat) { try { off(_liveChatRollsRefs.chat); } catch(e){} }
     if (_liveChatRollsRefs.rolls) { try { off(_liveChatRollsRefs.rolls); } catch(e){} }
 
-    var chatRef = ref(db, window._liveChatPath ? window._liveChatPath() : 'Live/chat');
+    var _chatPath = window._liveChatPath ? window._liveChatPath() : 'Live/chat';
+    var chatRef = ref(db, _chatPath);
     _liveChatRollsRefs.chat = chatRef;
-    console.log('[Chat/Rolagens] Campanha ativa: '+(window._activeCampanhaId||'(nenhuma — usando caminho antigo Live/chat)')+' — lendo de: '+(window._liveChatPath ? window._liveChatPath() : 'Live/chat'));
+    console.log('[Chat/Rolagens] Campanha ativa: '+(window._activeCampanhaId||'(nenhuma — usando caminho antigo Live/chat)')+' — lendo de: '+_chatPath);
     _knownLastChatTs = null;
-    liveSession.chat = []; renderChatFeed(); renderChatFeedOv(); // limpa a tela antes do 1º snapshot da campanha nova chegar
+    var _chatPathChanged = (_chatPath !== _lastChatPath);
+    _lastChatPath = _chatPath;
+    if (_chatPathChanged) { liveSession.chat = []; renderChatFeed(); renderChatFeedOv(); } // só limpa se for campanha diferente de verdade
     onValue(chatRef, (snap) => {
       window._syncHealth.chat = Date.now();
       if (!snap.exists()) { liveSession.chat = []; renderChatFeed(); renderChatFeedOv(); return; }
@@ -18372,9 +18388,12 @@ function _startRealtimeSync() {
     }, _fbReadErrHandler('Live/chat'));
     _rtListeners.chat = () => off(chatRef);
 
-    var rollRef = ref(db, window._liveRollsPath ? window._liveRollsPath() : 'Live/rolls');
+    var _rollsPath = window._liveRollsPath ? window._liveRollsPath() : 'Live/rolls';
+    var rollRef = ref(db, _rollsPath);
     _liveChatRollsRefs.rolls = rollRef;
-    liveSession.rolls = []; renderRollFeed();
+    var _rollsPathChanged = (_rollsPath !== _lastRollsPath);
+    _lastRollsPath = _rollsPath;
+    if (_rollsPathChanged) { liveSession.rolls = []; renderRollFeed(); }
     onValue(rollRef, (snap) => {
       window._syncHealth.rolls = Date.now();
       if (!snap.exists()) { liveSession.rolls = []; renderRollFeed(); return; }
