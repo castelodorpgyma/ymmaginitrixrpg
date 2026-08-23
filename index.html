@@ -16645,7 +16645,7 @@ import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword,
          signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider,
          signInAnonymously, signOut, onAuthStateChanged, updateProfile }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { getDatabase, ref, set, get, push, onValue, off, remove, serverTimestamp, onDisconnect }
+import { getDatabase, ref, set, get, push, onValue, onChildAdded, off, remove, serverTimestamp, onDisconnect }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
 // ════════════════════════════════════════════════════════════════════════
@@ -16655,7 +16655,7 @@ import { getDatabase, ref, set, get, push, onValue, off, remove, serverTimestamp
 //  por esta linha. Se ela NÃO aparecer, o navegador/GitHub Pages ainda
 //  está servindo uma versão antiga — não é bug de código.
 // ════════════════════════════════════════════════════════════════════════
-console.log('%c🔍 YMMAGINITRIX — BUILD CHECK 2026-08-22-CHAT-FIX — se você está vendo isso, o arquivo mais recente (com as sobrescritas do chat movidas pro topo) ESTÁ carregado ', 'background:#c1121f;color:#fff;font-size:14px;font-weight:bold;padding:6px 10px;border-radius:4px');
+console.log('%c🔍 YMMAGINITRIX — BUILD CHECK 2026-08-23-CHAT-CHILDADDED — se você está vendo isso, o arquivo com o chat reescrito pra onChildAdded ESTÁ carregado ', 'background:#c1121f;color:#fff;font-size:14px;font-weight:bold;padding:6px 10px;border-radius:4px');
 
 const firebaseConfig = {
   apiKey:            "AIzaSyDl3IAQwId269-5MOfY0xRN8fre4TFIV3Q",
@@ -16773,11 +16773,20 @@ try {
           }
         });
         // Local imediato (sempre aparece pra quem enviou, mesmo se a sincronização falhar)
-        liveSession.chat.push(msg);
-        if (liveSession.chat.length > 200) liveSession.chat.splice(0, liveSession.chat.length - 200);
+        // CORRIGIDO 2026-08-23 (REESCRITA ESTRUTURAL) — usa o mesmo
+        // _ingestChatMsg do listener em tempo real, pra registrar msg.id
+        // como "já visto". Sem isso, quando o Firebase ecoasse esta
+        // própria mensagem de volta pelo onChildAdded, ela apareceria
+        // DUPLICADA na tela de quem mandou.
+        if (typeof window._ingestChatMsg === 'function') {
+          window._ingestChatMsg(msg, { silent: true });
+        } else {
+          liveSession.chat.push(msg);
+          if (liveSession.chat.length > 200) liveSession.chat.splice(0, liveSession.chat.length - 200);
+          if (typeof renderChatFeed === 'function') renderChatFeed();
+          if (typeof renderChatFeedOv === 'function') renderChatFeedOv();
+        }
         if (typeof saveLive === 'function') saveLive();
-        if (typeof renderChatFeed === 'function') renderChatFeed();
-        if (typeof renderChatFeedOv === 'function') renderChatFeedOv();
       };
       okCount++;
     } catch (e) { console.error('[SOBRESCRITAS CRÍTICAS] pushChatMsg falhou ao aplicar:', e); }
@@ -18599,36 +18608,60 @@ function _startRealtimeSync() {
     renderRollFeed();
   }
 
+  // ══════════════════════════════════════════════════════════════════
+  // CORRIGIDO 2026-08-23 (REESCRITA ESTRUTURAL) — chega de reconstruir a
+  // lista inteira de mensagens a cada atualização. Esse era o defeito de
+  // fundo por trás de TODAS as tentativas anteriores: onValue entrega o
+  // nó INTEIRO toda vez que qualquer coisa muda nele, e qualquer leitura
+  // que chegasse incompleta/atrasada (reassinatura, poll de reforço,
+  // reconexão, não importa a causa exata) SUBSTITUÍA liveSession.chat
+  // inteiro — e se essa leitura não continha a mensagem mais recente
+  // ainda propagando, ela desaparecia da tela, mesmo já estando salva de
+  // verdade no Firebase. Agora o chat é tratado como uma lista que só
+  // CRESCE: o histórico inicial é lido uma vez (get), e cada mensagem
+  // nova a partir daí chega como um evento isolado (onChildAdded) que só
+  // ADICIONA — nunca reconstrói, nunca substitui, nunca corre risco de
+  // "esquecer" uma mensagem que já apareceu. _ingestChatMsg (abaixo) é o
+  // único lugar que insere mensagem na tela, usado tanto pelo listener
+  // em tempo real quanto pelo poll de reforço de 8s — as duas fontes só
+  // ADICIONAM o que falta, nunca disputam pra ver qual "vence" e apaga a
+  // versão da outra.
+  // ══════════════════════════════════════════════════════════════════
+  var _seenChatIds = {};
+  function _ingestChatMsg(v, opts) {
+    if (!v || !v.id) return false;
+    window._syncHealth.chat = Date.now();
+    if (_seenChatIds[v.id]) return false; // já está na tela — não duplica
+    _seenChatIds[v.id] = true;
+    if (!liveSession.chat) liveSession.chat = [];
+    liveSession.chat.push(v);
+    liveSession.chat.sort(function(a, b) { return (a.ts || 0) - (b.ts || 0); });
+    if (liveSession.chat.length > 200) liveSession.chat.splice(0, liveSession.chat.length - 200);
+    renderChatFeed();
+    renderChatFeedOv();
+    if (!(opts && opts.silent)) {
+      var isFromMe = currentUser && v.senderId === currentUser.id;
+      var visibleToMe = !v.pvTo || (currentUser && (v.pvTo === currentUser.id || v.senderId === currentUser.id));
+      if (!isFromMe && !v.isSystem && v.type !== 'system' && visibleToMe) {
+        var preview = (v.text || v.msg || '📎 anexo');
+        if (preview.length > 80) preview = preview.slice(0, 80) + '…';
+        var label = v.pvTo ? ('🔒 ' + (v.sender || 'Alguém')) : ('💬 ' + (v.sender || 'Alguém'));
+        _fireNativeNotification(label, preview, 'chat-msg');
+      }
+    }
+    return true;
+  }
+  window._ingestChatMsg = _ingestChatMsg;
+
   function _subscribeLiveChatRolls(force) {
     var _now = Date.now();
     var _chatPathCheck  = window._liveChatPath  ? window._liveChatPath()  : 'Live/chat';
     var _rollsPathCheck = window._liveRollsPath ? window._liveRollsPath() : 'Live/rolls';
-    // ══════════════════════════════════════════════════════════════════
-    // CORRIGIDO 2026-08-23 (ATÔMICO) — "mensagem confirmada no Firebase,
-    // mas some da tela e nunca chega pra ninguém"
-    // ------------------------------------------------------------------
-    // Causa raiz real (achada no log ao vivo): "aba voltou a ficar
-    // visível" (e outros gatilhos de resync automático: pageshow, online,
-    // o vigia periódico do chat) chamavam esta função SEM force — e o
-    // código então desligava (off) e religava (onValue) o listener do
-    // Firebase, MESMO quando o caminho lido era exatamente o mesmo de
-    // antes. onValue já é um listener PERSISTENTE: ele não precisa (e não
-    // deve) ser trocado só porque a aba ganhou foco — ele continua vivo e
-    // recebendo tudo sozinho o tempo todo, em segundo plano. Desligar e
-    // religar ele bem no instante em que uma mensagem tinha acabado de
-    // ser confirmada criava uma corrida com o Firebase: o primeiro
-    // snapshot do listener NOVO podia chegar antes do dado recém-escrito
-    // terminar de propagar, e esse snapshot "incompleto" substituía
-    // liveSession.chat inteiro — apagando a mensagem que tinha acabado de
-    // aparecer. E como TODO participante da campanha tem esse mesmo
-    // resync automático ligado, isso "some pra todo mundo" e não só pra
-    // quem mandou. Agora: se o caminho não mudou e já existe um listener
-    // vivo assinado nele, uma chamada sem force é só um NO-OP — não tem
-    // nada pra religar, o listener já está fazendo o trabalho. Só religa
-    // de verdade quando o caminho muda (troca de campanha) ou quando
-    // force=true é passado por um motivo que exige religar (reconexão de
-    // verdade do socket do Firebase, troca de campanha).
-    // ══════════════════════════════════════════════════════════════════
+    // Trocar de aba/reconectar sem o caminho mudar não precisa religar
+    // nada: onChildAdded (como onValue) já é um listener persistente que
+    // continua vivo sozinho. Só religa de verdade quando o caminho muda
+    // (troca de campanha) ou force=true por um motivo que exige (ver
+    // chamadas de window._resubscribeLiveChatRolls(true) espalhadas).
     if (!force && _liveChatRollsRefs.chat && _liveChatRollsRefs.rolls &&
         _chatPathCheck === _lastChatPath && _rollsPathCheck === _lastRollsPath) {
       console.log('[Chat/Rolagens] Resync ignorado — já assinado em "'+_chatPathCheck+'", o listener continua vivo sozinho, nada pra religar.');
@@ -18649,8 +18682,30 @@ function _startRealtimeSync() {
     _knownLastChatTs = null;
     var _chatPathChanged = (_chatPath !== _lastChatPath);
     _lastChatPath = _chatPath;
-    if (_chatPathChanged) { liveSession.chat = []; renderChatFeed(); renderChatFeedOv(); } // só limpa se for campanha diferente de verdade
-    onValue(chatRef, _applyChatSnap, _fbReadErrHandler(_chatPath));
+    if (_chatPathChanged) {
+      // Campanha realmente diferente — reseta tudo do zero, inclusive o
+      // controle de "já visto", senão IDs da campanha antiga poderiam
+      // impedir mensagens da campanha nova de aparecer por engano.
+      liveSession.chat = [];
+      _seenChatIds = {};
+      renderChatFeed(); renderChatFeedOv();
+    } else {
+      // Mesmo caminho (ex.: reconexão forçada) — preserva o que já está
+      // na tela e marca como "já visto" pra não duplicar ao reler.
+      _seenChatIds = {};
+      (liveSession.chat || []).forEach(function(m) { if (m && m.id) _seenChatIds[m.id] = true; });
+    }
+    // Histórico inicial: lido UMA vez (get), não fica "ouvindo" por isso —
+    // só popula a lista de largada.
+    get(chatRef).then(function(snap) {
+      if (!snap.exists()) return;
+      var initial = [];
+      snap.forEach(function(child) { var v = child.val(); if (v) initial.push(v); });
+      initial.sort(function(a, b) { return (a.ts || 0) - (b.ts || 0); });
+      initial.forEach(function(v) { _ingestChatMsg(v, { silent: true }); });
+    }).catch(function(e) { console.warn('[Chat] Falha ao carregar histórico inicial:', e && (e.code || e.message)); });
+    // A partir daqui, cada mensagem nova chega isolada — só adiciona.
+    onChildAdded(chatRef, function(child) { _ingestChatMsg(child.val()); }, _fbReadErrHandler(_chatPath));
     _rtListeners.chat = () => off(chatRef);
 
     var _rollsPath = window._liveRollsPath ? window._liveRollsPath() : 'Live/rolls';
@@ -18682,7 +18737,18 @@ function _startRealtimeSync() {
     if (!currentUser) return;
     try {
       var _pChatRef = ref(db, window._liveChatPath ? window._liveChatPath() : 'Live/chat');
-      get(_pChatRef).then(_applyChatSnap).catch(function(e){ console.warn('[Poll de reforço] chat falhou:', e && (e.code||e.message)); });
+      // CORRIGIDO 2026-08-23 — o poll usava _applyChatSnap (substitui a
+      // lista inteira), a mesma fonte de corrida que o onChildAdded
+      // acima elimina. Agora o poll só ADICIONA (_ingestChatMsg) o que
+      // ainda não apareceu — nunca mais compete com o listener em tempo
+      // real pra ver "qual substitui a tela por último".
+      get(_pChatRef).then(function(snap){
+        if (!snap.exists()) return;
+        var found = [];
+        snap.forEach(function(child){ var v = child.val(); if (v) found.push(v); });
+        found.sort(function(a,b){ return (a.ts||0)-(b.ts||0); });
+        found.forEach(function(v){ if (typeof window._ingestChatMsg === 'function') window._ingestChatMsg(v); });
+      }).catch(function(e){ console.warn('[Poll de reforço] chat falhou:', e && (e.code||e.message)); });
       var _pRollRef = ref(db, window._liveRollsPath ? window._liveRollsPath() : 'Live/rolls');
       get(_pRollRef).then(_applyRollsSnap).catch(function(e){ console.warn('[Poll de reforço] rolagens falhou:', e && (e.code||e.message)); });
     } catch(e) { console.error('[Poll de reforço] falhou:', e); }
