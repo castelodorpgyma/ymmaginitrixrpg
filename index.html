@@ -7017,7 +7017,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     <div class="call-setting-row" style="align-items:flex-start">
       <div style="flex:1">
         <div class="call-setting-lbl">Ícone na Call</div>
-        <div class="call-setting-sub">Imagem ou GIF do seu personagem, mostrado no seu card durante a call (substitui o avatar da ficha) — até 8MB</div>
+        <div class="call-setting-sub">Imagem ou GIF do seu personagem, mostrado no seu card durante a call (substitui o avatar da ficha) — até 3MB</div>
         <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
           <div id="call-avatar-preview" onclick="document.getElementById('call-avatar-input').click()" style="width:52px;height:52px;border-radius:14px;border:1.5px dashed rgba(255,255,255,.22);display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;background:rgba(255,255,255,.03);flex-shrink:0">
             <span style="font-size:.5rem;opacity:.5">+ img</span>
@@ -14931,13 +14931,14 @@ function _callSyncCustomAvatarToRoom(dataUrl) {
 function callSetCustomAvatarFile(ev) {
   var file = ev.target.files && ev.target.files[0];
   if (!file) return;
-  // Limite subido pra 8MB a pedido — vale notar que o Firebase Realtime DB
-  // recusa valores acima de ~10MB, e base64 infla o arquivo original em
-  // ~37%: um arquivo de 8MB "cru" vira ~11MB salvo como base64, beirando
-  // esse teto. Se a sincronização com os outros jogadores falhar por causa
-  // disso, _callSyncCustomAvatarToRoom já avisa com um toast (o ícone
-  // continua aparecendo normalmente só pra você, salvo localmente).
-  if (file.size > 8*1024*1024) { showToast('⚠ Imagem/GIF muito grande (máx 8MB)','warn'); ev.target.value=''; return; }
+  // Limite de 3MB: folga confortável tanto pro Firebase (teto de ~10MB por
+  // valor — 3MB de arquivo vira ~4MB em base64, o formato usado aqui, bem
+  // longe do teto) quanto pro localStorage do navegador (cota total de só
+  // uns 5-10MB, dividida com tudo mais que o app já guarda ali). Testamos
+  // 8MB antes e ficava arriscado demais nas duas pontas — 3MB cobre bem a
+  // grande maioria dos ícones/GIFs de personagem sem esbarrar em nenhum
+  // teto.
+  if (file.size > 3*1024*1024) { showToast('⚠ Imagem/GIF muito grande (máx 3MB)','warn'); ev.target.value=''; return; }
   var reader = new FileReader();
   reader.onload = function(e) {
     var dataUrl = e.target.result;
