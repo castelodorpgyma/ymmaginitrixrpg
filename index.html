@@ -16902,9 +16902,23 @@ function _fbShowPermToastThrottled() {
     showToast('⚠ Firebase recusou salvar (permissão) — <span onclick="_forceRelogin()" style="text-decoration:underline;cursor:pointer">toque aqui para logar novamente</span>.', 'err');
   }
 }
+// CORRIGIDO 2026-08-23 — mesmo problema do lado da ESCRITA: se o push()
+// do chat/rolagens tomar PERMISSION_DENIED, quem manda a mensagem NUNCA
+// percebe, porque o texto já apareceu localmente na hora (echo otimista) —
+// o toast de erro genérico passa despercebido no meio da tela. Torna isso
+// impossível de ignorar especificamente pra chat/rolagens.
+var _fbLoudChatWritePermAlerted = {};
 function _fbHandleWriteError(e, retryFn, label) {
   var code = e && (e.code || e.message);
   console.warn('[Firebase] Falha ao salvar' + (label ? ' (' + label + ')' : '') + ':', code);
+  if (e && e.code === 'PERMISSION_DENIED' && (label === 'mensagem do chat' || label === 'rolagem de dado') && !_fbLoudChatWritePermAlerted[label]) {
+    _fbLoudChatWritePermAlerted[label] = true;
+    setTimeout(function() {
+      alert('🚫 SEM PERMISSÃO PRA ESCREVER "' + label + '"\n\n' +
+        'O Firebase recusou salvar isso (erro: PERMISSION_DENIED). A mensagem ficou aparecendo só na SUA tela, mas nunca foi salva de verdade — por isso ninguém mais vê.\n\n' +
+        'Precisa liberar escrita de "campanhas/$campId/live" pra qualquer usuário autenticado nas Regras do Realtime Database, no Firebase Console.');
+    }, 50);
+  }
   if (e && e.code === 'PERMISSION_DENIED' && auth.currentUser && !e._ymmRetried) {
     auth.currentUser.getIdToken(true).then(function() {
       if (typeof retryFn === 'function') {
@@ -16994,10 +17008,32 @@ function _fbConsequenceFor(label) {
   if (label.indexOf('Live/teleprompter') === 0) return _FB_READ_ERR_CONSEQUENCES['Live/teleprompter'];
   return null;
 }
+// CORRIGIDO 2026-08-23 — "chat nunca chega pra quem lê, sem erro nenhum
+// visível": o toast de erro de leitura tinha limite de 1x a cada 15s pra
+// TODOS os nós juntos, então bastava outro onValue falhar um pouco antes
+// (ex.: presence, catálogo) pra engolir o aviso específico do chat, e quem
+// está testando nunca via nada de errado — só "a mensagem não chega".
+// Pra chat/rolagens (os únicos onde isso quebra a funcionalidade principal
+// do app), agora um PERMISSION_DENIED dispara um alert() bloqueante, uma
+// vez por caminho por sessão, sem depender do throttle genérico — impossível
+// de não perceber ao testar.
+var _fbLoudChatPermAlerted = {};
 function _fbReadErrHandler(label) {
   return function(err) {
     console.warn('[Firebase onValue] Falha ao ler "'+label+'":', err && (err.code || err.message));
-    if (err && err.code === 'PERMISSION_DENIED') _fbShowReadPermToastThrottled(label, _fbConsequenceFor(label));
+    if (err && err.code === 'PERMISSION_DENIED') {
+      var isChatOrRolls = label.indexOf('live/chat') !== -1 || label.indexOf('live/rolls') !== -1 || label === 'Live/chat' || label === 'Live/rolls';
+      if (isChatOrRolls && !_fbLoudChatPermAlerted[label]) {
+        _fbLoudChatPermAlerted[label] = true;
+        setTimeout(function() {
+          alert('🚫 SEM PERMISSÃO PRA LER "' + label + '"\n\n' +
+            'O Firebase recusou a leitura deste caminho (erro: PERMISSION_DENIED). É por isso que o chat/rolagens não chega em tempo real pra esta conta.\n\n' +
+            'A causa quase sempre é a REGRA de segurança do Realtime Database — precisa liberar leitura (e escrita) de "campanhas/$campId/live" pra qualquer usuário autenticado, não só pro Mestre da campanha.\n\n' +
+            'Isso se corrige no Firebase Console → Realtime Database → Regras, não neste arquivo.');
+        }, 50);
+      }
+      _fbShowReadPermToastThrottled(label, _fbConsequenceFor(label));
+    }
   };
 }
 // Exposto em window: outros <script> fora deste módulo (ex.: o soundboard,
