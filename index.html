@@ -19550,21 +19550,22 @@ function _startRealtimeSync() {
   // (ex.: sessão ainda não foi aberta por ninguém desta mesa).
   // ══════════════════════════════════════════════════════════════════
   // ══════════════════════════════════════════════════════════════════
-  // CORRIGIDO — "Live/activeCampanhaId" é um nó ÚNICO E GLOBAL (não por
-  // campanha). Antes, QUALQUER conta logada — de QUALQUER campanha —
-  // adotava cegamente o valor publicado ali, mesmo sem pertencer àquela
-  // campanha. Resultado: bastava outro Mestre (de outra mesa, inclusive
-  // gente completamente alheia usando o mesmo backend) abrir a própria
-  // campanha ou dar toggle na sessão pra ele mesmo mudar, silenciosamente,
-  // o caminho de chat/rolagens de TODO MUNDO no app inteiro pra campanha
-  // dele — inclusive gente de uma campanha totalmente diferente. Isso batia
-  // exatamente com o sintoma "às vezes sincroniza, às vezes não, pra gente
-  // da MESMA campanha": cada pessoa podia ser "puxada" de volta pro node
-  // errado a qualquer momento, dependendo de quem mexeu por último nesse
-  // nó global, sem relação nenhuma com a campanha real de cada um. Agora só
-  // adota o broadcast se a conta de fato pertence a essa campanha (dono ou
-  // ficha vinculada), OU se ainda não tem nenhuma campanha própria
-  // resolvida (fallback pra sessão nova, sem dados carregados ainda).
+  // CORRIGIDO 2026-08-23 (CAMADA 3) — "mensagem de uma campanha aparece
+  // no chat geral de TODAS as campanhas", causa raiz real: a condição
+  // abaixo tinha uma brecha — "!window._activeCampanhaId ||" — que fazia
+  // QUALQUER conta cuja própria campanha ainda não tivesse resolvido
+  // localmente (ex.: acabou de logar, dados ainda carregando) adotar
+  // CEGAMENTE o valor publicado neste nó global, mesmo pertencendo a uma
+  // campanha totalmente diferente (ou nenhuma). Como 'Live/activeCampanhaId'
+  // é ÚNICO pro app inteiro (não por campanha), bastava outro Mestre —
+  // de outra mesa, sem nenhuma relação — publicar a própria campanha
+  // nesse meio-tempo, e essa conta passava a ler/escrever chat, rolagens
+  // e call de uma mesa que não é a dela, sem aviso nenhum. Agora só adota
+  // o broadcast se a conta REALMENTE pertence àquela campanha (dono ou
+  // ficha vinculada) — nunca mais só por "ainda não sei qual é a minha".
+  // Sem pertencimento confirmado, a conta espera _resolveMyCampanhaId()
+  // (que já roda antes disso, com os dados dela mesma) em vez de pegar
+  // carona na campanha de outra conta qualquer.
   // ══════════════════════════════════════════════════════════════════
   function _pertenceACampanha(campId) {
     if (!campId || !currentUser) return false;
@@ -19583,12 +19584,12 @@ function _startRealtimeSync() {
     if (!snap.exists()) return;
     var broadcastId = snap.val();
     if (!broadcastId || broadcastId === window._activeCampanhaId) return;
-    var podeAdotar = !window._activeCampanhaId || _pertenceACampanha(broadcastId);
+    var podeAdotar = _pertenceACampanha(broadcastId);
     if (podeAdotar && typeof window._setActiveCampanha === 'function') {
       console.log('[Chat/Rolagens] Adotando campanha publicada pelo Mestre: ' + broadcastId + ' (era: ' + (window._activeCampanhaId || 'nenhuma') + ')');
       window._setActiveCampanha(broadcastId);
     } else if (!podeAdotar) {
-      console.log('[Chat/Rolagens] Ignorando campanha publicada (' + broadcastId + ') — esta conta não pertence a ela, mantendo: ' + window._activeCampanhaId);
+      console.log('[Chat/Rolagens] Ignorando campanha publicada (' + broadcastId + ') — esta conta não pertence a ela, mantendo: ' + (window._activeCampanhaId || 'nenhuma'));
     }
   }, _fbReadErrHandler('Live/activeCampanhaId'));
   _rtListeners.activeCamp = () => off(activeCampRef);
