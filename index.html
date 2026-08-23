@@ -4176,6 +4176,101 @@ input:valid:not(:placeholder-shown) {
   .call-screen-zoom-ctrls{ bottom:8px; right:8px; }
   .call-screen-zoom-btn{ width:26px; height:26px; }
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   PERFIL ESTILO DISCORD (popout) + MENU DE BOTÃO DIREITO
+   Ativados clicando ou clicando com o botão direito no avatar/nome de
+   alguém no chat. Reaproveita as variáveis de tema (--c-accent,
+   --c-red, --c-red2) e a mesma linguagem visual do modal "Meu Perfil"
+   (banner + avatar sobreposto + badge de cargo), só que num cartão
+   flutuante compacto e somente-leitura, igual o popout de perfil do
+   Discord quando você clica em alguém.
+   ════════════════════════════════════════════════════════════════════ */
+.usr-popout-backdrop{
+  position:fixed; inset:0; z-index:9990; background:transparent;
+}
+.usr-popout{
+  position:fixed; z-index:9991; width:300px;
+  background:linear-gradient(155deg,rgba(13,13,24,.99),rgba(8,8,16,.99));
+  border:1px solid rgba(255,255,255,.1); border-top:1px solid rgba(255,255,255,.16);
+  border-radius:14px; overflow:hidden;
+  box-shadow:0 24px 60px rgba(0,0,0,.85), 0 0 0 1px rgba(255,255,255,.04);
+  animation:usr-pop-in .14s ease both;
+}
+@keyframes usr-pop-in{ from{opacity:0; transform:translateY(4px) scale(.98)} to{opacity:1; transform:none} }
+.usr-pop-banner{
+  height:76px; position:relative;
+  background:linear-gradient(135deg,#1a0000 0%,#0a000a 100%);
+}
+.usr-pop-banner img{ width:100%; height:100%; object-fit:cover; display:block }
+.usr-pop-body{ padding:0 14px 14px; position:relative }
+.usr-pop-avatar-wrap{ margin-top:-38px; margin-bottom:6px; position:relative; display:inline-block }
+.usr-pop-avatar{
+  width:76px; height:76px; border-radius:50%; overflow:hidden;
+  border:4px solid rgba(11,11,20,.99); background:rgba(0,0,0,.7);
+  display:flex; align-items:center; justify-content:center; font-size:1.9rem;
+  box-shadow:0 4px 16px rgba(0,0,0,.8);
+}
+.usr-pop-avatar img{ width:100%; height:100%; object-fit:cover; display:block }
+.usr-pop-status-dot{
+  position:absolute; right:2px; bottom:2px; width:16px; height:16px; border-radius:50%;
+  border:3px solid rgba(11,11,20,.99); background:#5c5f66;
+}
+.usr-pop-status-dot.disponivel{ background:#2ecc71 }
+.usr-pop-status-dot.em_batalha{ background:#e74c3c }
+.usr-pop-status-dot.ausente{ background:#e74c3c }
+.usr-pop-status-dot.ocupado{ background:#f1c40f }
+.usr-pop-status-dot.preparando{ background:#3498db }
+.usr-pop-status-dot.invisivel{ background:#5c5f66 }
+.usr-pop-name{ font-family:'Bebas Neue',sans-serif; font-size:1.3rem; letter-spacing:.07em; color:#fff; line-height:1.15; margin-top:2px }
+.usr-pop-status-lbl{ font-family:'Share Tech Mono',monospace; font-size:.5rem; color:rgba(255,255,255,0.72); letter-spacing:.06em; margin:2px 0 8px; display:flex; align-items:center; gap:5px }
+.usr-pop-badges{ display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px }
+.usr-pop-divider{ height:1px; background:rgba(255,255,255,.08); margin:10px 0 }
+.usr-pop-bio{
+  font-family:'Share Tech Mono',monospace; font-size:.66rem; line-height:1.5;
+  color:rgba(220,222,235,0.9); white-space:pre-wrap; word-break:break-word;
+}
+.usr-pop-bio.empty{ color:rgba(255,255,255,0.72); font-style:italic }
+.usr-pop-actions{ display:flex; flex-direction:column; gap:6px; margin-top:12px }
+.usr-pop-btn{
+  display:flex; align-items:center; gap:8px; width:100%;
+  background:rgba(255,255,255,.045); border:1px solid rgba(255,255,255,.09);
+  border-radius:8px; padding:8px 10px; color:var(--c-text,#e8e8ef);
+  font-family:'Share Tech Mono',monospace; font-size:.6rem; letter-spacing:.04em;
+  cursor:pointer; transition:all .12s; text-align:left;
+}
+.usr-pop-btn:hover{ background:rgba(255,255,255,.08); border-color:rgba(255,255,255,.18) }
+.usr-pop-btn.danger{ color:rgba(255,120,120,0.95) }
+.usr-pop-btn.danger:hover{ background:rgba(180,15,15,.16); border-color:rgba(210,40,40,.4) }
+.usr-pop-btn.active-toggle{ border-color:rgba(210,40,40,.45); background:rgba(160,10,10,.12); color:#fff }
+
+/* Menu de botão direito (contexto) */
+.usr-ctxmenu-backdrop{ position:fixed; inset:0; z-index:9990; background:transparent }
+.usr-ctxmenu{
+  position:fixed; z-index:9991; min-width:200px;
+  background:linear-gradient(155deg,rgba(15,15,26,.99),rgba(9,9,17,.99));
+  border:1px solid rgba(255,255,255,.1); border-radius:10px; overflow:hidden;
+  box-shadow:0 18px 44px rgba(0,0,0,.85), 0 0 0 1px rgba(255,255,255,.04);
+  padding:6px; animation:usr-pop-in .12s ease both;
+}
+.usr-ctxmenu-hdr{
+  font-family:'Share Tech Mono',monospace; font-size:.5rem; letter-spacing:.08em;
+  color:rgba(255,255,255,0.72); padding:6px 10px 8px; text-transform:uppercase;
+}
+.usr-ctxmenu-item{
+  display:flex; align-items:center; gap:9px; padding:8px 10px; border-radius:6px;
+  font-family:'Share Tech Mono',monospace; font-size:.62rem; color:var(--c-text,#e8e8ef);
+  cursor:pointer; transition:background .1s; letter-spacing:.02em;
+}
+.usr-ctxmenu-item:hover{ background:rgba(255,255,255,.08) }
+.usr-ctxmenu-item.danger{ color:rgba(255,120,120,0.95) }
+.usr-ctxmenu-item.danger:hover{ background:rgba(180,15,15,.18) }
+.usr-ctxmenu-sep{ height:1px; background:rgba(255,255,255,.08); margin:5px 4px }
+
+/* Nome e avatar do chat agora indicam que são clicáveis, igual Discord */
+.cm-name{ cursor:pointer; }
+.cm-name:hover{ text-decoration:underline; text-decoration-color:rgba(255,255,255,.35); }
+.cm-av{ cursor:pointer; }
 </style>
 <script id="ymm-seed" type="application/json">{"users":[],"data":{"campanhas":[],"players":[],"customItems":[],"customOrigens":[],"customHabilidades":[]},"chat":{"chat":[],"media":[],"rolls":[]},"live":{}}</script>
 <script>
@@ -9542,9 +9637,18 @@ function _findCampanha(id) {
 
 var _pendingCampanhaEntry = null; // id da campanha aguardando confirmação de senha
 
+function _isBannedFromCamp(c) {
+  if (!c || !c.banidos || !c.banidos.length || !currentUser || !currentUser.username) return false;
+  var meuUserLow = currentUser.username.toLowerCase();
+  return c.banidos.some(function(b){ return (b||'').toLowerCase() === meuUserLow; });
+}
 function tryEnterCampanha(id) {
   var c = _findCampanha(id);
   if (!c) { showToast('⚠ Campanha não encontrada localmente', 'warn'); return; }
+  if (_isBannedFromCamp(c) && !isMestreDa(c)) {
+    showToast('🚫 Você foi banido(a) desta campanha', 'err');
+    return;
+  }
   if (c.senhaSet && !isMestreDa(c)) {
     _pendingCampanhaEntry = id;
     var nomeEl = document.getElementById('cs-campanha-nome');
@@ -9601,6 +9705,10 @@ window.tryEnterCampanha = tryEnterCampanha;
 function openCampanhaDetail(id) {
   var c = _findCampanha(id);
   if (!c) { showToast('⚠ Campanha não encontrada localmente', 'warn'); return; }
+  if (typeof _isBannedFromCamp === 'function' && _isBannedFromCamp(c) && !isMestreDa(c)) {
+    showToast('🚫 Você foi banido(a) desta campanha', 'err');
+    return;
+  }
   // Marca esta como a campanha ativa agora — base pra, no futuro, isolar
   // chat/rolagens/teleprompter/call por campanha (ver bloco grande de
   // comentário logo acima da declaração de `liveSession`).
@@ -9761,6 +9869,14 @@ function markCampanhaUnlocked(id) {
 function isCampanhaAcessivel(c) {
   if (!c) return false;
   if (isMestreDa(c)) return true;
+  // Quem foi banido perde acesso mesmo tendo ficha/convite antigo pra
+  // essa campanha — checado ANTES dos outros critérios, senão um
+  // _pertenceACampanha() ou desbloqueio antigo continuaria liberando
+  // entrada pra quem acabou de ser banido pelo Mestre.
+  if (c.banidos && c.banidos.length && currentUser && currentUser.username) {
+    var meuUserLow = currentUser.username.toLowerCase();
+    if (c.banidos.some(function(b){ return (b||'').toLowerCase() === meuUserLow; })) return false;
+  }
   if (typeof window._pertenceACampanha === 'function' && window._pertenceACampanha(c.id)) return true;
   return getUnlockedCampanhaIds().indexOf(c.id) !== -1;
 }
@@ -15367,7 +15483,17 @@ function getChatKey() { return chatState.activeTab === 'geral' ? 'geral' : chatS
 
 function getChatMessages(tabKey) {
   var msgs = liveSession.chat || [];
-  if(tabKey === 'geral') return msgs.filter(function(m){ return !m.pvTo; });
+  if(tabKey === 'geral') {
+    // Mensagens de quem você mutou (local, só pra você) somem do #geral —
+    // mutar não te tira de PVs abertas de propósito com essa pessoa.
+    var muted = (typeof _getMutedSet === 'function') ? _getMutedSet() : [];
+    return msgs.filter(function(m){
+      if (m.pvTo) return false;
+      if (m.type === 'system') return true;
+      if (muted.length && (muted.indexOf(m.senderId) !== -1 || muted.indexOf(m.sender) !== -1)) return false;
+      return true;
+    });
+  }
   // PV: messages where pvTo == tabKey OR sender is tabKey (for both parties to see)
   if(!currentUser) return [];
   var myId = currentUser.id;
@@ -15413,6 +15539,15 @@ function buildMsgHtml(m, prevMsg) {
   }
   var avHtml = getAv(m.senderId, m.sender, m.role);
   var nameClass = 'cm-name'+(isMestre?' is-mestre':isMe?' is-me':'');
+  // Handlers de clique/botão-direito no avatar e no nome — abrem o
+  // popout de perfil estilo Discord ou o menu de contexto. escHtml()
+  // já protege aspa dupla; a aspa simples (usada nos onclick="'...'")
+  // precisa do mesmo tratamento que o resto deste arquivo já faz pro
+  // nome do remetente (ex.: em replyTo()), senão um nome com apóstrofo
+  // quebraria a string JS do atributo.
+  var _senderIdSafe = esc(String(m.senderId||''));
+  var _senderNameSafe = escHtml((m.sender||'?').replace(/'/g,"\\'"));
+  var _userEvtAttrs = ' onclick="showUserPopout(event,\''+_senderIdSafe+'\',\''+_senderNameSafe+'\')" oncontextmenu="showUserCtxMenu(event,\''+_senderIdSafe+'\',\''+_senderNameSafe+'\')"';
   // reply quote
   var replyHtml = '';
   if(m.replyTo) {
@@ -15478,7 +15613,7 @@ function buildMsgHtml(m, prevMsg) {
     +'</div>';
   var cls='cm-group'+(isMe?' is-me':' them')+(isCompact?' compact':'');
   return '<div class="'+cls+'" id="cmsg-'+m.id+'">'
-    +'<div class="cm-av-col"><div class="cm-av">'+avHtml+'</div></div>'
+    +'<div class="cm-av-col"><div class="cm-av"'+_userEvtAttrs+'>'+avHtml+'</div></div>'
     +'<div class="cm-body">'
       // CORRIGIDO: o nome do remetente aqui era inserido DIRETO no innerHTML,
       // sem passar por escHtml() — diferente de todo o resto desta função,
@@ -15489,7 +15624,7 @@ function buildMsgHtml(m, prevMsg) {
       // usuário autenticado escrever seu próprio perfil. Isso é XSS
       // persistente — o pior tipo de furo de segurança num app com várias
       // contas reais. Agora o nome passa por escHtml() como o restante.
-      +(isCompact?'':'<div class="cm-header"><span class="'+nameClass+'">'+escHtml(m.sender||'?')+'</span><span class="cm-timestamp">'+m.time+'</span>'+(m.pinned?'<span class="cm-pin-flag">📌 FIXADA</span>':'')+'</div>')
+      +(isCompact?'':'<div class="cm-header"><span class="'+nameClass+'"'+_userEvtAttrs+'>'+escHtml(m.sender||'?')+'</span><span class="cm-timestamp">'+m.time+'</span>'+(m.pinned?'<span class="cm-pin-flag">📌 FIXADA</span>':'')+'</div>')
       +replyHtml+bodyHtml+reactHtml
     +'</div>'+actHtml+'</div>';
 }
@@ -15502,6 +15637,225 @@ function escHtml(s) {
   // novos logo depois. Agora escapa igual ao esc().
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+
+// ════════════════════════════════════════════════════════════════════
+// PERFIL ESTILO DISCORD + MENU DE BOTÃO DIREITO NO CHAT
+// ------------------------------------------------------------------
+// Clicar no avatar/nome de alguém no chat abre um cartão de perfil
+// (banner, avatar, cargo, status, bio) igual o popout do Discord.
+// Clicar com o botão direito abre um menu com ações: Ver Perfil,
+// Mensagem Direta, Mutar/Desmutar e, se você for Mestre da campanha
+// ativa, Remover/Banir da campanha. Tudo somente-leitura em relação
+// ao perfil de terceiros — não dá pra editar avatar/bio de outra
+// pessoa por aqui.
+// ════════════════════════════════════════════════════════════════════
+
+// Acha o registro de conta (authUsers) de quem mandou a mensagem —
+// por id primeiro (mais confiável), com fallback por username, já que
+// mensagens antigas podem ter só o nome salvo.
+function _findAuthUserForChat(senderId, senderName) {
+  return (authUsers || []).find(function(u) {
+    return (senderId && u.id === senderId) || (senderName && u.username === senderName);
+  }) || null;
+}
+
+// Ficha (personagem) vinculada a essa conta, se houver — usada pro
+// atalho "Ver Ficha" dentro do popout/menu.
+function _findFichaForChatUser(u, senderName) {
+  var uname = (u && u.username) || senderName;
+  if (!uname) return null;
+  return (data.players || []).find(function(p) {
+    return p.player && p.player.toLowerCase() === uname.toLowerCase();
+  }) || null;
+}
+
+function _closeAnyFloatingUserUi() {
+  document.querySelectorAll('.usr-popout-backdrop,.usr-ctxmenu-backdrop').forEach(function(e){ e.remove(); });
+}
+
+// Mantém o cartão/menu dentro da tela, preferindo abrir à direita/baixo
+// do clique mas virando pro outro lado quando não cabe.
+function _positionFloatingEl(el, x, y) {
+  document.body.appendChild(el);
+  var r = el.getBoundingClientRect();
+  var vw = window.innerWidth, vh = window.innerHeight;
+  var left = x, top = y;
+  if (left + r.width + 12 > vw) left = Math.max(8, x - r.width);
+  if (top + r.height + 12 > vh) top = Math.max(8, y - r.height);
+  el.style.left = left + 'px';
+  el.style.top = top + 'px';
+}
+
+var _STATUS_LABELS = {
+  disponivel: '🟢 Disponível', em_batalha: '⚔ Em Batalha', ausente: '🔴 Ausente',
+  ocupado: '🟡 Ocupado', invisivel: '👻 Invisível', preparando: '🗺 Planejando'
+};
+
+// ── Popout de perfil (clique no avatar/nome, ou "Ver Perfil" no menu) ──
+function showUserPopout(evt, senderId, senderName) {
+  if (evt) { evt.preventDefault(); evt.stopPropagation(); }
+  _closeAnyFloatingUserUi();
+  var u = _findAuthUserForChat(senderId, senderName);
+  var isMe = currentUser && ((senderId && senderId === currentUser.id) || (!senderId && senderName === currentUser.username));
+  var displayUser = isMe ? currentUser : u;
+  var name = (displayUser && displayUser.username) || senderName || '?';
+  var role = (displayUser && displayUser.role) || 'player';
+  var isMestreU = role === 'mestre' || role === 'ambos';
+  var status = (displayUser && displayUser.status) || 'disponivel';
+  var bio = displayUser && displayUser.bio;
+  var avatarHtml = (displayUser && displayUser.avatar)
+    ? '<img src="'+esc(displayUser.avatar)+'">'
+    : '<span>'+(isMestreU?'🗡':'⚔')+'</span>';
+  var bannerHtml = (displayUser && displayUser.banner) ? '<img src="'+esc(displayUser.banner)+'">' : '';
+  var ficha = _findFichaForChatUser(displayUser, senderName);
+
+  var backdrop = document.createElement('div');
+  backdrop.className = 'usr-popout-backdrop';
+  backdrop.onclick = _closeAnyFloatingUserUi;
+
+  var card = document.createElement('div');
+  card.className = 'usr-popout';
+  card.onclick = function(e){ e.stopPropagation(); };
+
+  var actions = '';
+  if (isMe) {
+    actions += '<button class="usr-pop-btn" onclick="_closeAnyFloatingUserUi();openProfile()">✏ Editar Meu Perfil</button>';
+  } else {
+    actions += '<button class="usr-pop-btn" onclick="_closeAnyFloatingUserUi();dmChatUser(\''+esc(senderId||'')+'\',\''+esc((name||'').replace(/'/g,"\\'"))+'\')">✉ Enviar Mensagem</button>';
+    if (ficha) actions += '<button class="usr-pop-btn" onclick="_closeAnyFloatingUserUi();showView(\'fichas\');setTimeout(function(){openFicha(\''+esc(ficha.id)+'\');},100);">📋 Ver Ficha</button>';
+    var muted = _isUserMuted(senderId || name);
+    actions += '<button class="usr-pop-btn'+(muted?' active-toggle':'')+'" onclick="_toggleMuteUserUi(this,\''+esc(senderId||name)+'\')">'+(muted?'🔊 Desmutar':'🔇 Mutar')+'</button>';
+    if (_currentUserIsMestreOfActiveCamp()) {
+      actions += '<div class="usr-pop-divider"></div>';
+      actions += '<button class="usr-pop-btn danger" onclick="_closeAnyFloatingUserUi();kickUserFromActiveCamp(\''+esc((name||'').replace(/'/g,"\\'"))+'\')">⛔ Remover da Campanha</button>';
+      actions += '<button class="usr-pop-btn danger" onclick="_closeAnyFloatingUserUi();banUserFromActiveCamp(\''+esc((name||'').replace(/'/g,"\\'"))+'\')">🚫 Banir da Campanha</button>';
+    }
+  }
+
+  card.innerHTML =
+    '<div class="usr-pop-banner">'+bannerHtml+'</div>'
+    +'<div class="usr-pop-body">'
+      +'<div class="usr-pop-avatar-wrap"><div class="usr-pop-avatar">'+avatarHtml+'</div><div class="usr-pop-status-dot '+status+'"></div></div>'
+      +'<div class="usr-pop-name">'+escHtml(name)+'</div>'
+      +'<div class="usr-pop-status-lbl">'+(_STATUS_LABELS[status]||_STATUS_LABELS.disponivel)+'</div>'
+      +'<div class="usr-pop-badges"><span class="profile-role-badge '+(isMestreU?'mestre':'player')+'">'+(role==='mestre'?'🗡 MESTRE':role==='ambos'?'🗡⚔ MESTRE & PLAYER':'⚔ PLAYER')+'</span></div>'
+      +'<div class="usr-pop-divider"></div>'
+      +'<div class="usr-pop-bio'+(bio?'':' empty')+'">'+(bio?escHtml(bio):'// sem bio //')+'</div>'
+      +'<div class="usr-pop-actions">'+actions+'</div>'
+    +'</div>';
+
+  document.body.appendChild(backdrop);
+  var x = evt ? evt.clientX + 8 : window.innerWidth/2 - 150;
+  var y = evt ? evt.clientY - 10 : window.innerHeight/2 - 200;
+  _positionFloatingEl(card, x, y);
+}
+window.showUserPopout = showUserPopout;
+window._closeAnyFloatingUserUi = _closeAnyFloatingUserUi;
+
+// ── Menu de botão direito ──
+function showUserCtxMenu(evt, senderId, senderName) {
+  evt.preventDefault();
+  evt.stopPropagation();
+  _closeAnyFloatingUserUi();
+  var isMe = currentUser && ((senderId && senderId === currentUser.id) || (!senderId && senderName === currentUser.username));
+  var u = _findAuthUserForChat(senderId, senderName);
+  var ficha = _findFichaForChatUser(u, senderName);
+  var muted = _isUserMuted(senderId || senderName);
+  var safeName = (senderName||'?').replace(/'/g,"\\'");
+  var safeId = esc(senderId||'');
+
+  var items = '<div class="usr-ctxmenu-hdr">'+escHtml(senderName||'?')+'</div>';
+  items += '<div class="usr-ctxmenu-item" onclick="_closeAnyFloatingUserUi();showUserPopout(null,\''+safeId+'\',\''+safeName+'\')">👤 Ver Perfil</div>';
+  if (isMe) {
+    items += '<div class="usr-ctxmenu-item" onclick="_closeAnyFloatingUserUi();openProfile()">✏ Editar Meu Perfil</div>';
+  } else {
+    items += '<div class="usr-ctxmenu-item" onclick="_closeAnyFloatingUserUi();dmChatUser(\''+safeId+'\',\''+safeName+'\')">✉ Enviar Mensagem</div>';
+    if (ficha) items += '<div class="usr-ctxmenu-item" onclick="_closeAnyFloatingUserUi();showView(\'fichas\');setTimeout(function(){openFicha(\''+esc(ficha.id)+'\');},100);">📋 Ver Ficha</div>';
+    items += '<div class="usr-ctxmenu-item" onclick="_closeAnyFloatingUserUi();_toggleMuteUserUi(null,\''+esc(senderId||senderName)+'\')">'+(muted?'🔊 Desmutar':'🔇 Mutar')+'</div>';
+    if (_currentUserIsMestreOfActiveCamp()) {
+      items += '<div class="usr-ctxmenu-sep"></div>';
+      items += '<div class="usr-ctxmenu-item danger" onclick="_closeAnyFloatingUserUi();kickUserFromActiveCamp(\''+safeName+'\')">⛔ Remover da Campanha</div>';
+      items += '<div class="usr-ctxmenu-item danger" onclick="_closeAnyFloatingUserUi();banUserFromActiveCamp(\''+safeName+'\')">🚫 Banir da Campanha</div>';
+    }
+  }
+
+  var backdrop = document.createElement('div');
+  backdrop.className = 'usr-ctxmenu-backdrop';
+  backdrop.onclick = _closeAnyFloatingUserUi;
+  backdrop.oncontextmenu = function(e){ e.preventDefault(); _closeAnyFloatingUserUi(); };
+
+  var menu = document.createElement('div');
+  menu.className = 'usr-ctxmenu';
+  menu.onclick = function(e){ e.stopPropagation(); };
+  menu.innerHTML = items;
+
+  document.body.appendChild(backdrop);
+  _positionFloatingEl(menu, evt.clientX, evt.clientY);
+}
+window.showUserCtxMenu = showUserCtxMenu;
+
+document.addEventListener('keydown', function(e){ if (e.key === 'Escape') _closeAnyFloatingUserUi(); });
+
+// ── Mensagem direta a partir do perfil/menu ──
+function dmChatUser(senderId, senderName) {
+  var peerId = senderId || senderName;
+  if (!peerId) return;
+  showView('sessao');
+  setTimeout(function(){ openChatTab(peerId); }, 80);
+}
+window.dmChatUser = dmChatUser;
+
+// ── Mutar (só local, some as mensagens dessa pessoa só pra você) ──
+function _muteStorageKey() { return 'ymm_muted_' + (currentUser ? currentUser.id : 'anon'); }
+function _getMutedSet() {
+  try { return JSON.parse(localStorage.getItem(_muteStorageKey())||'[]'); } catch(e) { return []; }
+}
+function _isUserMuted(idOrName) {
+  return _getMutedSet().indexOf(idOrName) !== -1;
+}
+function _toggleMuteUserUi(btnEl, idOrName) {
+  var set = _getMutedSet();
+  var i = set.indexOf(idOrName);
+  var nowMuted;
+  if (i === -1) { set.push(idOrName); nowMuted = true; } else { set.splice(i,1); nowMuted = false; }
+  try { localStorage.setItem(_muteStorageKey(), JSON.stringify(set)); } catch(e) {}
+  showToast(nowMuted ? '🔇 Usuário mutado' : '🔊 Usuário desmutado', 'ok');
+  renderChatFeed(); renderChatFeedOv();
+}
+window._toggleMuteUserUi = _toggleMuteUserUi;
+
+// ── Mestre: remover/banir alguém da campanha ativa ──
+function _currentUserIsMestreOfActiveCamp() {
+  if (!window._activeCampanhaId) return false;
+  var c = _findCampanha(window._activeCampanhaId);
+  return !!(c && isMestreDa(c));
+}
+function kickUserFromActiveCamp(username) {
+  if (!window._activeCampanhaId || !username) return;
+  var campId = window._activeCampanhaId;
+  var affected = (data.players||[]).filter(function(p){
+    return p.campanha === campId && p.player && p.player.toLowerCase() === username.toLowerCase();
+  });
+  if (!affected.length) { showToast('⚠ Essa pessoa não tem ficha nesta campanha', 'warn'); return; }
+  affected.forEach(function(p){ p.campanha = ''; });
+  save();
+  showToast('⛔ '+username+' foi removido(a) da campanha', 'ok');
+}
+window.kickUserFromActiveCamp = kickUserFromActiveCamp;
+
+function banUserFromActiveCamp(username) {
+  if (!window._activeCampanhaId || !username) return;
+  var c = _findCampanha(window._activeCampanhaId);
+  if (!c) return;
+  kickUserFromActiveCamp(username);
+  c.banidos = c.banidos || [];
+  var uLow = username.toLowerCase();
+  if (c.banidos.map(function(x){return x.toLowerCase();}).indexOf(uLow) === -1) c.banidos.push(username);
+  save();
+  if (typeof window._fbPublishCampanha === 'function') window._fbPublishCampanha(c);
+  showToast('🚫 '+username+' foi banido(a) desta campanha', 'ok');
+}
+window.banUserFromActiveCamp = banUserFromActiveCamp;
 
 function _renderFeedInto(feedEl, msgs) {
   if(!msgs.length) {
