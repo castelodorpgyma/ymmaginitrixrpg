@@ -18342,6 +18342,46 @@ function _startRealtimeSync() {
   // mensagens que já estavam na tela continuam visíveis até o snapshot
   // novo chegar e substituir (sem hiato vazio no meio).
   var _lastChatPath = null, _lastRollsPath = null;
+
+  // ── Funções reutilizáveis pra aplicar um snapshot do chat/rolagens —
+  // usadas tanto pelo onValue (tempo real) quanto pelo poll de reforço
+  // logo abaixo (ver window._pollChatRollsFallback). ──
+  function _applyChatSnap(snap) {
+    window._syncHealth.chat = Date.now();
+    if (!snap.exists()) { liveSession.chat = []; renderChatFeed(); renderChatFeedOv(); return; }
+    const msgs = [];
+    snap.forEach(child => msgs.push(child.val()));
+    msgs.sort((a, b) => (a.ts || 0) - (b.ts || 0));
+    // Mantém só as últimas 200
+    liveSession.chat = msgs.slice(-200);
+    renderChatFeed();
+    renderChatFeedOv();
+    // ── Avisa com notificação nativa quando chega mensagem nova de outra
+    //    pessoa (não a primeira leitura, que é só o histórico existente) ──
+    var lastMsg = msgs[msgs.length - 1];
+    if (lastMsg) {
+      var isFromMe = currentUser && lastMsg.senderId === currentUser.id;
+      var visibleToMe = !lastMsg.pvTo || (currentUser && (lastMsg.pvTo === currentUser.id || lastMsg.senderId === currentUser.id));
+      if (_knownLastChatTs !== null && (lastMsg.ts || 0) > _knownLastChatTs &&
+          !isFromMe && !lastMsg.isSystem && lastMsg.type !== 'system' && visibleToMe) {
+        var preview = (lastMsg.text || lastMsg.msg || '📎 anexo');
+        if (preview.length > 80) preview = preview.slice(0, 80) + '…';
+        var label = lastMsg.pvTo ? ('🔒 ' + (lastMsg.sender || 'Alguém')) : ('💬 ' + (lastMsg.sender || 'Alguém'));
+        _fireNativeNotification(label, preview, 'chat-msg');
+      }
+      _knownLastChatTs = lastMsg.ts || Date.now();
+    }
+  }
+  function _applyRollsSnap(snap) {
+    window._syncHealth.rolls = Date.now();
+    if (!snap.exists()) { liveSession.rolls = []; renderRollFeed(); return; }
+    const rolls = [];
+    snap.forEach(child => rolls.push(child.val()));
+    rolls.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+    liveSession.rolls = rolls.slice(0, 60);
+    renderRollFeed();
+  }
+
   function _subscribeLiveChatRolls(force) {
     var _now = Date.now();
     if (!force && _lastChatSubscribeAt && (_now - _lastChatSubscribeAt) < 4000) {
@@ -18360,32 +18400,7 @@ function _startRealtimeSync() {
     var _chatPathChanged = (_chatPath !== _lastChatPath);
     _lastChatPath = _chatPath;
     if (_chatPathChanged) { liveSession.chat = []; renderChatFeed(); renderChatFeedOv(); } // só limpa se for campanha diferente de verdade
-    onValue(chatRef, (snap) => {
-      window._syncHealth.chat = Date.now();
-      if (!snap.exists()) { liveSession.chat = []; renderChatFeed(); renderChatFeedOv(); return; }
-      const msgs = [];
-      snap.forEach(child => msgs.push(child.val()));
-      msgs.sort((a, b) => (a.ts || 0) - (b.ts || 0));
-      // Mantém só as últimas 200
-      liveSession.chat = msgs.slice(-200);
-      renderChatFeed();
-      renderChatFeedOv();
-      // ── Avisa com notificação nativa quando chega mensagem nova de outra
-      //    pessoa (não a primeira leitura, que é só o histórico existente) ──
-      var lastMsg = msgs[msgs.length - 1];
-      if (lastMsg) {
-        var isFromMe = currentUser && lastMsg.senderId === currentUser.id;
-        var visibleToMe = !lastMsg.pvTo || (currentUser && (lastMsg.pvTo === currentUser.id || lastMsg.senderId === currentUser.id));
-        if (_knownLastChatTs !== null && (lastMsg.ts || 0) > _knownLastChatTs &&
-            !isFromMe && !lastMsg.isSystem && lastMsg.type !== 'system' && visibleToMe) {
-          var preview = (lastMsg.text || lastMsg.msg || '📎 anexo');
-          if (preview.length > 80) preview = preview.slice(0, 80) + '…';
-          var label = lastMsg.pvTo ? ('🔒 ' + (lastMsg.sender || 'Alguém')) : ('💬 ' + (lastMsg.sender || 'Alguém'));
-          _fireNativeNotification(label, preview, 'chat-msg');
-        }
-        _knownLastChatTs = lastMsg.ts || Date.now();
-      }
-    }, _fbReadErrHandler('Live/chat'));
+    onValue(chatRef, _applyChatSnap, _fbReadErrHandler('Live/chat'));
     _rtListeners.chat = () => off(chatRef);
 
     var _rollsPath = window._liveRollsPath ? window._liveRollsPath() : 'Live/rolls';
@@ -18394,18 +18409,34 @@ function _startRealtimeSync() {
     var _rollsPathChanged = (_rollsPath !== _lastRollsPath);
     _lastRollsPath = _rollsPath;
     if (_rollsPathChanged) { liveSession.rolls = []; renderRollFeed(); }
-    onValue(rollRef, (snap) => {
-      window._syncHealth.rolls = Date.now();
-      if (!snap.exists()) { liveSession.rolls = []; renderRollFeed(); return; }
-      const rolls = [];
-      snap.forEach(child => rolls.push(child.val()));
-      rolls.sort((a, b) => (b.ts || 0) - (a.ts || 0));
-      liveSession.rolls = rolls.slice(0, 60);
-      renderRollFeed();
-    }, _fbReadErrHandler('Live/rolls'));
+    onValue(rollRef, _applyRollsSnap, _fbReadErrHandler('Live/rolls'));
     _rtListeners.rolls = () => off(rollRef);
   }
   window._resubscribeLiveChatRolls = _subscribeLiveChatRolls;
+
+  // ══════════════════════════════════════════════════════════════════
+  // REDE DE SEGURANÇA — poll de reforço a cada 8s
+  // ------------------------------------------------------------------
+  // Além do listener em tempo real (onValue) acima, isto busca o chat e
+  // as rolagens DIRETO do Firebase (get(), leitura avulsa, sem depender
+  // de nenhum listener persistente) a cada 8 segundos, sempre que há
+  // campanha resolvida. Serve de rede de segurança: mesmo que o listener
+  // em tempo real tenha algum problema que a gente ainda não viu (rede
+  // específica, navegador específico, extensão interferindo — qualquer
+  // coisa fora do nosso controle direto), o pior caso agora é "a mensagem
+  // demora até 8s pra aparecer", nunca mais "a mensagem nunca aparece".
+  // Cada get() é independente e não interfere no listener onValue (não
+  // desliga nem religa nada) — só confere e corrige a tela se precisar.
+  // ══════════════════════════════════════════════════════════════════
+  setInterval(function() {
+    if (!currentUser) return;
+    try {
+      var _pChatRef = ref(db, window._liveChatPath ? window._liveChatPath() : 'Live/chat');
+      get(_pChatRef).then(_applyChatSnap).catch(function(e){ console.warn('[Poll de reforço] chat falhou:', e && (e.code||e.message)); });
+      var _pRollRef = ref(db, window._liveRollsPath ? window._liveRollsPath() : 'Live/rolls');
+      get(_pRollRef).then(_applyRollsSnap).catch(function(e){ console.warn('[Poll de reforço] rolagens falhou:', e && (e.code||e.message)); });
+    } catch(e) { console.error('[Poll de reforço] falhou:', e); }
+  }, 8000);
 
   // ══════════════════════════════════════════════════════════════════
   // MIGRAÇÃO NÃO-DESTRUTIVA do chat/rolagens do caminho antigo e global
