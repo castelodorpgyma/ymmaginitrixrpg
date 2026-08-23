@@ -16705,6 +16705,8 @@ try {
         if (!msg.sender   && currentUser) msg.sender   = currentUser.username;
         if (!msg.role     && currentUser) msg.role      = currentUser.role;
         var _path = window._liveChatPath ? window._liveChatPath() : 'Live/chat';
+        window._lastSentChatAt = Date.now();
+        window._lastSentChatPath = _path;
         console.log('[Chat] Enviando mensagem pro Firebase em "' + _path + '":', msg.text || '(mídia)');
         push(ref(db, _path), msg).then(function(){
           console.log('[Chat] ✅ Mensagem confirmada no Firebase em "' + _path + '"');
@@ -18393,7 +18395,45 @@ function _startRealtimeSync() {
   // logo abaixo (ver window._pollChatRollsFallback). ──
   function _applyChatSnap(snap) {
     window._syncHealth.chat = Date.now();
-    if (!snap.exists()) { liveSession.chat = []; renderChatFeed(); renderChatFeedOv(); return; }
+    if (!snap.exists()) {
+      // ══════════════════════════════════════════════════════════════
+      // CORRIGIDO — "a mensagem aparece e depois some" (mesmo pra quem
+      // mandou): antes, QUALQUER leitura vazia limpava liveSession.chat
+      // na hora, sem questionar. Se essa leitura vazia chegasse por
+      // engano (ex.: uma reassinatura correu antes do snapshot recém-
+      // gravado propagar, ou uma corrida entre onValue e o poll de
+      // reforço) bem depois de uma mensagem ter sido mandada NESTE
+      // mesmo caminho, a tela apagava a mensagem que tinha acabado de
+      // aparecer — mesmo ela ainda existindo de verdade no Firebase.
+      // Agora, se recebemos uma leitura vazia nos primeiros 20s depois
+      // de TER MANDADO uma mensagem neste mesmo caminho, não confiamos
+      // cegamente: confirmamos de novo com uma leitura fresca antes de
+      // decidir limpar a tela. Depois desses 20s (ou se não mandamos
+      // nada recentemente), uma leitura vazia é tratada normalmente —
+      // ou seja, um chat que está mesmo vazio continua limpando certo.
+      // ══════════════════════════════════════════════════════════════
+      var _sentRecently = window._lastSentChatAt && (Date.now() - window._lastSentChatAt) < 20000
+        && window._lastSentChatPath === (window._liveChatPath ? window._liveChatPath() : 'Live/chat');
+      if (_sentRecently && liveSession.chat && liveSession.chat.length) {
+        console.warn('[Chat] Leitura vazia logo após enviar mensagem neste caminho — não confiando de primeira, conferindo de novo antes de limpar a tela.');
+        var _recheckPath = window._liveChatPath ? window._liveChatPath() : 'Live/chat';
+        setTimeout(function() {
+          try {
+            get(ref(db, _recheckPath)).then(function(freshSnap) {
+              if (!freshSnap.exists()) {
+                console.warn('[Chat] Confirmado: caminho realmente está vazio — limpando a tela agora.');
+                liveSession.chat = []; renderChatFeed(); renderChatFeedOv();
+              } else {
+                console.log('[Chat] Falso alarme — a mensagem estava lá, só a leitura anterior chegou cedo demais. Aplicando dado real.');
+                _applyChatSnap(freshSnap);
+              }
+            }).catch(function(e){ console.warn('[Chat] Reconferência falhou:', e && (e.code||e.message)); });
+          } catch(e) { console.error('[Chat] Reconferência falhou:', e); }
+        }, 2500);
+        return;
+      }
+      liveSession.chat = []; renderChatFeed(); renderChatFeedOv(); return;
+    }
     const msgs = [];
     snap.forEach(child => msgs.push(child.val()));
     msgs.sort((a, b) => (a.ts || 0) - (b.ts || 0));
@@ -23760,8 +23800,8 @@ function opUpdateYMATracker(){
   var sb=document.getElementById('_sb-version');
   if(sb)sb.textContent='YMMAGINITRIX · v14';
   var wm=document.querySelector('[data-ymm-wm]');
-  if(wm)wm.textContent='YMMAGINITRIX v14 · 2026';
-  console.log('%c YMMAGINITRIX v14 · IlusYmas + NEX + Condições YMA ','background:#330066;color:#cc44ff;font-size:13px;font-weight:bold;padding:4px 8px;border-radius:4px');
+  if(wm)wm.textContent='YMMAGINITRIX v14.1-chatfix · 2026';
+  console.log('%c YMMAGINITRIX v14.1-chatfix · IlusYmas + NEX + Condições YMA ','background:#330066;color:#cc44ff;font-size:13px;font-weight:bold;padding:4px 8px;border-radius:4px');
 })();
 </script>
 
