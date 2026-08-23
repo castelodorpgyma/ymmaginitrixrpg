@@ -4203,6 +4203,13 @@ input:valid:not(:placeholder-shown) {
   background:linear-gradient(135deg,#1a0000 0%,#0a000a 100%);
 }
 .usr-pop-banner img{ width:100%; height:100%; object-fit:cover; display:block }
+.usr-pop-close{
+  position:absolute; top:8px; right:8px; width:26px; height:26px; border-radius:50%;
+  border:1px solid rgba(255,255,255,.14); background:rgba(0,0,0,.55); color:#fff;
+  font-size:.8rem; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center;
+  z-index:2; transition:background .12s ease, transform .12s ease;
+}
+.usr-pop-close:hover{ background:rgba(220,20,20,.75); transform:scale(1.06) }
 .usr-pop-body{ padding:0 14px 14px; position:relative }
 .usr-pop-avatar-wrap{ margin-top:-38px; margin-bottom:6px; position:relative; display:inline-block }
 .usr-pop-avatar{
@@ -15824,7 +15831,14 @@ function showUserPopout(evt, senderId, senderName) {
   }
 
   card.innerHTML =
-    '<div class="usr-pop-banner">'+bannerHtml+'</div>'
+    '<div class="usr-pop-banner">'+bannerHtml
+      // CORRIGIDO 2026-08-23 — cartão de perfil (clique no avatar/nome no
+      // chat) só fechava clicando fora dele, no backdrop invisível; sem
+      // nenhum "X" visível no próprio cartão, ficava fácil não perceber
+      // como fechar (ainda mais com a call flutuante sobrepondo a tela).
+      // Agora tem um botão de fechar de verdade no canto do cartão.
+      +'<button type="button" class="usr-pop-close" title="Fechar" onclick="_closeAnyFloatingUserUi()">✕</button>'
+    +'</div>'
     +'<div class="usr-pop-body">'
       +'<div class="usr-pop-avatar-wrap"><div class="usr-pop-avatar">'+avatarHtml+'</div><div class="usr-pop-status-dot '+status+'"></div></div>'
       +'<div class="usr-pop-name">'+escHtml(name)+'</div>'
@@ -17438,14 +17452,33 @@ try {
         if (!msg.senderId && currentUser) msg.senderId = currentUser.id;
         if (!msg.sender   && currentUser) msg.sender   = currentUser.username;
         if (!msg.role     && currentUser) msg.role      = currentUser.role;
+        // CORRIGIDO 2026-08-23 (CAMADA 3) — causa raiz do vazamento entre
+        // campanhas: se window._activeCampanhaId ainda não tivesse
+        // resolvido no exato instante do envio (ex.: mensagem mandada bem
+        // no início da sessão, antes da campanha "grudar"), a mensagem
+        // saía com campanhaId=null e ia pro caminho antigo/global
+        // 'Live/chat' — nó que TODA conta sem campanha ativa no momento
+        // também lê, inclusive gente de mesas completamente diferentes.
+        // Antes de aceitar null, tenta resolver a campanha de verdade
+        // (mesma heurística usada no resto do app) em vez de desistir.
+        var _campIdParaEnvio = window._activeCampanhaId;
+        if (!_campIdParaEnvio && typeof _resolveMyCampanhaId === 'function') {
+          try { _campIdParaEnvio = _resolveMyCampanhaId(); } catch(e) {}
+        }
         // Trava extra (além do caminho isolado no Firebase): toda mensagem
         // carrega o id da campanha em que foi de fato enviada. Mesmo que
         // algum dia um caminho/roteamento saia errado, o filtro do #geral
         // (ver getChatMessages) descarta qualquer mensagem cujo
         // campanhaId não bata com a campanha ativa — nunca mais mistura
         // conversas de mesas diferentes.
-        msg.campanhaId = window._activeCampanhaId || null;
-        var _path = window._liveChatPath ? window._liveChatPath() : 'Live/chat';
+        msg.campanhaId = _campIdParaEnvio || null;
+        // Usa o MESMO id recém-resolvido pra montar o caminho — antes esta
+        // linha chamava window._liveChatPath() de novo, que olha só pra
+        // window._activeCampanhaId (sem o fallback acima); então mesmo
+        // com campanhaId certo gravado na mensagem, ela ainda ia parar no
+        // nó global 'Live/chat' se _activeCampanhaId não tivesse resolvido
+        // — certa por dentro, no lugar errado por fora.
+        var _path = _campIdParaEnvio ? ('campanhas/' + _campIdParaEnvio + '/live/chat') : (window._liveChatPath ? window._liveChatPath() : 'Live/chat');
         window._lastSentChatAt = Date.now();
         window._lastSentChatPath = _path;
         // CORRIGIDO 2026-08-23 (CAMADA 2) — registra esta mensagem como
