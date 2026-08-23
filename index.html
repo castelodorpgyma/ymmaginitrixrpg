@@ -1885,12 +1885,26 @@ textarea{resize:vertical;min-height:72px;border-radius:var(--r-sm)}
 #chat-overlay{
   position:fixed;bottom:0;right:0;z-index:4999;
   width:min(380px,100vw);height:min(500px,80dvh);
+  min-width:300px;min-height:340px;
+  max-width:96vw;max-height:92dvh;
   display:none;flex-direction:column;
   border-radius:16px 0 0 0;
   box-shadow:0 -8px 40px rgba(0,0,0,.8);
   overflow:hidden;
 }
 #chat-overlay.open{display:flex}
+#chat-overlay #chat-box-overlay{position:relative;height:100%}
+.chat-ov-resize-handle{
+  position:absolute;top:0;left:0;width:20px;height:20px;z-index:30;
+  cursor:nwse-resize;-webkit-tap-highlight-color:transparent;
+}
+.chat-ov-resize-handle::before{
+  content:'';position:absolute;top:4px;left:4px;width:11px;height:11px;
+  background:
+    linear-gradient(45deg,transparent 0,transparent 40%,rgba(255,255,255,.35) 40%,rgba(255,255,255,.35) 55%,transparent 55%),
+    linear-gradient(45deg,transparent 0,transparent 65%,rgba(255,255,255,.35) 65%,rgba(255,255,255,.35) 80%,transparent 80%);
+}
+.chat-ov-resize-handle.dragging::before{background:rgba(210,40,40,.6)}
 
 /* ══ CUSTOM ITEMS ══ */
 .custom-item-row{
@@ -1931,7 +1945,8 @@ textarea{resize:vertical;min-height:72px;border-radius:var(--r-sm)}
    redimensionável — arraste o cantinho inferior direito pra ajustar. */
 #chat-box{
   height:720px;min-height:360px;max-height:88vh;
-  resize:vertical;
+  width:100%;min-width:300px;max-width:100%;
+  resize:both;
 }
 /* alça de redimensionar mais visível/fácil de pegar (a nativa do "resize" é minúscula) */
 #chat-box::before{
@@ -2013,6 +2028,70 @@ textarea{resize:vertical;min-height:72px;border-radius:var(--r-sm)}
   animation:unreadPop .25s cubic-bezier(.22,1,.36,1);
 }
 @keyframes unreadPop{from{transform:scale(0)}to{transform:scale(1)}}
+/* ── FILTRO DE CAMPANHA + BUSCA DE CONVERSA (estilo Discord) ── */
+.chat-dm-toolbar{
+  display:flex;align-items:center;gap:6px;padding:8px 8px 6px;
+  background:rgba(0,0,0,.3);border-bottom:1px solid rgba(255,255,255,.05);
+  flex-shrink:0;position:relative;z-index:2;flex-wrap:wrap;
+}
+.chat-camp-select{
+  flex:0 0 auto;max-width:44%;
+  background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);
+  border-radius:8px;color:rgba(220,225,245,0.85);
+  font-family:'Share Tech Mono',monospace;font-size:.5rem;letter-spacing:.03em;
+  padding:6px 7px;cursor:pointer;transition:all .14s;
+}
+.chat-camp-select:hover{border-color:rgba(210,40,40,.4);background:rgba(255,255,255,.07)}
+.chat-camp-select:focus{outline:none;border-color:rgba(210,40,40,.6)}
+.chat-dm-search-wrap{
+  flex:1;min-width:110px;display:flex;align-items:center;gap:6px;
+  background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);
+  border-radius:8px;padding:6px 9px;transition:border-color .14s;
+}
+.chat-dm-search-wrap:focus-within{border-color:rgba(210,40,40,.4)}
+.chat-dm-search-ic{font-size:.62rem;opacity:.55;flex-shrink:0}
+.chat-dm-search-inp{
+  flex:1;background:none;border:none;color:#fff;
+  font-family:'Share Tech Mono',monospace;font-size:.5rem;letter-spacing:.02em;
+  min-width:0;padding:0;
+}
+.chat-dm-search-inp:focus{outline:none}
+.chat-dm-search-inp::placeholder{color:rgba(255,255,255,0.72)}
+.chat-tab-pill.dm-hidden{display:none!important}
+/* ── STATUS ONLINE NA ABA DE PV ── */
+.ctp-status-dot{
+  width:7px;height:7px;border-radius:50%;flex-shrink:0;
+  background:rgba(255,255,255,.22);border:1.5px solid rgba(6,4,14,.98);
+  margin-left:-6px;margin-top:9px;box-shadow:0 0 0 1px rgba(6,4,14,.98);
+}
+.chat-tab-pill.is-online .ctp-status-dot{background:#22dd55;box-shadow:0 0 6px rgba(30,220,80,.7),0 0 0 1px rgba(6,4,14,.98)}
+/* ── MENSAGENS FIXADAS ── */
+.chat-pin-count{
+  font-family:'Share Tech Mono',monospace;font-size:.4rem;
+  background:rgba(210,20,20,.85);color:#fff;border-radius:8px;
+  padding:0 4px;margin-left:2px;vertical-align:top;display:none;
+}
+.chat-pin-count.has{display:inline-block}
+.cm-act-btn.pinned{color:#f5c842}
+.cm-pin-flag{
+  display:inline-flex;align-items:center;gap:3px;margin-left:6px;
+  font-family:'Share Tech Mono',monospace;font-size:.4rem;color:rgba(245,200,66,.85);
+  letter-spacing:.05em;
+}
+.chat-pinned-panel{
+  position:absolute;top:0;left:0;right:0;bottom:0;z-index:20;
+  background:rgba(6,4,14,.98);display:flex;flex-direction:column;
+  animation:fadeInPinned .14s ease-out;
+}
+@keyframes fadeInPinned{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+.chat-pinned-hdr{
+  display:flex;align-items:center;gap:8px;padding:11px 14px;
+  border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0;
+  font-family:'Orbitron',sans-serif;font-size:.6rem;letter-spacing:.06em;color:rgba(245,200,66,.9);
+}
+.chat-pinned-close{margin-left:auto;background:none;border:none;color:rgba(255,255,255,0.72);cursor:pointer;font-size:1rem}
+.chat-pinned-list{flex:1;overflow-y:auto;padding:6px 0}
+.chat-pinned-empty{padding:24px;text-align:center;font-family:'Share Tech Mono',monospace;font-size:.55rem;color:rgba(255,255,255,0.72)}
 /* ── REPLY PREVIEW ── */
 #chat-reply-bar,#chat-reply-bar-ov{
   display:none;align-items:center;gap:8px;
@@ -5953,9 +6032,20 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
             <span class="chat-channel-name" id="chat-channel-name">GERAL</span>
             <span class="chat-channel-badge" id="chat-channel-badge">PÚBLICO</span>
             <span id="chat-sync-indicator" title="Clique para ver detalhes de sincronização" onclick="_showChatSyncInfo()" style="margin-left:8px;font-family:'Share Tech Mono',monospace;font-size:.5rem;color:rgba(255,255,255,0.4);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px"></span>
+            <button class="chat-hdr-btn" id="chat-pin-btn" title="Mensagens fixadas" onclick="openPinnedPanel('')" style="margin-left:4px">📌<span class="chat-pin-count" id="chat-pin-count"></span></button>
             <div class="chat-hdr-actions" id="chat-hdr-actions" style="display:none">
               <button class="chat-hdr-btn" id="chat-call-btn" title="Chamada de voz privada" onclick="_chatHdrCall(false)"><i data-lucide="phone" class="ct-icon-svg"></i></button>
               <button class="chat-hdr-btn" id="chat-video-btn" title="Chamada de vídeo privada" onclick="_chatHdrCall(true)"><i data-lucide="video" class="ct-icon-svg"></i></button>
+            </div>
+          </div>
+          <!-- Barra de filtro: campanha + busca de conversa (estilo Discord) -->
+          <div class="chat-dm-toolbar">
+            <select class="chat-camp-select" id="chat-camp-filter" title="Filtrar conversas por campanha" onchange="_onChatCampFilterChange(this.value,'')">
+              <option value="">🌐 Todas as campanhas</option>
+            </select>
+            <div class="chat-dm-search-wrap">
+              <span class="chat-dm-search-ic">🔎</span>
+              <input type="text" class="chat-dm-search-inp" id="chat-dm-search" placeholder="Buscar conversa..." oninput="_onChatDmSearch(this.value,'')">
             </div>
           </div>
           <!-- Tabs -->
@@ -6185,15 +6275,27 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
       <span class="chat-channel-name" id="chat-channel-name-ov">GERAL</span>
       <span class="chat-channel-badge" id="chat-channel-badge-ov">PÚBLICO</span>
       <span id="chat-sync-indicator-ov" title="Clique para ver detalhes de sincronização" onclick="_showChatSyncInfo()" style="margin-left:8px;font-family:'Share Tech Mono',monospace;font-size:.5rem;color:rgba(255,255,255,0.4);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px"></span>
+      <button class="chat-hdr-btn" id="chat-pin-btn-ov" title="Mensagens fixadas" onclick="openPinnedPanel('ov')" style="margin-left:4px">📌<span class="chat-pin-count" id="chat-pin-count-ov"></span></button>
       <div class="chat-hdr-actions" id="chat-hdr-actions-ov" style="display:none">
         <button class="chat-hdr-btn" id="chat-call-btn-ov" title="Chamada de voz privada" onclick="_chatHdrCall(false)"><i data-lucide="phone" class="ct-icon-svg"></i></button>
         <button class="chat-hdr-btn" id="chat-video-btn-ov" title="Chamada de vídeo privada" onclick="_chatHdrCall(true)"><i data-lucide="video" class="ct-icon-svg"></i></button>
+      </div>
+    </div>
+    <div class="chat-dm-toolbar">
+      <select class="chat-camp-select" id="chat-camp-filter-ov" title="Filtrar conversas por campanha" onchange="_onChatCampFilterChange(this.value,'ov')">
+        <option value="">🌐 Todas as campanhas</option>
+      </select>
+      <div class="chat-dm-search-wrap">
+        <span class="chat-dm-search-ic">🔎</span>
+        <input type="text" class="chat-dm-search-inp" id="chat-dm-search-ov" placeholder="Buscar conversa..." oninput="_onChatDmSearch(this.value,'ov')">
       </div>
     </div>
     <div class="chat-tab-bar" id="chat-tab-bar-ov">
       <div class="chat-tab-pill active" id="ctab-geral-ov" onclick="openChatTab('geral')"># GERAL</div>
       <div id="chat-pv-tabs-ov" style="display:contents"></div>
     </div>
+    <!-- alça de redimensionar (canto sup. esquerdo) do chat flutuante -->
+    <div class="chat-ov-resize-handle" id="chat-ov-resize-handle" title="Arraste para redimensionar"></div>
     <!-- Reply bar overlay -->
     <div id="chat-reply-bar-ov">
       <span style="opacity:.5">↩</span>
@@ -15071,8 +15173,14 @@ function _lbKey(e){ if(e.key==='Escape') closeLightbox(); }
 var chatState = {
   activeTab: 'geral',     // 'geral' or player id (for PV)
   stickersVisible: false,
-  stickers: []            // {id, dataUrl}
+  stickers: [],           // {id, dataUrl}
+  campFilter: '',         // id da campanha escolhida manualmente pra filtrar as conversas (vazio = todas)
+  dmSearch: ''            // termo de busca digitado pra filtrar a lista de conversas
 };
+// Restaura o filtro de campanha do chat salvo da última vez
+(function(){
+  try { var f = localStorage.getItem('ymm_chat_camp_filter'); if(f) chatState.campFilter = f; } catch(e){}
+})();
 
 // Load stickers from localStorage
 (function(){
@@ -15110,6 +15218,14 @@ function saveStickers() {
 // (window._activeCampanhaId) — só quem tem ficha cadastrada NESSA campanha
 // específica (+ o mestre dela) aparece pra PV. Sem campanha ativa definida
 // ainda, cai no fallback antigo (lista cheia) pra não travar setup novo.
+// v202608230900 — Filtro manual de campanha no chat: além de restringir
+// automaticamente à campanha ATIVA (comportamento acima, mantido como
+// fallback), o usuário agora pode escolher explicitamente, no próprio
+// painel de chat, qual campanha quer ver ("chat-camp-filter"). Isso
+// resolve o caso do Mestre com várias campanhas que quer, por exemplo,
+// olhar só as conversas da campanha X sem precisar "entrar" nela pra
+// mudar a campanha ativa do resto do app. window._activeCampanhaId
+// continua sendo o fallback quando nenhum filtro manual está selecionado.
 function _getChatPeers() {
   if(!currentUser) return [];
   var _ehDoUsuario = function(p, u) {
@@ -15117,12 +15233,13 @@ function _getChatPeers() {
     if (p.ownerId) return p.ownerId === u.id;
     return !!(p.player && u.username && p.player.toLowerCase() === u.username.toLowerCase());
   };
-  var activeId = window._activeCampanhaId;
+  var activeId = chatState.campFilter || window._activeCampanhaId;
   var camp = activeId ? (data.campanhas||[]).find(function(c){ return c.id===activeId; }) : null;
   var pertence = camp && (isMestreDa(camp) || (typeof window._pertenceACampanha === 'function' && window._pertenceACampanha(activeId)));
   if (!camp || !pertence) {
-    // sem campanha ativa (ou a conta não pertence a ela): fallback antigo,
-    // pra não travar quem tá testando sem nenhuma campanha selecionada
+    // sem campanha ativa/selecionada (ou a conta não pertence a ela):
+    // fallback antigo, pra não travar quem tá testando sem nenhuma
+    // campanha selecionada
     return (authUsers||[]).filter(function(u){ return u.id !== currentUser.id; });
   }
   var peerIds = {};
@@ -15136,6 +15253,62 @@ function _getChatPeers() {
   return (authUsers||[]).filter(function(u){ return peerIds[u.id]; });
 }
 
+// Popula os selects "Filtrar conversas por campanha" (painel principal +
+// flutuante) só com campanhas que essa conta pode acessar — mesmo padrão
+// já usado em _populatePlayersCampFilter().
+function _populateChatCampFilter() {
+  var acessiveis = (data.campanhas||[]).filter(function(c){ return isMestreDa(c) || (typeof window._pertenceACampanha==='function' && window._pertenceACampanha(c.id)); });
+  ['chat-camp-filter','chat-camp-filter-ov'].forEach(function(id){
+    var sel = document.getElementById(id);
+    if(!sel) return;
+    sel.innerHTML = '<option value="">🌐 Todas as campanhas</option>' +
+      acessiveis.map(function(c){ return '<option value="'+c.id+'">🗺 '+escHtml(c.nome)+'</option>'; }).join('');
+    sel.value = chatState.campFilter && acessiveis.some(function(c){ return c.id===chatState.campFilter; }) ? chatState.campFilter : '';
+  });
+}
+
+// Chamado ao trocar o filtro de campanha do chat em qualquer um dos dois
+// selects (painel fixo ou flutuante) — mantém os dois sincronizados.
+function _onChatCampFilterChange(val) {
+  chatState.campFilter = val || '';
+  try { localStorage.setItem('ymm_chat_camp_filter', chatState.campFilter); } catch(e){}
+  // se a conversa aberta agora não pertence mais à campanha filtrada, volta pro #geral
+  if(chatState.activeTab !== 'geral') {
+    var stillPeer = _getChatPeers().some(function(u){ return u.id === chatState.activeTab; });
+    if(!stillPeer) chatState.activeTab = 'geral';
+  }
+  renderChatTabs();
+  renderChatTabsOv();
+  renderChatFeed();
+  renderChatFeedOv();
+  _updateChatHeader();
+}
+
+// Busca/filtro rápido da lista de conversas (esconde as pills que não
+// combinam, sem precisar re-renderizar tudo a cada tecla).
+function _onChatDmSearch(val) {
+  chatState.dmSearch = (val||'').trim().toLowerCase();
+  ['chat-pv-tabs','chat-pv-tabs-ov'].forEach(function(wrapId){
+    var wrap = document.getElementById(wrapId);
+    if(!wrap) return;
+    wrap.querySelectorAll('.chat-tab-pill[data-name]').forEach(function(pill){
+      var name = (pill.getAttribute('data-name')||'');
+      pill.classList.toggle('dm-hidden', !!chatState.dmSearch && name.indexOf(chatState.dmSearch) === -1);
+    });
+  });
+  ['chat-dm-search','chat-dm-search-ov'].forEach(function(id){
+    var inp = document.getElementById(id);
+    if(inp && inp.value !== val) inp.value = val;
+  });
+}
+
+// Verifica se um usuário está online agora, usando a presença já mantida
+// em window._onlinePlayers (Realtime DB, presence/<uid>).
+function _isUserOnline(u) {
+  if(!u || !window._onlinePlayers) return false;
+  return window._onlinePlayers.some(function(p){ return p && p.online && p.username && u.username && p.username.toLowerCase() === u.username.toLowerCase(); });
+}
+
 function openChatTab(tabId) {
   chatState.activeTab = tabId;
   cancelReply();
@@ -15146,24 +15319,35 @@ function openChatTab(tabId) {
   _updateChatHeader();
 }
 
+// Monta o HTML de uma pill de conversa privada — usado tanto no painel
+// fixo quanto no flutuante. Já inclui o pontinho de status online/offline
+// (lido de window._onlinePlayers) e um data-name pra busca funcionar sem
+// re-renderizar a lista inteira a cada tecla digitada.
+function _buildChatPvPillHtml(u) {
+  var isActive = chatState.activeTab === u.id;
+  var isMestreU = u.role === 'mestre' || u.role === 'ambos';
+  var isOnline = _isUserOnline(u);
+  var name = u.username || u.nome || 'Player';
+  var hiddenBySearch = !!chatState.dmSearch && name.toLowerCase().indexOf(chatState.dmSearch) === -1;
+  return '<div class="chat-tab-pill'+(isActive?' active':'')+(isOnline?' is-online':'')+(hiddenBySearch?' dm-hidden':'')+'" data-name="'+escHtml(name.toLowerCase())+'" onclick="openChatTab(\''+u.id+'\')" style="position:relative">'
+    + (isMestreU?'🗡 ':'🔒 ')+escHtml(name)
+    + '<span class="ctp-status-dot" title="'+(isOnline?'Online':'Offline')+'"></span>'
+    + '</div>';
+}
+
 function renderChatTabs() {
   if(!currentUser) return;
   var bar = document.getElementById('chat-tab-bar');
   if(!bar) return;
   var pvTabs = document.getElementById('chat-pv-tabs');
   if(!pvTabs) return;
+  _populateChatCampFilter();
   // update geral active state
   var geralTab = document.getElementById('ctab-geral');
   if(geralTab) geralTab.classList.toggle('active', chatState.activeTab === 'geral');
   // build PV tabs
   var players = _getChatPeers();
-  pvTabs.innerHTML = players.map(function(u){
-    var isActive = chatState.activeTab === u.id;
-    var isMestreU = u.role === 'mestre' || u.role === 'ambos';
-    return '<div class="chat-tab-pill'+(isActive?' active':'')+'" onclick="openChatTab(\''+u.id+'\')" style="position:relative">'
-      + (isMestreU?'🗡 ':'🔒 ')+(u.username||u.nome||'Player')
-      + '</div>';
-  }).join('');
+  pvTabs.innerHTML = players.map(_buildChatPvPillHtml).join('');
 }
 
 function renderChatTabsOv() {
@@ -15171,14 +15355,9 @@ function renderChatTabsOv() {
   // mirror for overlay chat
   var pvTabsOv = document.getElementById('chat-pv-tabs-ov');
   if(!pvTabsOv) return;
+  _populateChatCampFilter();
   var players = _getChatPeers();
-  pvTabsOv.innerHTML = players.map(function(u){
-    var isActive = chatState.activeTab === u.id;
-    var isMestreU = u.role === 'mestre' || u.role === 'ambos';
-    return '<div class="chat-tab-pill'+(isActive?' active':'')+'" onclick="openChatTab(\''+u.id+'\')" style="position:relative">'
-      + (isMestreU?'🗡 ':'🔒 ')+(u.username||u.nome||'Player')
-      + '</div>';
-  }).join('');
+  pvTabsOv.innerHTML = players.map(_buildChatPvPillHtml).join('');
   var geralOv = document.getElementById('ctab-geral-ov');
   if(geralOv) geralOv.classList.toggle('active', chatState.activeTab === 'geral');
 }
@@ -15286,6 +15465,7 @@ function buildMsgHtml(m, prevMsg) {
   }
   // actions
   var actHtml='<div class="cm-actions">'
+    +'<button class="cm-act-btn'+(m.pinned?' pinned':'')+'" onclick="togglePinMessage(\''+m.id+'\')" title="'+(m.pinned?'Desfixar':'Fixar')+'">📌</button>'
     +'<button class="cm-act-btn" onclick="openEmojiPicker(\''+m.id+'\',this)" title="Reagir">😊</button>'
     // CORRIGIDO: escHtml() sozinho não protege aspas simples (') dentro de um
     // onclick="...'...'..." — se o nome do remetente tivesse um apóstrofo
@@ -15309,7 +15489,7 @@ function buildMsgHtml(m, prevMsg) {
       // usuário autenticado escrever seu próprio perfil. Isso é XSS
       // persistente — o pior tipo de furo de segurança num app com várias
       // contas reais. Agora o nome passa por escHtml() como o restante.
-      +(isCompact?'':'<div class="cm-header"><span class="'+nameClass+'">'+escHtml(m.sender||'?')+'</span><span class="cm-timestamp">'+m.time+'</span></div>')
+      +(isCompact?'':'<div class="cm-header"><span class="'+nameClass+'">'+escHtml(m.sender||'?')+'</span><span class="cm-timestamp">'+m.time+'</span>'+(m.pinned?'<span class="cm-pin-flag">📌 FIXADA</span>':'')+'</div>')
       +replyHtml+bodyHtml+reactHtml
     +'</div>'+actHtml+'</div>';
 }
@@ -15561,8 +15741,67 @@ function _updateChatHeader() {
     var actions = document.getElementById('chat-hdr-actions'+s);
     if(actions) actions.style.display = isGeral ? 'none' : 'flex';
   });
+  _updatePinCount();
 }
 window._updateChatHeader = _updateChatHeader;
+
+// ══════════════════════════════════════════════════════════════════
+// MENSAGENS FIXADAS (estilo Discord) — recurso novo: qualquer mensagem
+// pode ser fixada pelo botão 📌 nas ações (aparece ao passar o mouse),
+// e um botão 📌 no cabeçalho do chat abre um painel com todas as
+// mensagens fixadas DA CONVERSA ATUAL (geral ou aquela PV específica),
+// com atalho pra pular direto até a mensagem original.
+// ══════════════════════════════════════════════════════════════════
+function togglePinMessage(msgId) {
+  var msgs = liveSession.chat || [];
+  var m = msgs.find(function(x){ return x.id === msgId; });
+  if(!m) return;
+  m.pinned = !m.pinned;
+  saveLive();
+  renderChatFeed();
+  renderChatFeedOv();
+  _updatePinCount();
+  showToast(m.pinned ? '📌 Mensagem fixada' : '📌 Mensagem desfixada','ok');
+}
+
+function _updatePinCount() {
+  var msgs = getChatMessages(getChatKey()).filter(function(m){ return m.pinned; });
+  ['chat-pin-count','chat-pin-count-ov'].forEach(function(id){
+    var el = document.getElementById(id);
+    if(!el) return;
+    el.textContent = msgs.length ? msgs.length : '';
+    el.classList.toggle('has', msgs.length>0);
+  });
+}
+
+function openPinnedPanel(suffix) {
+  var s = suffix ? '-'+suffix : '';
+  var box = document.getElementById(suffix==='ov'?'chat-box-overlay':'chat-box');
+  if(!box) return;
+  var existing = box.querySelector('.chat-pinned-panel');
+  if(existing) { existing.remove(); return; }
+  var msgs = getChatMessages(getChatKey()).filter(function(m){ return m.pinned; });
+  var panel = document.createElement('div');
+  panel.className = 'chat-pinned-panel';
+  var listHtml = msgs.length
+    ? msgs.map(function(m){
+        return '<div class="cm-group" style="cursor:pointer" onclick="_jumpToPinned(\''+m.id+'\',\''+suffix+'\')">'
+          + '<div class="cm-av-col"><div class="cm-av">'+(m.avatar?'<img src="'+escHtml(m.avatar)+'">':'<span>📌</span>')+'</div></div>'
+          + '<div class="cm-body"><div class="cm-header"><span class="cm-name">'+escHtml(m.sender||'?')+'</span><span class="cm-timestamp">'+(m.time||'')+'</span></div>'
+          + '<div class="cm-text">'+escHtml((m.text||'📷 mídia').slice(0,140))+'</div></div>'
+          + '</div>';
+      }).join('')
+    : '<div class="chat-pinned-empty">📌 Nenhuma mensagem fixada nesta conversa ainda.<br>Passe o mouse numa mensagem e clique no 📌 pra fixar.</div>';
+  panel.innerHTML = '<div class="chat-pinned-hdr">📌 Mensagens fixadas<button class="chat-pinned-close" onclick="this.closest(\'.chat-pinned-panel\').remove()">✕</button></div>'
+    + '<div class="chat-pinned-list">'+listHtml+'</div>';
+  box.appendChild(panel);
+}
+
+function _jumpToPinned(msgId, suffix) {
+  var panel = document.querySelector((suffix==='ov'?'#chat-box-overlay':'#chat-box')+' .chat-pinned-panel');
+  if(panel) panel.remove();
+  scrollToMsg(msgId);
+}
 
 // Mostra, num alert() bem direto, tudo que importa pra diagnosticar
 // "chat não sincroniza pra todo mundo": qual campanha está ativa, qual
@@ -18932,6 +19171,8 @@ function _startRealtimeSync() {
     window._onlinePlayers = online;
     renderCallParticipants();
     renderLivePlayersStatus();
+    if(typeof renderChatTabs==='function') renderChatTabs();
+    if(typeof renderChatTabsOv==='function') renderChatTabsOv();
   }, _fbReadErrHandler('presence'));
   _rtListeners.presence = () => off(presRef);
 
@@ -25537,12 +25778,101 @@ function opSalvarItem(pid){
     }).observe(panel, { attributes:true, attributeFilter:['class'] });
   }
 
+  // ---- Chat principal (dentro da página) — lembra a largura/altura ----
+  // O CSS já usa resize:both nativo (arraste o cantinho); aqui só guardamos
+  // o tamanho escolhido no localStorage pra não voltar ao padrão sempre
+  // que a página é recarregada — igual já acontecia com a call.
+  function initMainChatBoxResize(){
+    var box = document.getElementById('chat-box');
+    if (!box || !window.ResizeObserver) return;
+    try {
+      var saved = JSON.parse(localStorage.getItem('ymm_chatbox_size')||'null');
+      if (saved && isDesktop()) {
+        if (saved.w) box.style.width = saved.w+'px';
+        if (saved.h) box.style.height = saved.h+'px';
+      }
+    } catch(e){}
+    var t = null;
+    new ResizeObserver(function(entries){
+      if (!isDesktop()) return;
+      clearTimeout(t);
+      t = setTimeout(function(){
+        var r = box.getBoundingClientRect();
+        try { localStorage.setItem('ymm_chatbox_size', JSON.stringify({w:Math.round(r.width),h:Math.round(r.height)})); } catch(e){}
+      }, 300);
+    }).observe(box);
+  }
+
+  // ---- Chat flutuante (FAB) — redimensionável em qualquer canto da tela,
+  // arrastando o cantinho superior-esquerdo (o inferior-direito é onde o
+  // painel fica "grudado" no canto da janela). ----
+  var CO_MIN_W = 300, CO_MIN_H = 340;
+  function applyChatOverlaySize(w,h){
+    var ov = document.getElementById('chat-overlay');
+    if (!ov) return;
+    var maxW = Math.round(window.innerWidth*0.96), maxH = Math.round(window.innerHeight*0.92);
+    ov.style.width = clamp(w, CO_MIN_W, maxW)+'px';
+    ov.style.height = clamp(h, CO_MIN_H, maxH)+'px';
+  }
+  function restoreChatOverlaySize(){
+    try {
+      var saved = JSON.parse(localStorage.getItem('ymm_chatoverlay_size')||'null');
+      if (saved) applyChatOverlaySize(saved.w, saved.h);
+    } catch(e){}
+  }
+  function initChatOverlayResize(){
+    var handle = document.getElementById('chat-ov-resize-handle');
+    var ov = document.getElementById('chat-overlay');
+    if (!handle || !ov) return;
+    var dragging = false, startX=0, startY=0, startW=0, startH=0;
+    handle.addEventListener('mousedown', function(e){
+      dragging = true; startX = e.clientX; startY = e.clientY;
+      var r = ov.getBoundingClientRect();
+      startW = r.width; startH = r.height;
+      handle.classList.add('dragging');
+      document.body.style.userSelect = 'none';
+      document.body.style.cursor = 'nwse-resize';
+      e.preventDefault(); e.stopPropagation();
+    });
+    window.addEventListener('mousemove', function(e){
+      if (!dragging) return;
+      // painel fica grudado no canto inferior-direito, então arrastar a
+      // borda esquerda/topo pra fora AUMENTA largura/altura
+      var newW = startW + (startX - e.clientX);
+      var newH = startH + (startY - e.clientY);
+      applyChatOverlaySize(newW, newH);
+    });
+    window.addEventListener('mouseup', function(){
+      if (!dragging) return;
+      dragging = false;
+      handle.classList.remove('dragging');
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+      var r = ov.getBoundingClientRect();
+      try { localStorage.setItem('ymm_chatoverlay_size', JSON.stringify({w:Math.round(r.width),h:Math.round(r.height)})); } catch(e){}
+    });
+    handle.addEventListener('dblclick', function(){
+      ov.style.width = ''; ov.style.height = '';
+      localStorage.removeItem('ymm_chatoverlay_size');
+    });
+    // toda vez que o chat flutuante é reaberto, reaplica o tamanho salvo
+    new MutationObserver(function(muts){
+      muts.forEach(function(m){
+        if (m.attributeName === 'class' && ov.classList.contains('open')) restoreChatOverlaySize();
+      });
+    }).observe(ov, { attributes:true, attributeFilter:['class'] });
+  }
+
   function init(){
     restoreSidebarWidth();
     initSidebarResize();
     initCallChatResize();
+    initMainChatBoxResize();
+    initChatOverlayResize();
     var ccPanel = document.getElementById('call-side-chat');
     if (ccPanel && ccPanel.classList.contains('open')) restoreCallChatWidth(ccPanel);
+    var coPanel = document.getElementById('chat-overlay');
+    if (coPanel && coPanel.classList.contains('open')) restoreChatOverlaySize();
   }
 
   if (document.readyState === 'loading') {
