@@ -5947,6 +5947,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
             <div class="chat-channel-icon">💬</div>
             <span class="chat-channel-name" id="chat-channel-name">GERAL</span>
             <span class="chat-channel-badge" id="chat-channel-badge">PÚBLICO</span>
+            <span id="chat-sync-indicator" title="Clique para ver detalhes de sincronização" onclick="_showChatSyncInfo()" style="margin-left:8px;font-family:'Share Tech Mono',monospace;font-size:.5rem;color:rgba(255,255,255,0.4);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px"></span>
             <div class="chat-hdr-actions" id="chat-hdr-actions" style="display:none">
               <button class="chat-hdr-btn" id="chat-call-btn" title="Chamada de voz privada" onclick="_chatHdrCall(false)"><i data-lucide="phone" class="ct-icon-svg"></i></button>
               <button class="chat-hdr-btn" id="chat-video-btn" title="Chamada de vídeo privada" onclick="_chatHdrCall(true)"><i data-lucide="video" class="ct-icon-svg"></i></button>
@@ -6178,6 +6179,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
       <div class="chat-channel-icon">💬</div>
       <span class="chat-channel-name" id="chat-channel-name-ov">GERAL</span>
       <span class="chat-channel-badge" id="chat-channel-badge-ov">PÚBLICO</span>
+      <span id="chat-sync-indicator-ov" title="Clique para ver detalhes de sincronização" onclick="_showChatSyncInfo()" style="margin-left:8px;font-family:'Share Tech Mono',monospace;font-size:.5rem;color:rgba(255,255,255,0.4);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px"></span>
       <div class="chat-hdr-actions" id="chat-hdr-actions-ov" style="display:none">
         <button class="chat-hdr-btn" id="chat-call-btn-ov" title="Chamada de voz privada" onclick="_chatHdrCall(false)"><i data-lucide="phone" class="ct-icon-svg"></i></button>
         <button class="chat-hdr-btn" id="chat-video-btn-ov" title="Chamada de vídeo privada" onclick="_chatHdrCall(true)"><i data-lucide="video" class="ct-icon-svg"></i></button>
@@ -15474,14 +15476,35 @@ function _updateChatHeader() {
     var u = (authUsers||[]).find(function(x){ return x.id === chatState.activeTab; });
     if (u) name = (u.username||u.nome||'Player').toUpperCase();
   }
+  // ══════════════════════════════════════════════════════════════════
+  // NOVO — indicador visível de "com qual campanha este chat está
+  // sincronizado agora", direto no cabeçalho do chat, sem precisar do
+  // DevTools. O bug mais comum de "mensagem não aparece pra todo mundo"
+  // é DUAS pessoas da MESMA mesa terem, cada uma, uma "campanha ativa"
+  // (window._activeCampanhaId) diferente — cada uma lê/escreve num nó
+  // diferente do Firebase, então nenhuma vê a mensagem da outra, sem
+  // nenhum erro no processo. Antes isso só aparecia no console
+  // ("[Chat/Rolagens] Campanha ativa: ..."), que a maioria não abre no
+  // dia a dia. Agora aparece direto no cabeçalho — se Mestre e jogador
+  // compararem a tela um do outro e o texto for diferente, é EXATAMENTE
+  // isso que está quebrando a sincronia, e dá pra corrigir na hora pelo
+  // seletor 📍 da tela de Sessão (window._switchSessaoCampanha).
+  // ══════════════════════════════════════════════════════════════════
+  var campId = window._activeCampanhaId;
+  var camp = campId ? (data.campanhas||[]).find(function(c){ return c.id === campId; }) : null;
+  var syncLabel = campId
+    ? ('📍 ' + (camp ? camp.nome : campId))
+    : '⚠ sem campanha (chat legado)';
   ['','ov'].forEach(function(suffix){
     var s = suffix ? '-'+suffix : '';
     var n = document.getElementById('chat-channel-name'+s);
     var b = document.getElementById('chat-channel-badge'+s);
     var ic = document.querySelector('#chat-channel-header'+s+' .chat-channel-icon');
+    var sync = document.getElementById('chat-sync-indicator'+s);
     if(n) n.textContent = name;
     if(b){ b.textContent = badge; b.className = 'chat-channel-badge'+(isGeral?'':' pv'); }
     if(ic) ic.textContent = icon;
+    if(sync){ sync.textContent = syncLabel; sync.style.color = campId ? 'rgba(255,255,255,0.4)' : 'rgba(255,120,120,0.85)'; }
     var inp = document.getElementById('chat-inp'+s);
     if(inp) inp.placeholder = 'Mensagem em #'+name.toLowerCase()+'...';
     // Ícones de chamada (call/vídeo) — só fazem sentido numa conversa privada
@@ -15489,6 +15512,28 @@ function _updateChatHeader() {
     if(actions) actions.style.display = isGeral ? 'none' : 'flex';
   });
 }
+window._updateChatHeader = _updateChatHeader;
+
+// Mostra, num alert() bem direto, tudo que importa pra diagnosticar
+// "chat não sincroniza pra todo mundo": qual campanha está ativa, qual
+// caminho do Firebase está sendo lido/escrito, se o socket do Firebase
+// está conectado, e quantas mensagens já chegaram nesta aba. Compare
+// esse texto entre duas contas da MESMA mesa — se "Campanha ativa (id)"
+// for diferente, achou o problema.
+function _showChatSyncInfo() {
+  var campId = window._activeCampanhaId;
+  var path = window._liveChatPath ? window._liveChatPath() : 'Live/chat';
+  var conn = window._fbConnected === true ? 'CONECTADO ✅' : (window._fbConnected === false ? 'DESCONECTADO ❌' : 'desconhecido');
+  var qtd = (liveSession && liveSession.chat) ? liveSession.chat.length : 0;
+  var texto = 'Diagnóstico de sincronização do chat\n\n' +
+    'Campanha ativa (id): ' + (campId || '(nenhuma — usando chat legado)') + '\n' +
+    'Lendo/escrevendo em: ' + path + '\n' +
+    'Firebase: ' + conn + '\n' +
+    'Mensagens carregadas nesta aba: ' + qtd + '\n\n' +
+    'Se outra pessoa da mesma mesa tiver uma "Campanha ativa (id)" diferente desta, é por isso que vocês não se veem em tempo real — escolham a mesma campanha no seletor 📍 da tela de Sessão.';
+  alert(texto);
+}
+window._showChatSyncInfo = _showChatSyncInfo;
 
 // ── Clique nos botões 📞/🎥 do cabeçalho da conversa: liga pro player da aba aberta ──
 function _chatHdrCall(withVideo) {
@@ -18400,7 +18445,7 @@ function _startRealtimeSync() {
     var _chatPathChanged = (_chatPath !== _lastChatPath);
     _lastChatPath = _chatPath;
     if (_chatPathChanged) { liveSession.chat = []; renderChatFeed(); renderChatFeedOv(); } // só limpa se for campanha diferente de verdade
-    onValue(chatRef, _applyChatSnap, _fbReadErrHandler('Live/chat'));
+    onValue(chatRef, _applyChatSnap, _fbReadErrHandler(_chatPath));
     _rtListeners.chat = () => off(chatRef);
 
     var _rollsPath = window._liveRollsPath ? window._liveRollsPath() : 'Live/rolls';
@@ -18409,7 +18454,7 @@ function _startRealtimeSync() {
     var _rollsPathChanged = (_rollsPath !== _lastRollsPath);
     _lastRollsPath = _rollsPath;
     if (_rollsPathChanged) { liveSession.rolls = []; renderRollFeed(); }
-    onValue(rollRef, _applyRollsSnap, _fbReadErrHandler('Live/rolls'));
+    onValue(rollRef, _applyRollsSnap, _fbReadErrHandler(_rollsPath));
     _rtListeners.rolls = () => off(rollRef);
   }
   window._resubscribeLiveChatRolls = _subscribeLiveChatRolls;
