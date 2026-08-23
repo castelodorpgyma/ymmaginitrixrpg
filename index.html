@@ -6016,9 +6016,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   <div class="topbar">
     <h1><i data-lucide="radio-tower" style="width:22px;height:22px;vertical-align:-4px;margin-right:6px;color:var(--c-accent)"></i><span>Sessão</span></h1>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span id="sessao-camp-label" style="display:none;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09);border-radius:8px;padding:6px 10px;color:var(--c-text);font-family:'Share Tech Mono',monospace;font-size:.58rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="Chat, rolagens e call desta campanha ficam isolados só dela — ninguém vê mensagem de outra mesa aqui."></span>
       <select id="sessao-camp-switch" onchange="_switchSessaoCampanha(this.value)" title="Campanha ativa — chat, rolagens e call ficam isolados por esta campanha. Todo mundo da mesa precisa estar na MESMA aqui pra sincronizar."
-        style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09);border-radius:8px;padding:6px 10px;color:var(--c-text);font-family:'Share Tech Mono',monospace;font-size:.58rem;outline:none;cursor:pointer;max-width:180px">
-        <option value="">📍 Sem campanha (chat legado)</option>
+        style="display:none;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09);border-radius:8px;padding:6px 10px;color:var(--c-text);font-family:'Share Tech Mono',monospace;font-size:.58rem;outline:none;cursor:pointer;max-width:180px">
       </select>
       <div id="live-status-badge" class="live-badge">
         <span class="live-dot"></span>
@@ -11263,6 +11263,10 @@ window._setActiveCampanha = function(id) {
   // (broadcast do mestre, abrir detalhe da campanha, etc.) e não a própria
   // pessoa mexendo no seletor.
   if (typeof window._syncSessaoCampSwitch === 'function') { try { window._syncSessaoCampSwitch(); } catch(e) {} }
+  // A lista de "personagens ao vivo" (barras de vida/sanidade/estamina)
+  // também é filtrada pela campanha ativa — sem isso, trocar de campanha
+  // não atualizava quem aparecia ali, só o chat/rolagens/call.
+  if (changed && typeof window.renderLivePlayersStatus === 'function') { try { window.renderLivePlayersStatus(); } catch(e) {} }
 };
 // ══════════════════════════════════════════════════════════════════
 // CORRIGIDO — chat/rolagens "não sincronizavam pra ninguém"
@@ -11339,37 +11343,66 @@ window._resolveMyCampanhaId = _resolveMyCampanhaId;
 
 // ── Seletor visível de "campanha ativa" na tela de Sessão ──
 // Chat geral, PVs, rolagens e call são todos isolados por campanha ativa
-// (window._activeCampanhaId) — se duas pessoas da MESMA mesa estiverem com
-// campanhas ativas diferentes (ex.: uma resolveu sozinha errado, ou nunca
-// abriu a tela da campanha), elas nunca vão se ver em tempo real, mesmo
-// sem nenhum erro aparecer. Este seletor deixa isso visível e dá um jeito
-// manual e imediato de todo mundo se alinhar na mesma campanha.
+// (window._activeCampanhaId). Antes existia uma opção "📍 Sem campanha
+// (chat legado)" que jogava todo mundo de volta pro nó ANTIGO e GLOBAL
+// do Firebase ("Live/chat") — compartilhado entre TODAS as campanhas do
+// sistema. Bastava alguém clicar nela (ou o app cair nesse estado por
+// não ter resolvido a campanha ainda) pra o #geral daquela conta passar
+// a misturar mensagens de mesas totalmente diferentes — exatamente o
+// "chat geral é o mesmo em todas as campanhas" relatado. AGORA: essa
+// opção não existe mais. Com 1 campanha só, ela é escolhida sozinha e
+// mostrada como um rótulo fixo (nada pra "selecionar" à toa). Com 2+,
+// o seletor não tem mais opção "nenhuma" — sempre aponta pra uma
+// campanha de verdade.
 var _warnedNoActiveCamp = false;
 function _syncSessaoCampSwitch() {
   var sel = document.getElementById('sessao-camp-switch');
-  if (!sel) return;
+  var lbl = document.getElementById('sessao-camp-label');
+  if (!sel || !lbl) return;
   var acessiveis = (data.campanhas||[]).filter(isCampanhaAcessivel);
-  sel.innerHTML = '<option value="">📍 Sem campanha (chat legado)</option>' +
-    acessiveis.map(c=>`<option value="${c.id}">📍 ${c.nome}</option>`).join('');
-  sel.value = window._activeCampanhaId || '';
-  // Aviso direto: se você TEM campanha mas está sem nenhuma marcada como
-  // ativa, chat/PV/rolagens vão parar no caminho antigo/genérico — e é
-  // exatamente isso que produz "só vejo minha própria mensagem". Em vez de
-  // deixar isso silencioso, avisa e aponta o seletor.
-  if (!window._activeCampanhaId && acessiveis.length && !_warnedNoActiveCamp) {
-    _warnedNoActiveCamp = true;
-    showToast('⚠ Nenhuma campanha ativa selecionada — escolha uma no seletor 📍 no topo da Sessão pra chat/PV/rolagens sincronizarem com o resto da mesa.', 'warn');
+
+  if (!acessiveis.length) {
+    // Nenhuma campanha disponível pra essa conta ainda — não tem pra onde
+    // resolver, então só avisa (sem cair no chat global antigo).
+    sel.style.display = 'none';
+    lbl.style.display = 'inline-block';
+    lbl.textContent = '⚠ nenhuma campanha disponível';
+    return;
   }
+
+  // Garante que sempre haja UMA campanha ativa de verdade — nunca deixa
+  // o estado "nenhuma selecionada" acontecer silenciosamente.
+  var activeStillValid = window._activeCampanhaId && acessiveis.some(function(c){ return c.id === window._activeCampanhaId; });
+  if (!activeStillValid) {
+    var resolved = (typeof _resolveMyCampanhaId === 'function' && _resolveMyCampanhaId()) || acessiveis[0].id;
+    if (typeof window._setActiveCampanha === 'function') window._setActiveCampanha(resolved);
+    return; // _setActiveCampanha já chama esta função de novo no final
+  }
+
+  if (acessiveis.length === 1) {
+    // Só uma campanha possível: nada pra escolher, então nem mostra
+    // seletor — só um rótulo confirmando qual é.
+    sel.style.display = 'none';
+    lbl.style.display = 'inline-block';
+    lbl.textContent = '📍 ' + (acessiveis[0].nome || 'Campanha');
+    return;
+  }
+
+  // 2+ campanhas acessíveis por essa conta (ex.: mestre de uma e player
+  // de outra): mostra o seletor de verdade, sem opção "nenhuma".
+  lbl.style.display = 'none';
+  sel.style.display = 'inline-block';
+  sel.innerHTML = acessiveis.map(c=>`<option value="${c.id}">📍 ${escHtml(c.nome||'')}</option>`).join('');
+  sel.value = window._activeCampanhaId || '';
 }
 window._syncSessaoCampSwitch = _syncSessaoCampSwitch;
 
 function _switchSessaoCampanha(id) {
-  if (id) {
-    var c = _findCampanha(id);
-    if (!c || !isCampanhaAcessivel(c)) { showToast('⚠ Você não tem acesso a essa campanha', 'warn'); _syncSessaoCampSwitch(); return; }
-  }
-  if (typeof window._setActiveCampanha === 'function') window._setActiveCampanha(id || null);
-  showToast(id ? '📍 Campanha ativa alterada — chat/rolagens/call migrando...' : '📍 Voltando pro chat legado (sem campanha)', 'ok');
+  if (!id) return; // não existe mais opção "sem campanha" pra escolher
+  var c = _findCampanha(id);
+  if (!c || !isCampanhaAcessivel(c)) { showToast('⚠ Você não tem acesso a essa campanha', 'warn'); _syncSessaoCampSwitch(); return; }
+  if (typeof window._setActiveCampanha === 'function') window._setActiveCampanha(id);
+  showToast('📍 Campanha ativa alterada — chat/rolagens/call migrando...', 'ok');
 }
 window._switchSessaoCampanha = _switchSessaoCampanha;
 
@@ -12035,11 +12068,20 @@ function updateChatSenders() {
 function renderLivePlayersStatus() {
   var el = document.getElementById('live-players-status');
   if (!el) return;
-  if(!data.players.length) {
-    el.innerHTML = '<div style="font-family:\'Share Tech Mono\',monospace;font-size:.62rem;color:rgba(255,255,255,0.72);text-align:center;padding:12px">Nenhum player cadastrado.</div>';
+  // Só personagens catalogados NA campanha ativa agora — antes esta lista
+  // mostrava data.players inteiro (todo mundo, de toda campanha do
+  // sistema) na tela de Sessão, misturando fichas de mesas diferentes
+  // igual o bug do chat geral. Sem campanha ativa nenhuma, não tem lista
+  // pra mostrar (evita cair de volta pra "todo mundo" por engano).
+  var activeCamp = window._activeCampanhaId || null;
+  var players = activeCamp ? data.players.filter(function(p){ return p.campanha === activeCamp; }) : [];
+  if(!players.length) {
+    el.innerHTML = '<div style="font-family:\'Share Tech Mono\',monospace;font-size:.62rem;color:rgba(255,255,255,0.72);text-align:center;padding:12px">'
+      + (activeCamp ? 'Nenhum personagem catalogado nesta campanha.' : '⚠ nenhuma campanha ativa selecionada.')
+      + '</div>';
     return;
   }
-  el.innerHTML = data.players.map(function(p) {
+  el.innerHTML = players.map(function(p) {
     var vp = p.vidaMax>0 ? Math.min(100, Math.max(0,(p.vida/p.vidaMax)*100)) : 0;
     var sp = p.sanidadeMax>0 ? Math.min(100, Math.max(0,(p.sanidade/p.sanidadeMax)*100)) : 0;
     var ep = p.estaminaMax>0 ? Math.min(100, Math.max(0,(p.estamina/p.estaminaMax)*100)) : 0;
@@ -15487,9 +15529,17 @@ function getChatMessages(tabKey) {
     // Mensagens de quem você mutou (local, só pra você) somem do #geral —
     // mutar não te tira de PVs abertas de propósito com essa pessoa.
     var muted = (typeof _getMutedSet === 'function') ? _getMutedSet() : [];
+    var activeCamp = window._activeCampanhaId || null;
     return msgs.filter(function(m){
       if (m.pvTo) return false;
       if (m.type === 'system') return true;
+      // Trava extra de isolamento: se a mensagem já carrega o id da
+      // campanha em que foi enviada (mensagens novas, ver pushChatMsg),
+      // ela só aparece se bater com a campanha ativa agora. Mensagens
+      // antigas sem esse campo (de antes desta trava existir) continuam
+      // aparecendo normalmente — o isolamento delas já vinha do próprio
+      // caminho do Firebase, que nunca misturou campanhas diferentes.
+      if (m.campanhaId !== undefined && m.campanhaId !== null && m.campanhaId !== activeCamp) return false;
       if (muted.length && (muted.indexOf(m.senderId) !== -1 || muted.indexOf(m.sender) !== -1)) return false;
       return true;
     });
@@ -17347,6 +17397,13 @@ try {
         if (!msg.senderId && currentUser) msg.senderId = currentUser.id;
         if (!msg.sender   && currentUser) msg.sender   = currentUser.username;
         if (!msg.role     && currentUser) msg.role      = currentUser.role;
+        // Trava extra (além do caminho isolado no Firebase): toda mensagem
+        // carrega o id da campanha em que foi de fato enviada. Mesmo que
+        // algum dia um caminho/roteamento saia errado, o filtro do #geral
+        // (ver getChatMessages) descarta qualquer mensagem cujo
+        // campanhaId não bata com a campanha ativa — nunca mais mistura
+        // conversas de mesas diferentes.
+        msg.campanhaId = window._activeCampanhaId || null;
         var _path = window._liveChatPath ? window._liveChatPath() : 'Live/chat';
         window._lastSentChatAt = Date.now();
         window._lastSentChatPath = _path;
