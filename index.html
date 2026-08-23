@@ -7017,7 +7017,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     <div class="call-setting-row" style="align-items:flex-start">
       <div style="flex:1">
         <div class="call-setting-lbl">Ícone na Call</div>
-        <div class="call-setting-sub">Imagem ou GIF do seu personagem, mostrado no seu card durante a call (substitui o avatar da ficha)</div>
+        <div class="call-setting-sub">Imagem ou GIF do seu personagem, mostrado no seu card durante a call (substitui o avatar da ficha) — até 8MB</div>
         <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
           <div id="call-avatar-preview" onclick="document.getElementById('call-avatar-input').click()" style="width:52px;height:52px;border-radius:14px;border:1.5px dashed rgba(255,255,255,.22);display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;background:rgba(255,255,255,.03);flex-shrink:0">
             <span style="font-size:.5rem;opacity:.5">+ img</span>
@@ -11266,14 +11266,19 @@ window._setActiveCampanha = function(id) {
   if (changed && typeof window._resubscribeGroupCallActivity === 'function') {
     try { window._resubscribeGroupCallActivity(); } catch(e) { console.error('[_setActiveCampanha] resubscribe (call activity) falhou:', e); }
   }
-  // Copia (sem apagar nada do lugar antigo) qualquer mensagem/rolagem que
-  // ainda esteja presa no caminho antigo e global "Live/chat"/"Live/rolls"
-  // (de antes desta campanha ter um caminho isolado) pro caminho certo desta
-  // campanha — ver window._migrateLegacyLiveData, definido no módulo do
-  // Firebase, logo abaixo do _subscribeLiveChatRolls.
-  if (changed && newId && typeof window._migrateLegacyLiveData === 'function') {
-    try { window._migrateLegacyLiveData(newId); } catch(e) { console.error('[_setActiveCampanha] migração de dados antigos falhou:', e); }
-  }
+  // CORRIGIDO — chat geral "igual" em campanhas diferentes: esta função
+  // copiava as mesmas mensagens antigas do caminho global "Live/chat" (de
+  // antes de cada campanha ter chat isolado) pro chat de QUALQUER campanha
+  // que fosse aberta — rodando de novo a cada troca de campanha. Resultado:
+  // toda campanha nova que você abria ganhava uma cópia idêntica daquelas
+  // mensagens antigas, fazendo o chat geral de campanhas diferentes parecer
+  // "o mesmo". Removida a chamada automática daqui — a recuperação de
+  // mensagens presas no caminho antigo (window._migrateLegacyLiveData)
+  // continua existindo como função, mas não roda mais sozinha a cada troca
+  // de campanha, então nenhuma campanha nova volta a herdar mensagens de
+  // outra. Ver também getChatMessages(), que agora também bloqueia por
+  // completo qualquer mensagem sem campanha definida quando há uma
+  // campanha ativa — trava extra contra esse tipo de vazamento.
   // Mantém o seletor visível de "campanha ativa" (tela de Sessão) sempre
   // batendo com a realidade, mesmo quando quem mudou foi outro código
   // (broadcast do mestre, abrir detalhe da campanha, etc.) e não a própria
@@ -14886,7 +14891,7 @@ function _callAvatarStorageKey() {
   return 'ymm_call_avatar_' + uid;
 }
 window.callGetCustomAvatar = function() {
-  try { return localStorage.getItem(_callAvatarStorageKey()) || null; } catch(e) { return null; }
+  try { return localStorage.getItem(_callAvatarStorageKey()) || window._callCustomAvatarMem || null; } catch(e) { return window._callCustomAvatarMem || null; }
 };
 function _callRefreshAvatarPreview() {
   var prev = document.getElementById('call-avatar-preview');
@@ -14926,7 +14931,13 @@ function _callSyncCustomAvatarToRoom(dataUrl) {
 function callSetCustomAvatarFile(ev) {
   var file = ev.target.files && ev.target.files[0];
   if (!file) return;
-  if (file.size > 1.5*1024*1024) { showToast('⚠ Imagem/GIF muito grande (máx 1.5MB)','warn'); ev.target.value=''; return; }
+  // Limite subido pra 8MB a pedido — vale notar que o Firebase Realtime DB
+  // recusa valores acima de ~10MB, e base64 infla o arquivo original em
+  // ~37%: um arquivo de 8MB "cru" vira ~11MB salvo como base64, beirando
+  // esse teto. Se a sincronização com os outros jogadores falhar por causa
+  // disso, _callSyncCustomAvatarToRoom já avisa com um toast (o ícone
+  // continua aparecendo normalmente só pra você, salvo localmente).
+  if (file.size > 8*1024*1024) { showToast('⚠ Imagem/GIF muito grande (máx 8MB)','warn'); ev.target.value=''; return; }
   var reader = new FileReader();
   reader.onload = function(e) {
     var dataUrl = e.target.result;
@@ -14934,12 +14945,20 @@ function callSetCustomAvatarFile(ev) {
     // e NUNCA chegava a sincronizar o ícone com o Firebase — então além
     // de não salvar localmente, ninguém mais na call via o ícone novo.
     // Agora o Firebase é atualizado independente do cache local funcionar.
+    // Com o limite subido pra 8MB, um arquivo grande pode facilmente
+    // estourar a cota do localStorage (~5-10MB no total do navegador) —
+    // guarda também uma cópia em memória (window._callCustomAvatarMem)
+    // como reserva, usada pelo preview/participantes se o cache local
+    // falhar, pra nunca "sumir" o ícone que você acabou de escolher
+    // durante esta sessão.
+    window._callCustomAvatarMem = dataUrl;
+    var _cachedOk = true;
     try { localStorage.setItem(_callAvatarStorageKey(), dataUrl); }
-    catch(err) { console.warn('[callAvatar] cache local cheio', err); }
+    catch(err) { _cachedOk = false; console.warn('[callAvatar] cache local cheio', err); }
     _callRefreshAvatarPreview();
     _callSyncCustomAvatarToRoom(dataUrl);
     if (typeof renderCallParticipants === 'function') renderCallParticipants();
-    showToast('🖼 Ícone da call atualizado','ok');
+    showToast(_cachedOk ? '🖼 Ícone da call atualizado' : '🖼 Ícone atualizado (só nesta sessão — arquivo grande demais pro cache do navegador salvar de forma permanente)', _cachedOk ? 'ok' : 'warn');
   };
   reader.readAsDataURL(file);
 }
@@ -15550,13 +15569,20 @@ function getChatMessages(tabKey) {
     return msgs.filter(function(m){
       if (m.pvTo) return false;
       if (m.type === 'system') return true;
-      // Trava extra de isolamento: se a mensagem já carrega o id da
-      // campanha em que foi enviada (mensagens novas, ver pushChatMsg),
-      // ela só aparece se bater com a campanha ativa agora. Mensagens
-      // antigas sem esse campo (de antes desta trava existir) continuam
-      // aparecendo normalmente — o isolamento delas já vinha do próprio
-      // caminho do Firebase, que nunca misturou campanhas diferentes.
-      if (m.campanhaId !== undefined && m.campanhaId !== null && m.campanhaId !== activeCamp) return false;
+      // CORRIGIDO — chat geral "vazando" entre campanhas: antes, mensagem
+      // sem campanhaId definido (undefined/null) passava direto em
+      // QUALQUER campanha — exatamente o caso das mensagens antigas
+      // copiadas pelo bug de migração (ver _setActiveCampanha). Agora,
+      // havendo uma campanha ativa, só aparece no #geral a mensagem cujo
+      // campanhaId bate exatamente com ela; sem campanha ativa nenhuma
+      // (fallback antigo, sem nenhuma mesa selecionada ainda), mantém o
+      // comportamento de mostrar tudo, pra não travar quem ainda não tem
+      // campanha configurada.
+      if (activeCamp) {
+        if (m.campanhaId !== activeCamp) return false;
+      } else if (m.campanhaId !== undefined && m.campanhaId !== null) {
+        return false;
+      }
       if (muted.length && (muted.indexOf(m.senderId) !== -1 || muted.indexOf(m.sender) !== -1)) return false;
       return true;
     });
