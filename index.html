@@ -15768,7 +15768,13 @@ function _findFichaForChatUser(u, senderName) {
 }
 
 function _closeAnyFloatingUserUi() {
-  document.querySelectorAll('.usr-popout-backdrop,.usr-ctxmenu-backdrop').forEach(function(e){ e.remove(); });
+  // CORRIGIDO 2026-08-23 — o botão de fechar (e clicar fora, e até o Esc)
+  // nunca removia o CARTÃO em si (.usr-popout / .usr-ctxmenu) — só o
+  // "backdrop" invisível atrás dele. O cartão é anexado direto no
+  // document.body (via _positionFloatingEl) e nunca tinha sua própria
+  // classe incluída aqui, então ficava preso na tela pra sempre, com
+  // qualquer botão de fechar "clicando" só no vazio.
+  document.querySelectorAll('.usr-popout-backdrop,.usr-ctxmenu-backdrop,.usr-popout,.usr-ctxmenu').forEach(function(e){ e.remove(); });
 }
 
 // Mantém o cartão/menu dentro da tela, preferindo abrir à direita/baixo
