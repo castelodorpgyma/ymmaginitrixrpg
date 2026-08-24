@@ -20688,9 +20688,13 @@ function _subscribeCallRoomExtras(roomId) {
     var v = snap.val() || { active:false };
     _screenShareInfo = v;
     if (v.active && v.by && v.by !== _myCallId) {
-      _screenPreviewOk = false;
+      // AJUSTE 202608241442: a transmissão de tela agora aparece direto pra
+      // todo mundo na call, sem precisar clicar em "Ver transmissão" —
+      // o convite opt-in foi removido a pedido; qualquer participante já
+      // vê automaticamente assim que alguém começa a compartilhar.
+      _screenPreviewOk = true;
       _pendingScreenStream = null;
-      if (typeof window.showScreenInvite === 'function') window.showScreenInvite(v.name || 'Alguém');
+      if (typeof window.hideScreenInvite === 'function') window.hideScreenInvite();
       // CORRIGIDO: mesmo com o Firebase agora avisado ANTES de a trilha
       // WebRTC começar a ser enviada, ainda existe uma janela residual (a
       // rede não é determinística) em que o vídeo chega e é classificado
@@ -20705,7 +20709,7 @@ function _subscribeCallRoomExtras(roomId) {
         var wrongVidEl = document.getElementById('call-remote-vid-' + v.by);
         if (wrongVidEl) { wrongVidEl.srcObject = null; wrongVidEl.style.display = 'none'; }
         _pendingScreenStream = misclassified;
-        if (_screenPreviewOk && typeof window._attachPendingScreenShare === 'function') window._attachPendingScreenShare();
+        if (typeof window._attachPendingScreenShare === 'function') window._attachPendingScreenShare();
       }
     } else {
       if (typeof window.hideScreenInvite === 'function') window.hideScreenInvite();
@@ -21335,7 +21339,8 @@ function _attachRemoteStream(uid, stream) {
 
   if (isScreenShare) {
     _pendingScreenStream = stream;
-    // Só exibe de fato se ESTE viewer já clicou em "Ver transmissão" (opt-in)
+    // AJUSTE 202608241442: exibição automática pra todo mundo na call —
+    // não depende mais de clique em "Ver transmissão" (opt-in removido).
     if (_screenPreviewOk && typeof window._attachPendingScreenShare === 'function') {
       window._attachPendingScreenShare();
     }
