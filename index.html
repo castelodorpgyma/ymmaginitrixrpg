@@ -21316,8 +21316,22 @@ function _attachRemoteStream(uid, stream) {
   console.log('[WebRTC] Anexando stream remoto para:', uid);
 
   // ── É a TRANSMISSÃO DE TELA de alguém? (identificado pelo streamId sincronizado via Firebase) ──
-  var isScreenShare = _screenShareInfo && _screenShareInfo.active &&
-    _screenShareInfo.by === uid && stream.id === _screenShareInfo.streamId;
+  // CORRIGIDO — 202608240900: quando a pessoa JÁ estava na call com câmera/mic
+  // ligados e começa a compartilhar tela depois, o navegador manda um SEGUNDO
+  // stream — mas em algumas renegociações WebRTC esse stream chega com um
+  // stream.id diferente do streamId gravado no Firebase (o id não é estável
+  // entre o lado de quem compartilha e quem recebe). Como o match era por ID
+  // exato, esse segundo stream caía no tratamento de "câmera" por engano e a
+  // transmissão nunca aparecia. Agora, além do match exato, também conta como
+  // transmissão de tela qualquer stream de vídeo ADICIONAL desse mesmo
+  // participante (diferente do stream de câmera já conhecido) enquanto o
+  // Firebase disser que ele está compartilhando tela — já que ninguém aqui
+  // manda um terceiro stream de vídeo, esse sinal é seguro por si só.
+  var _existingCamStream = _remoteCamStreams[uid];
+  var _isAdditionalVideoStreamWhileSharing = _existingCamStream && _existingCamStream.id !== stream.id &&
+    stream.getVideoTracks().length > 0;
+  var isScreenShare = _screenShareInfo && _screenShareInfo.active && _screenShareInfo.by === uid &&
+    (stream.id === _screenShareInfo.streamId || _isAdditionalVideoStreamWhileSharing);
 
   if (isScreenShare) {
     _pendingScreenStream = stream;
