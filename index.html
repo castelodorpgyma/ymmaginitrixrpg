@@ -19661,8 +19661,25 @@ function _startRealtimeSync() {
   // versão da outra.
   // ══════════════════════════════════════════════════════════════════
   var _seenChatIds = {};
+  var _rejectedChatIds = {}; // CORRIGIDO 2026-08-24 — ver comentário abaixo
   function _ingestChatMsg(v, opts) {
     if (!v || !v.id) return false;
+    // CORRIGIDO 2026-08-24 (CAMADA 9 — PARA DE REPROCESSAR O QUE JÁ FOI
+    // VISTO/REJEITADO) — causa raiz do console entupido e da aba travando:
+    // a checagem de duplicidade (_seenChatIds) rodava DEPOIS do filtro de
+    // campanha. Isso é inofensivo pro listener em tempo real (só recebe
+    // cada mensagem 1 vez), mas o poll de reforço (a cada 8s) e o resync
+    // total (toda vez que a aba volta a ficar visível) releem o HISTÓRICO
+    // INTEIRO do chat via get() e chamam esta função pra cada mensagem de
+    // novo — inclusive as antigas, sem campanhaId, que existem desde antes
+    // dessa trava existir. Cada uma dessas releituras reprocessava e
+    // relogava TODAS as mensagens antigas rejeitadas, pra sempre, gerando
+    // um console.warn em loop crescente (uma rodada inteira a cada 8s) que
+    // consumia CPU na thread principal — a mesma thread que trata eventos
+    // de WebRTC (ICE/mídia), explicando quedas de câmera/áudio "do nada".
+    // Agora: se o id já foi visto (aceito OU rejeitado antes), sai na
+    // hora, sem checar campanha de novo nem logar de novo.
+    if (_seenChatIds[v.id] || _rejectedChatIds[v.id]) return false;
     // CORRIGIDO 2026-08-23 (CAMADA 8 — TRAVA NA ENTRADA) — até aqui, toda
     // trava contra mensagem de campanha errada morava em getChatMessages,
     // só na hora de DECIDIR O QUE MOSTRAR. Isso protege a tela, mas deixa
@@ -19676,12 +19693,12 @@ function _startRealtimeSync() {
     if (!v.pvTo && v.type !== 'system' && !v.isSystem) {
       var _myActiveCamp = chatState.campFilter || window._activeCampanhaId || null;
       if (!_myActiveCamp || v.campanhaId !== _myActiveCamp) {
+        _rejectedChatIds[v.id] = true; // nunca mais reprocessa/loga este id
         console.warn('[Chat] Mensagem descartada na entrada — campanhaId "'+(v.campanhaId||'(nenhum)')+'" não bate com a campanha ativa "'+(_myActiveCamp||'(nenhuma)')+'".');
         return false;
       }
     }
     window._syncHealth.chat = Date.now();
-    if (_seenChatIds[v.id]) return false; // já está na tela — não duplica
     _seenChatIds[v.id] = true;
     if (!liveSession.chat) liveSession.chat = [];
     liveSession.chat.push(v);
@@ -19738,12 +19755,17 @@ function _startRealtimeSync() {
       // impedir mensagens da campanha nova de aparecer por engano.
       liveSession.chat = [];
       _seenChatIds = {};
+      _rejectedChatIds = {};
       renderChatFeed(); renderChatFeedOv();
     } else {
       // Mesmo caminho (ex.: reconexão forçada) — preserva o que já está
       // na tela e marca como "já visto" pra não duplicar ao reler.
       _seenChatIds = {};
       (liveSession.chat || []).forEach(function(m) { if (m && m.id) _seenChatIds[m.id] = true; });
+      // _rejectedChatIds NÃO é resetado aqui de propósito: mesmo caminho
+      // = mesma campanha, então uma mensagem já rejeitada continua
+      // pertencendo a outra mesa e vai ser rejeitada de novo mesmo —
+      // manter a lista evita reprocessar e relogar ela à toa.
     }
     // Histórico inicial: lido UMA vez (get), não fica "ouvindo" por isso —
     // só popula a lista de largada.
