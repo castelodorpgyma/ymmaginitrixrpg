@@ -20975,12 +20975,39 @@ window._joinCallRoom = async function(roomId) {
   // vez que se entra/sai de uma call — o que gerava reconexões erradas).
   if (_callSignalUnsub) { try { _callSignalUnsub(); } catch(e){} }
   _callSignalUnsub = () => off(sigRef);
+  var _handledSignalKeys = {}; // CORRIGIDO 2026-08-24 — ver comentário abaixo
   onValue(sigRef, async (snap) => {
     window._syncHealth.callSignals = Date.now();
     if (!snap.exists()) return;
     const signals = [];
     snap.forEach(c => signals.push({ key: c.key, ...c.val() }));
     for (const sig of signals) {
+      // CORRIGIDO 2026-08-24 (CAMADA 12 — TRAVA DE REENTRÂNCIA) — CAUSA
+      // RAIZ do erro "InvalidStateError: Failed to set remote answer sdp:
+      // Called in wrong state: stable" visto no console: remove() (linha
+      // abaixo) some da tela na hora, mas é uma escrita assíncrona de
+      // verdade no Firebase — leva um tempinho pra ir e voltar do
+      // servidor. Se OUTRO sinal chegar nesse meio-tempo (ex.: um
+      // candidato ICE, muito comum), o onValue inteiro dispara de novo
+      // com um snapshot NOVO que ainda contém o mesmo 'answer' que já
+      // tinha sido processado com sucesso segundos atrás (porque o
+      // remove() dele ainda não tinha sido confirmado pelo servidor).
+      // Essa segunda passagem tentava aplicar a MESMA resposta numa
+      // conexão que ela mesma já tinha deixado 'stable' — e
+      // setRemoteDescription() nesse estado é sempre erro, por definição
+      // do protocolo (não tem "resposta" esperada depois que a negociação
+      // já fechou). O efeito prático era só ruído no console na maioria
+      // dos casos (a conexão já estava de pé), mas em alguns casos a
+      // corrida chegava ANTES do primeiro processamento terminar,
+      // aplicando dois setRemoteDescription() concorrentes na mesma
+      // RTCPeerConnection — aí sim quebrando a negociação de verdade e
+      // deixando o áudio/vídeo daquele peer morto. Agora: cada chave de
+      // sinal só é processada uma vez por esta aba, não importa quantas
+      // vezes o Firebase reentregar o mesmo snapshot antes do remove()
+      // ser confirmado.
+      if (_handledSignalKeys[sig.key]) continue;
+      _handledSignalKeys[sig.key] = true;
+      if (Object.keys(_handledSignalKeys).length > 500) _handledSignalKeys = {}; // teto de memória, mesmo padrão das outras camadas
       // CORRIGIDO: se _handleSignal() falhasse em UM sinal (ex.: o bug de
       // addTrack duplicado ao lado, ou qualquer outro erro inesperado), o
       // "await" rejeitava e o laço parava ali mesmo — todo sinal SEGUINTE
@@ -21123,16 +21150,47 @@ async function _handleSignal(roomId, sig) {
     if (callState.micStream) callState.micStream.getTracks().forEach(t => _addTrackIfNew(t, callState.micStream));
     if (callState.camStream) callState.camStream.getTracks().forEach(t => _addTrackIfNew(t, callState.camStream));
     if (window._ambientAudioStream) window._ambientAudioStream.getTracks().forEach(t => _addTrackIfNew(t, window._ambientAudioStream));
-    await pc.setRemoteDescription({ type: 'offer', sdp: sig.sdp });
-    await _flushPendingIce(pc); // v202608182100 — ver comentário na declaração de _flushPendingIce
-    const answer = await pc.createAnswer();
-    await pc.setLocalDescription(answer);
-    _sendSignal(roomId, fromUid, { type: 'answer', sdp: answer.sdp, from: _myCallId });
+    // CORRIGIDO 2026-08-24 (CAMADA 12c — MESMA DEFESA DO LADO DA OFERTA) —
+    // simétrico à Camada 12b no ramo 'answer': se duas ofertas do mesmo
+    // peer chegarem quase juntas (mesma corrida de reentrega do Firebase
+    // antes do remove() anterior confirmar), setRemoteDescription() com
+    // um 'offer' pode cair num estado inesperado. Isola esse trecho num
+    // try/catch próprio, com log específico — em vez de deixar o catch
+    // genérico de _handleSignal (que já existia lá fora) engolir o erro
+    // sem dizer qual das 4 etapas (setRemoteDescription/flushIce/
+    // createAnswer/setLocalDescription) falhou.
+    try {
+      await pc.setRemoteDescription({ type: 'offer', sdp: sig.sdp });
+      await _flushPendingIce(pc); // v202608182100 — ver comentário na declaração de _flushPendingIce
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      _sendSignal(roomId, fromUid, { type: 'answer', sdp: answer.sdp, from: _myCallId });
+    } catch(e) {
+      console.warn('[WebRTC] Falha ao processar oferta de', fromUid, '(provável corrida de sinal duplicado):', e && e.message);
+    }
   } else if (sig.type === 'answer') {
     const pc = _peers[fromUid];
+    // CORRIGIDO 2026-08-24 (CAMADA 12b — DEFESA EM PROFUNDIDADE) — a
+    // Camada 12 (trava de reentrância no listener de sinais) já evita que
+    // o MESMO sinal seja processado duas vezes; esta trava aqui é uma
+    // segunda linha de defesa independente, pro caso — hoje ou no futuro
+    // — de dois sinais 'answer' DIFERENTES (chaves diferentes) chegarem
+    // pro mesmo peer antes do primeiro terminar de aplicar. A checagem de
+    // 'stable' já existia, mas só protegia contra o CASO ATUAL do
+    // JavaScript rodar sem preempção entre o if e o await — não contra
+    // duas chamadas concorrentes desta função rodando ao mesmo tempo.
+    // setRemoteDescription() num estado errado é sempre inofensivo pra
+    // ignorar (o pior caso é "essa resposta específica não se aplicou",
+    // nunca corrompe a conexão) — então captura e ignora aqui também, sem
+    // deixar o erro subir e potencialmente atrapalhar o processamento dos
+    // sinais seguintes deste mesmo peer (ex.: candidatos ICE na fila).
     if (pc && pc.signalingState !== 'stable') {
-      await pc.setRemoteDescription({ type: 'answer', sdp: sig.sdp });
-      await _flushPendingIce(pc);
+      try {
+        await pc.setRemoteDescription({ type: 'answer', sdp: sig.sdp });
+        await _flushPendingIce(pc);
+      } catch(e) {
+        console.warn('[WebRTC] setRemoteDescription (answer) ignorado — provável corrida com processamento concorrente, inofensivo:', e && e.message);
+      }
     }
   } else if (sig.type === 'ice') {
     // v202608182100 — CORRIGIDO: candidato ICE podia chegar (e chegava, com
