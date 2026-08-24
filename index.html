@@ -6933,6 +6933,14 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     ⚠ O Firebase está bloqueando a leitura de quem está na call (regra de segurança do projeto). Por isso só você aparece aqui, mesmo com outras pessoas conectadas. Peça pra quem administra o projeto no Firebase liberar a leitura do nó <code>calls</code> pra qualquer usuário autenticado.
   </div>
 
+  <!-- Banner persistente: Firebase negou a leitura de calls/*/screenShare — sem isso, o -->
+  <!-- convite "👁 Ver transmissão" nunca aparece pra ninguém (nem erro visível, só um -->
+  <!-- toast que passa rápido), então a pessoa acha que é bug de UI quando na real é regra -->
+  <!-- de segurança do banco, igual ao banner de "members" logo acima. -->
+  <div id="call-screenshare-perm-banner" style="display:none;padding:10px 16px;background:rgba(220,40,40,.14);border-bottom:1px solid rgba(220,40,40,.3);font-family:'Share Tech Mono',monospace;font-size:.56rem;color:rgba(255,170,170,0.92);line-height:1.7;text-align:center">
+    ⚠ O Firebase está bloqueando a leitura de "calls/*/screenShare" (regra de segurança do projeto). Por isso o convite "👁 Ver transmissão" nunca aparece, mesmo quando alguém está compartilhando a tela. Peça pra quem administra o projeto no Firebase liberar a leitura desse nó pra qualquer usuário autenticado.
+  </div>
+
   <!-- Convite opt-in: ver ou não a transmissão de tela de outro participante -->
   <div id="call-screen-invite" class="call-screen-invite">
     <span>🖥 <strong id="call-screen-invite-name">Alguém</strong> está compartilhando a tela</span>
@@ -18080,6 +18088,21 @@ function _hideCallMembersPermBanner() {
 window._showCallMembersPermBanner = _showCallMembersPermBanner;
 window._hideCallMembersPermBanner = _hideCallMembersPermBanner;
 
+// Mesmo banner fixo, mas para "calls/*/screenShare" — ver uso em
+// _subscribeCallRoomExtras. Sem isso, quando esse nó específico é bloqueado
+// pela regra do Firebase, o botão "👁 Ver transmissão" simplesmente nunca
+// aparece pra ninguém e não sobra nenhum rastro visível do motivo real.
+function _showCallScreenPermBanner() {
+  var b = document.getElementById('call-screenshare-perm-banner');
+  if (b) b.style.display = 'block';
+}
+function _hideCallScreenPermBanner() {
+  var b = document.getElementById('call-screenshare-perm-banner');
+  if (b) b.style.display = 'none';
+}
+window._showCallScreenPermBanner = _showCallScreenPermBanner;
+window._hideCallScreenPermBanner = _hideCallScreenPermBanner;
+
 const _sharedDataRef = ref(db, 'sharedData');
 let _lastSyncedDataStr = null;
 let _dataPushTimer = null;
@@ -20659,6 +20682,9 @@ function _subscribeCallRoomExtras(roomId) {
   try {
   if (_screenShareUnsub) { try { _screenShareUnsub(); } catch(e){} }
   _screenShareUnsub = onValue(ref(db, 'calls/' + roomId + '/screenShare'), function(snap) {
+    // Leitura chegou de verdade — se o banner de "sem permissão" estava
+    // aceso (de uma tentativa anterior que falhou), apaga.
+    if (typeof _hideCallScreenPermBanner === 'function') _hideCallScreenPermBanner();
     var v = snap.val() || { active:false };
     _screenShareInfo = v;
     if (v.active && v.by && v.by !== _myCallId) {
@@ -20692,7 +20718,16 @@ function _subscribeCallRoomExtras(roomId) {
         if (vid) { try { vid.srcObject = null; } catch(e){} }
       }
     }
-  }, _fbReadErrHandler('calls/'+roomId+'/screenShare'));
+  }, function(err) {
+    // Além do toast padrão (que some sozinho), acende o banner fixo dentro
+    // do overlay de call — é especificamente ESTE nó (calls/*/screenShare)
+    // que, se bloqueado, explica sozinho "o convite de ver a tela nunca
+    // aparece", mesmo com o resto da call (membros, contador) funcionando.
+    _fbReadErrHandler('calls/'+roomId+'/screenShare')(err);
+    if (err && err.code === 'PERMISSION_DENIED' && typeof _showCallScreenPermBanner === 'function') {
+      _showCallScreenPermBanner();
+    }
+  });
   } catch(e) { console.error('[_subscribeCallRoomExtras] Falha ao assinar tela compartilhada (não afeta o resto):', e); }
 
   // ── Observa se o Mestre/permissão me silenciou à força ──
@@ -21653,6 +21688,7 @@ window._leaveCallRoom = function(roomId) {
   if (_membersUnsub) { _membersUnsub(); _membersUnsub = null; }
   window._callMembersCache = {};
   if (typeof _hideCallMembersPermBanner === 'function') _hideCallMembersPermBanner();
+  if (typeof _hideCallScreenPermBanner === 'function') _hideCallScreenPermBanner();
 };
 
 // (o hook antigo que ficava aqui duplicava o _joinCallRoom — a própria
