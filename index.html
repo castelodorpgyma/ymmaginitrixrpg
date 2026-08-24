@@ -21144,9 +21144,14 @@ async function _createOffer(roomId, targetUid) {
   if (window._ambientAudioStream) {
     window._ambientAudioStream.getTracks().forEach(t => pc.addTrack(t, window._ambientAudioStream));
   }
-  const offer = await pc.createOffer();
-  await pc.setLocalDescription(offer);
-  _sendSignal(roomId, targetUid, { type: 'offer', sdp: offer.sdp, from: _myCallId });
+  try {
+    pc._makingOffer = true;
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    _sendSignal(roomId, targetUid, { type: 'offer', sdp: offer.sdp, from: _myCallId });
+  } finally {
+    pc._makingOffer = false;
+  }
 }
 
 async function _handleSignal(roomId, sig) {
@@ -21189,7 +21194,29 @@ async function _handleSignal(roomId, sig) {
     // genérico de _handleSignal (que já existia lá fora) engolir o erro
     // sem dizer qual das 4 etapas (setRemoteDescription/flushIce/
     // createAnswer/setLocalDescription) falhou.
+    // ── Perfect negotiation: detecta colisão de ofertas (glare) ──
+    // Colisão = eu também estou no meio de mandar uma oferta pra essa mesma
+    // pessoa (pc._makingOffer) OU minha conexão já não está mais 'stable'
+    // (já apliquei uma oferta minha e estou esperando a resposta dela).
+    // "Educado" (pc._polite) descarta a PRÓPRIA oferta (rollback) e aceita
+    // a oferta alheia. "Grosseiro" simplesmente ignora a oferta alheia — a
+    // dele vai vencer quando a resposta chegar. Sem essa distinção, os dois
+    // lados tentavam aplicar as ofertas um do outro ao mesmo tempo, e foi
+    // isso que gerava o "Failed to set SSL role for the transport" (troca
+    // de papel DTLS não permitida) que deixava a conexão quebrada de vez.
+    var offerCollision = pc._makingOffer || pc.signalingState !== 'stable';
+    pc._ignoreOffer = !pc._polite && offerCollision;
+    if (pc._ignoreOffer) {
+      console.log('[WebRTC] Oferta de', fromUid, 'ignorada (colisão — sou o lado "grosseiro", minha oferta prevalece)');
+      return;
+    }
     try {
+      if (offerCollision) {
+        // Sou o lado "educado": descarto minha própria oferta em andamento
+        // antes de aceitar a do outro lado, senão a troca de papel DTLS
+        // quebra a conexão (ver comentário acima).
+        await pc.setLocalDescription({ type: 'rollback' });
+      }
       await pc.setRemoteDescription({ type: 'offer', sdp: sig.sdp });
       await _flushPendingIce(pc); // v202608182100 — ver comentário na declaração de _flushPendingIce
       const answer = await pc.createAnswer();
@@ -21265,6 +21292,28 @@ function _createPeerConn(roomId, peerUid) {
   const pc = new RTCPeerConnection(_getRtcConfig());
   _peers[peerUid] = pc;
 
+  // CORRIGIDO — CAUSA RAIZ de "mic e transmissão funcionam uma vez e depois
+  // param": o erro real (antes escondido atrás de um catch genérico que
+  // dizia "inofensivo") é "Failed to set SSL role for the transport" — isso
+  // é uma COLISÃO DE OFERTAS (glare): os dois lados chamavam createOffer()
+  // ao mesmo tempo (ex.: os dois ligam câmera/tela quase junto, cada
+  // onnegotiationneeded dispara no seu lado). Quando isso acontece, o
+  // segundo setRemoteDescription(offer/answer) pode tentar inverter o
+  // papel DTLS (quem é "cliente"/"servidor" da criptografia) de um m= que
+  // já tinha papel fixado desde a conexão original — o navegador recusa
+  // essa troca, a operação falha de verdade (não é inofensiva: a partir
+  // daí ESSA conexão fica com transporte quebrado pra sempre, por isso
+  // "funciona uma vez e depois para"). A solução padrão do W3C pra isso é
+  // "perfect negotiation": um dos dois lados é o "educado" (deixa a oferta
+  // dele ser descartada e aceita a do outro em caso de colisão), o outro é
+  // o "grosseiro" (ignora ofertas alheias que colidem com a dele). Aqui,
+  // quem decide quem é quem é a comparação determinística dos IDs — os
+  // dois lados chegam à MESMA decisão de forma independente, sem precisar
+  // combinar nada pela rede.
+  pc._polite = _myCallId ? (String(_myCallId) > String(peerUid)) : true;
+  pc._makingOffer = false;
+  pc._ignoreOffer = false;
+
   pc.onicecandidate = (e) => {
     if (e.candidate) _sendSignal(roomId, peerUid, { type: 'ice', candidate: e.candidate.toJSON(), from: _myCallId });
   };
@@ -21285,11 +21334,12 @@ function _createPeerConn(roomId, peerUid) {
   // (conexão ficava "muda"), mesmo com o microfone visivelmente ativo.
   pc.onnegotiationneeded = async () => {
     try {
-      if (pc.signalingState !== 'stable') return; // evita ofertas colidindo (glare)
+      pc._makingOffer = true;
       const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
+      await pc.setLocalDescription(offer); // usa setLocalDescription(offer) implícito — já detecta glare via signalingState no lado que recebe
       _sendSignal(roomId, peerUid, { type: 'offer', sdp: offer.sdp, from: _myCallId });
     } catch(e) { console.warn('[WebRTC] Erro ao renegociar com', peerUid, ':', e); }
+    finally { pc._makingOffer = false; }
   };
 
   // v202608171200 — ANTES: qualquer 'disconnected'/'failed' fechava a conexão
