@@ -21026,6 +21026,34 @@ window._joinCallRoom = async function(roomId) {
         }
       });
     }
+    // CORRIGIDO 2026-08-24 (CAMADA 10 — LIMPA CONEXÃO DE QUEM SAIU) —
+    // CAUSA RAIZ de "a pessoa sai da call e quando volta o áudio/vídeo
+    // dela não funciona mais pra ninguém": _myCallId é o ID DA CONTA
+    // (profile.id), fixo pra sessão inteira — não muda quando a pessoa
+    // sai e reentra na mesma call. Quando ela sai, o Firebase remove o
+    // uid dela da lista de membros (ver window._leaveCallRoom), mas até
+    // agora NADA fechava a RTCPeerConnection antiga que os outros
+    // participantes tinham com ela — pc.close() nunca era chamado nem
+    // _peers[uid] era apagado do lado de quem ficou. Resultado: quando
+    // ela reentra, a condição acima ("!_peers[uid]") dá falso pra todo
+    // mundo que já estava na call — porque a entrada antiga (morta,
+    // apontando pra uma conexão ICE que não existe mais do outro lado)
+    // ainda está lá — e ninguém cria uma oferta nova pra ela. A pessoa
+    // aparece na lista de membros mas fica muda/sem imagem pra sempre,
+    // até TODO MUNDO recarregar a página (que é exatamente o que vocês
+    // estavam tendo que fazer manualmente). Agora: a cada atualização da
+    // lista, qualquer uid que a gente tinha conexão aberta mas que NÃO
+    // está mais no snapshot atual tem sua conexão fechada e removida —
+    // na próxima vez que ela entrar, a condição acima vê "!_peers[uid]"
+    // = verdadeiro de novo e uma oferta nova é criada normalmente.
+    Object.keys(_peers).forEach(function(existingUid) {
+      if (!cache[existingUid]) {
+        console.log('[WebRTC] ' + existingUid + ' não está mais na lista de membros — fechando conexão antiga.');
+        try { _peers[existingUid].close(); } catch(e){}
+        delete _peers[existingUid];
+        try { _removeRemoteStream(existingUid); } catch(e){}
+      }
+    });
     window._callMembersCache = cache;
     // Redesenha o card de cada participante (entrada/saída, avatar, cargo)
     // toda vez que a lista de membros da sala mudar — não só na entrada.
@@ -21697,7 +21725,28 @@ window._rtcAddMediaTrack = function(stream) {
         const deadSameKind = senders.find(s => (!s.track || s.track.readyState==='ended') && s._kind === track.kind);
         if (deadSameKind) {
           console.log('[WebRTC] Substituindo track morta por nova (' + track.kind + ') no peer:', uid);
-          deadSameKind.replaceTrack(track).catch(function(e){
+          deadSameKind.replaceTrack(track).then(function(){
+            // CORRIGIDO 2026-08-24 (CAMADA 11 — DIREÇÃO DO TRANSCEIVER) —
+            // CAUSA RAIZ de "parei de compartilhar tela e quando compartilho
+            // de novo não aparece pra ninguém": pc.removeTrack() (chamado ao
+            // PARAR a transmissão, ver _hookScreenShareWebRTC) não só remove
+            // a trilha do sender — ele também muda a DIREÇÃO do transceiver
+            // desse canal (o "m-line" da negociação SDP) de 'sendrecv' pra
+            // 'inactive'/'recvonly', avisando o outro lado "não vou mandar
+            // mais nada aqui". replaceTrack() troca a trilha em cima do
+            // sender, mas NÃO mexe nessa direção — o transceiver continua
+            // marcado como "não enviar", então mesmo com uma trilha nova e
+            // viva dentro dele, nada saía de verdade pro outro participante:
+            // parecia que compartilhar de novo simplesmente não fazia nada.
+            // Agora, depois de trocar a trilha, a direção é restaurada pra
+            // 'sendrecv' explicitamente — isso sozinho já dispara uma nova
+            // renegociação (onnegotiationneeded) avisando o outro lado que
+            // o canal voltou a enviar.
+            try {
+              var _tv = pc.getTransceivers().find(function(t){ return t.sender === deadSameKind; });
+              if (_tv && _tv.direction !== 'sendrecv') _tv.direction = 'sendrecv';
+            } catch(e) { console.warn('[WebRTC] Falha ao restaurar direção do transceiver:', e); }
+          }).catch(function(e){
             console.warn('[WebRTC] replaceTrack falhou, tentando addTrack:', e);
             pc.addTrack(track, stream);
           });
