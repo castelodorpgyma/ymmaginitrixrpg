@@ -13379,8 +13379,15 @@ function _syncScreenAreaVisibility() {
   var area = document.getElementById('call-screen-area');
   if (!area) return;
   var minhaTransmissaoReal = callState.screenState === 'active' && !!callState.screenStream;
-  var transmissaoRemotaAceita = typeof _screenPreviewOk !== 'undefined' && _screenPreviewOk &&
-    typeof _pendingScreenStream !== 'undefined' && !!_pendingScreenStream;
+  // CORRIGIDO 2026-08-24 (CAMADA 13b) — mesma causa raiz da Camada 13 em
+  // _attachRemoteStream: esta checagem também dependia de _screenPreviewOk,
+  // uma variável que nunca virava true (o popup que a setaria nunca é
+  // chamado em lugar nenhum do código). Isso fazia esta função esconder a
+  // transmissão de tela de volta LOGO DEPOIS dela ter sido mostrada, toda
+  // vez que rodasse (ex.: a cada re-render do grid de participantes) —
+  // um segundo motivo, independente, para a tela nunca aparecer de fato.
+  // Agora só depende de existir mesmo um stream de tela pendente.
+  var transmissaoRemotaAceita = typeof _pendingScreenStream !== 'undefined' && !!_pendingScreenStream;
   if (!minhaTransmissaoReal && !transmissaoRemotaAceita) {
     area.classList.remove('active');
     area.style.display = 'none';
@@ -21477,9 +21484,25 @@ function _attachRemoteStream(uid, stream) {
 
   if (isScreenShare) {
     _pendingScreenStream = stream;
-    // AJUSTE 202608241442: exibição automática pra todo mundo na call —
-    // não depende mais de clique em "Ver transmissão" (opt-in removido).
-    if (_screenPreviewOk && typeof window._attachPendingScreenShare === 'function') {
+    // CORRIGIDO 2026-08-24 (CAMADA 13 — TELA NUNCA APARECIA PRA NINGUÉM) —
+    // CAUSA RAIZ do "transmissão de tela fica preta": o comentário do
+    // ajuste 202608241442 (logo acima, no histórico) já dizia que a
+    // exibição deveria ser AUTOMÁTICA pra todo mundo na call, sem depender
+    // de clique — mas o código continuava com "if (_screenPreviewOk...)"
+    // aqui embaixo, e _screenPreviewOk só virava true através do popup
+    // "👁 Ver transmissão" (window.showScreenInvite() + botão
+    // callAcceptScreenPreview()). Só que showScreenInvite() nunca é
+    // chamada em NENHUM lugar do arquivo inteiro — é código morto, o
+    // popup nunca aparece na tela pra ninguém clicar. Resultado:
+    // _screenPreviewOk ficava travado em false pra sempre, e o vídeo
+    // (window._attachPendingScreenShare) nunca era chamado — o navegador
+    // confirmava a captura, o WebRTC entregava a trilha certinha
+    // (_pendingScreenStream tinha o stream de verdade), mas o <video> na
+    // tela nunca recebia esse stream: por isso a área ficava sempre
+    // preta, mesmo com tudo mais funcionando. Agora anexa direto, sem
+    // depender dessa trava morta — exatamente como o comentário do ajuste
+    // anterior já dizia que deveria funcionar.
+    if (typeof window._attachPendingScreenShare === 'function') {
       window._attachPendingScreenShare();
     }
     return; // não trata como câmera do participante
