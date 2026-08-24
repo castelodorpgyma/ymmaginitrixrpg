@@ -6674,6 +6674,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
         <div style="font-family:'Share Tech Mono',monospace;font-size:.52rem;color:rgba(255,255,255,0.72);text-align:center;padding:8px">Nenhum convite gerado</div>
       </div>
     </div>
+    <div class="form-group" id="ec-comestre-wrap" style="display:none">
+      <label class="lbl">🗡⚔ ajudante de mestre / mestre secundário</label>
+      <div style="font-family:'Share Tech Mono',monospace;font-size:.5rem;color:rgba(255,255,255,0.55);margin-bottom:8px">Só você (dono original) pode promover. Quem for promovido passa a poder editar tudo nesta campanha — menos excluí-la, trocar a senha ou promover/remover outros ajudantes.</div>
+      <div id="ec-comestre-list" style="max-height:140px;overflow-y:auto;display:flex;flex-direction:column;gap:4px"></div>
+    </div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px">
       <button class="btn" onclick="closeModal('modal-edit-campanha')">Cancelar</button>
       <button class="btn btn-primary" onclick="updateCampanha()">[ SALVAR ]</button>
@@ -7752,6 +7757,17 @@ function switchActiveRole(newRole) {
   var idx = authUsers.findIndex(function(u){ return u.id===currentUser.id; });
   if(idx !== -1) authUsers[idx].role = newRole;
   saveUsers();
+  // CORRIGIDO 2026-08-24 — saveUsers() só grava em localStorage (só este
+  // navegador). O papel ativo mora em users/<uid> no Firebase, de onde
+  // onAuthStateChanged recarrega o perfil a cada F5/nova sessão — sem
+  // sincronizar aqui, a troca "voltava sozinha" pro papel antigo ao
+  // recarregar a página ou abrir em outro aparelho/PC, porque o Firebase
+  // ainda tinha a versão de antes. Mesma correção já aplicada a
+  // avatar/nome/banner (ver window._fbSyncProfile) — agora o papel entra
+  // nessa mesma sincronização e passa a valer em qualquer dispositivo.
+  if (typeof window._fbSyncProfile === 'function' && idx !== -1) {
+    window._fbSyncProfile(authUsers[idx]);
+  }
   // update user bar label
   var roleLabels = { mestre:'🗡 MESTRE', player:'⚔ PLAYER', ambos:'🗡⚔ MESTRE & PLAYER' };
   var roleIcons  = { mestre:'🗡', player:'⚔', ambos:'🗡' };
@@ -9389,6 +9405,14 @@ function isMestreDa(c) {
   if (!c) return false;
   // Match primário: id da conta bate com quem criou a campanha (mais confiável)
   if (c.mestreId && c.mestreId === currentUser.id) return true;
+  // NOVO 2026-08-24 — Ajudante de Mestre / mestre secundário: o dono
+  // original de uma campanha pode promover UMA (ou mais) contas específicas
+  // pra também poderem editar as coisas DAQUELA campanha (ver
+  // promoteCoMestre/demoteCoMestre, geridos só por quem é dono de verdade —
+  // _souDonoDeVerdade). Isso é por campanha, não é o papel global
+  // "mestre/ambos" da conta: um ajudante promovido numa mesa não ganha
+  // acesso a editar as campanhas de outra pessoa nenhuma.
+  if (Array.isArray(c.coMestres) && c.coMestres.indexOf(currentUser.id) !== -1) return true;
   var isMestreRole = currentUser.role === 'mestre' || currentUser.role === 'ambos';
   // Campanha legacy sem mestreId — qualquer mestre pode editar
   if (!c.mestreId) return isMestreRole;
@@ -9806,6 +9830,7 @@ function editCampanha(id) {
     ? '<img src="'+esc(c.banner)+'" style="width:100%;height:100%;object-fit:cover">'
     : '<span style="font-size:1.6rem;opacity:.3">🗺</span>';
   renderInviteList('ec');
+  renderCoMestreList();
   openModal('modal-edit-campanha');
 }
 
@@ -9831,26 +9856,42 @@ function updateCampanha() {
   var id = document.getElementById('ec-id').value;
   var c = _findCampanha(id); if(!c) { showToast('⚠ Campanha não encontrada localmente', 'warn'); return; }
   if (!isMestreDa(c)) { showToast('✕ Permissão negada', 'err'); return; }
+  var souDono = typeof _souDonoDeVerdade === 'function' && _souDonoDeVerdade(c);
   c.nome = document.getElementById('ec-nome').value.trim();
   c.mestre = document.getElementById('ec-mestre').value.trim();
   c.desc = document.getElementById('ec-desc').value.trim();
   c.status = document.getElementById('ec-status').value;
   var bannerVal = document.getElementById('ec-banner-data').value;
   if (bannerVal) c.banner = bannerVal; // reforço: já foi salvo na hora por updateCampanhaBanner(), isso só garante consistência
+  // NOVO 2026-08-24 — senha da campanha só pode ser trocada pelo dono de
+  // verdade. Um Ajudante de Mestre pode editar o conteúdo da campanha, mas
+  // não deve poder trancar o próprio dono pra fora trocando a senha.
   var newSenha = document.getElementById('ec-senha').value.trim();
-  if(newSenha) { c.senha = hashPass(newSenha); c.senhaSet = true; }
-  else if(newSenha === '') { /* keep existing if blank */ }
+  if (newSenha && souDono) { c.senha = hashPass(newSenha); c.senhaSet = true; }
+  else if (newSenha && !souDono) { showToast('⚠ Só o dono original pode trocar a senha da campanha', 'warn'); }
   // Auto-repara o vínculo de dono com a conta atual (corrige casos em que o
   // mestreId ficou de um método de login diferente do que você usa agora,
   // pra essa checagem parar de falhar nas próximas vezes).
-  if (currentUser) { c.mestreId = currentUser.id; c.mestreUsername = currentUser.username; }
+  // CORRIGIDO 2026-08-24 — isto rodava pra QUALQUER conta que passasse em
+  // isMestreDa(), inclusive um Ajudante de Mestre promovido (coMestres) ou
+  // qualquer conta "mestre/ambos" no caso legado sem mestreId salvo. Ou
+  // seja: bastava o ajudante salvar a campanha uma vez pra ele silenciosamente
+  // virar o NOVO dono (c.mestreId reatribuído pra ele), derrubando o dono
+  // original. Agora só reatribui quando já é o dono de verdade, ou quando
+  // a campanha ainda não tem dono nenhum salvo (primeiro save de sempre).
+  if (currentUser && (souDono || !c.mestreId)) { c.mestreId = currentUser.id; c.mestreUsername = currentUser.username; }
   // Atualiza no Firebase também
   if (typeof window._fbPublishCampanha === 'function') window._fbPublishCampanha(c);
   save(); closeModal('modal-edit-campanha'); renderCampanhas(); notify('// campanha atualizada!');
 }
 function deleteCampanha(id) {
   var c = _findCampanha(id);
-  if (c && !isMestreDa(c)) { showToast('✕ Apenas o mestre criador pode excluir esta campanha', 'err'); return; }
+  // NOVO 2026-08-24 — exclusão é a única ação que fica reservada ao dono
+  // original mesmo com Ajudante de Mestre promovido: usa a versão ESTRITA
+  // (_souDonoDeVerdade), não isMestreDa() — um ajudante pode editar tudo,
+  // mas não apaga a campanha do dono.
+  var souDono = c ? (typeof _souDonoDeVerdade === 'function' && _souDonoDeVerdade(c)) : true;
+  if (c && !souDono) { showToast('✕ Apenas o mestre criador pode excluir esta campanha', 'err'); return; }
   if(!confirm('Excluir esta campanha?')) return;
   data.campanhas = data.campanhas.filter(x=>x.id!==id);
   data.players.forEach(p=>{ if(p.campanha===id) p.campanha=''; });
@@ -9860,6 +9901,89 @@ function deleteCampanha(id) {
   // Remove do Firebase também
   if (typeof window._fbDeleteCampanha === 'function') window._fbDeleteCampanha(id);
   save(); renderCampanhas(); notify('// campanha excluída');
+}
+
+// ══════════════════════════════════════════════════════════════════
+// AJUDANTE DE MESTRE / MESTRE SECUNDÁRIO (novo 2026-08-24)
+// ------------------------------------------------------------------
+// Só o dono ORIGINAL de uma campanha (_souDonoDeVerdade — nunca o
+// fallback legado de isMestreDa) pode promover ou remover ajudantes.
+// Uma vez promovido, o ajudante passa em isMestreDa(c) pra ESTA
+// campanha específica — pode editar conteúdo, controlar a sessão ao
+// vivo, etc. — mas nunca pode excluir a campanha, trocar a senha dela,
+// nem promover/remover outros ajudantes (isso continua exclusivo do
+// dono de verdade, checado acima em cada função).
+// ══════════════════════════════════════════════════════════════════
+function promoteCoMestre(campId, userId) {
+  var c = _findCampanha(campId); if (!c) return;
+  if (!(typeof _souDonoDeVerdade === 'function' && _souDonoDeVerdade(c))) {
+    showToast('✕ Só o dono original da campanha pode promover um ajudante', 'err'); return;
+  }
+  if (!userId) return;
+  if (!Array.isArray(c.coMestres)) c.coMestres = [];
+  if (c.coMestres.indexOf(userId) === -1) c.coMestres.push(userId);
+  if (typeof window._fbPublishCampanha === 'function') window._fbPublishCampanha(c);
+  save();
+  renderCoMestreList();
+  var u = (authUsers || []).find(function(x){ return x.id === userId; });
+  showToast('🗡⚔ ' + (u ? u.username : 'Jogador') + ' agora é Ajudante de Mestre nesta campanha', 'ok');
+}
+function demoteCoMestre(campId, userId) {
+  var c = _findCampanha(campId); if (!c) return;
+  if (!(typeof _souDonoDeVerdade === 'function' && _souDonoDeVerdade(c))) {
+    showToast('✕ Só o dono original da campanha pode remover um ajudante', 'err'); return;
+  }
+  if (!Array.isArray(c.coMestres)) return;
+  c.coMestres = c.coMestres.filter(function(id){ return id !== userId; });
+  if (typeof window._fbPublishCampanha === 'function') window._fbPublishCampanha(c);
+  save();
+  renderCoMestreList();
+  showToast('Ajudante de Mestre removido', 'ok');
+}
+// Lista, na aba de edição da campanha, todo mundo com ficha vinculada a ela
+// (menos o próprio dono) com um botão pra promover/remover como ajudante.
+// Só aparece pro dono de verdade — os outros nem veem a seção.
+function renderCoMestreList() {
+  var wrap = document.getElementById('ec-comestre-wrap');
+  if (!wrap) return;
+  var id = document.getElementById('ec-id') ? document.getElementById('ec-id').value : '';
+  var c = _findCampanha(id);
+  if (!c || !(typeof _souDonoDeVerdade === 'function' && _souDonoDeVerdade(c))) {
+    wrap.style.display = 'none';
+    return;
+  }
+  wrap.style.display = '';
+  var listEl = document.getElementById('ec-comestre-list');
+  if (!listEl) return;
+  var coMestres = Array.isArray(c.coMestres) ? c.coMestres : [];
+  // Candidatos: donos de fichas vinculadas a esta campanha, exceto o próprio dono
+  var vistos = {};
+  var candidatos = [];
+  (data.players || []).filter(function(p){ return p.campanha === id; }).forEach(function(p){
+    var uid = p.ownerId;
+    var uname = p.player || '';
+    var key = uid || uname.toLowerCase();
+    if (!key || vistos[key]) return;
+    vistos[key] = true;
+    if (uid && c.mestreId && uid === c.mestreId) return; // não lista o próprio dono
+    var u = uid ? (authUsers || []).find(function(x){ return x.id === uid; }) : null;
+    candidatos.push({ id: uid || null, username: u ? u.username : uname });
+  });
+  if (!candidatos.length) {
+    listEl.innerHTML = '<div style="font-family:\'Share Tech Mono\',monospace;font-size:.52rem;color:rgba(255,255,255,0.72);text-align:center;padding:8px">Nenhum jogador com ficha nesta campanha ainda — o ajudante precisa ter uma ficha vinculada aqui pra aparecer na lista.</div>';
+    return;
+  }
+  listEl.innerHTML = candidatos.map(function(u) {
+    var isCo = u.id && coMestres.indexOf(u.id) !== -1;
+    return '<div style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:6px 8px">'
+      + '<span style="font-family:\'Share Tech Mono\',monospace;font-size:.62rem;color:' + (isCo ? 'var(--c-gold)' : 'rgba(200,205,225,0.85)') + ';flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (isCo ? '🗡⚔ ' : '👤 ') + _esc(u.username) + '</span>'
+      + (!u.id
+          ? '<span style="font-family:\'Share Tech Mono\',monospace;font-size:.5rem;color:rgba(255,180,50,.7)" title="Esta ficha ainda não tem conta vinculada (ownerId) — peça pro jogador reabrir a ficha uma vez logado">sem conta vinculada</span>'
+          : (isCo
+              ? '<button class="btn btn-small btn-danger" style="padding:2px 8px;font-size:.6rem" onclick="demoteCoMestre(\'' + campId + '\',\'' + u.id + '\')">Remover ajudante</button>'
+              : '<button class="btn btn-small btn-primary" style="padding:2px 8px;font-size:.6rem" onclick="promoteCoMestre(\'' + campId + '\',\'' + u.id + '\')">Promover a ajudante</button>'))
+      + '</div>';
+  }).join('');
 }
 
 // ── Campanhas "desbloqueadas" pela conta atual neste aparelho ──
@@ -11334,7 +11458,15 @@ function _resolveMyCampanhaId() {
   // sem essa muleta legada — que continua existindo em isMestreDa() só
   // pra permissão de edição, não pra decidir qual chat é "meu".
   // ══════════════════════════════════════════════════════════════════
-  (data.campanhas||[]).forEach(function(c){ if(typeof window._souDonoDeVerdade==='function' && window._souDonoDeVerdade(c)) ids[c.id]=true; });
+  (data.campanhas||[]).forEach(function(c){
+    if(typeof window._souDonoDeVerdade==='function' && window._souDonoDeVerdade(c)) { ids[c.id]=true; return; }
+    // NOVO 2026-08-24 — Ajudante de Mestre promovido pelo dono de verdade
+    // (c.coMestres) também "pertence" à campanha pra fins de chat/rolagens
+    // — é uma lista explícita e restrita (só quem o dono escolheu), não a
+    // muleta legada de isMestreDa() pra campanha sem mestreId, então não
+    // tem o mesmo risco de "adoção" acidental que a versão estrita evita.
+    if (Array.isArray(c.coMestres) && currentUser && c.coMestres.indexOf(currentUser.id) !== -1) ids[c.id]=true;
+  });
   (data.players||[]).forEach(function(p){
     var isMine = p.ownerId ? p.ownerId===currentUser.id : !!(p.player && currentUser.username && p.player.toLowerCase()===currentUser.username.toLowerCase());
     if (isMine && p.campanha) ids[p.campanha]=true;
@@ -19681,6 +19813,7 @@ function _startRealtimeSync() {
     if (!campId || !currentUser) return false;
     var camp = (data.campanhas || []).find(function(c) { return c.id === campId; });
     if (camp && typeof window._souDonoDeVerdade === 'function' && window._souDonoDeVerdade(camp)) return true;
+    if (camp && Array.isArray(camp.coMestres) && camp.coMestres.indexOf(currentUser.id) !== -1) return true;
     return (data.players || []).some(function(p) {
       if (p.campanha !== campId) return false;
       if (p.ownerId) return p.ownerId === currentUser.id;
