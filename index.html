@@ -13923,9 +13923,34 @@ function _doRequestMic() {
       // Popula os selects agora que os labels de dispositivo já estão disponíveis
       _populateDeviceSelectors(false);
       showToast('🎙 Microfone ativado!','ok');
-      // Auto-para se usuário revogar no navegador
+      // CORRIGIDO — CAUSA RAIZ de "depois de um tempo o mic buga e ninguém
+      // me ouve": quando a trilha de áudio termina sozinha (fone bluetooth
+      // desconectando, SO suspendendo o dispositivo, troca de fone, aba em
+      // segundo plano por muito tempo, etc — nada disso é o usuário clicando
+      // em mutar), este handler só zerava o estado local e mostrava um toast
+      // que passa despercebido. A trilha morta ficava presa nas conexões já
+      // abertas com os outros participantes, então mesmo reabrindo o painel
+      // a call continuava "conectada" só que muda, e nada tentava se
+      // recuperar sozinho — só voltava se a pessoa percebesse e clicasse
+      // manualmente no mic de novo. Agora: se ainda estamos numa call ativa
+      // e o mic NÃO foi desligado por escolha do usuário (nem silenciado
+      // pelo Mestre), tenta pedir o microfone de volta automaticamente.
       stream.getAudioTracks().forEach(function(t){
-        t.onended=function(){ callState.micState='idle'; callState.micStream=null; callState.micOn=false; _syncMicBtn(); showToast('🎙 Microfone desconectado','warn'); };
+        t.onended=function(){
+          var eraAtivo = callState.micState==='active';
+          callState.micState='idle'; callState.micStream=null; callState.micOn=false;
+          _syncMicBtn();
+          if (eraAtivo && callState.active && !callState.forceMuted) {
+            showToast('⚠ Microfone caiu (dispositivo desconectado) — tentando reconectar...','warn');
+            setTimeout(function(){
+              // confere de novo pouco antes de tentar: usuário pode ter mutado
+              // manualmente ou saído da call nesse meio-tempo.
+              if (callState.active && !callState.forceMuted && callState.micState==='idle') _doRequestMic();
+            }, 800);
+          } else {
+            showToast('🎙 Microfone desconectado','warn');
+          }
+        };
       });
     })
     .catch(function(err){
@@ -21484,12 +21509,29 @@ window._rtcAddMediaTrack = function(stream) {
   Object.entries(_peers).forEach(([uid, pc]) => {
     stream.getTracks().forEach(track => {
       try {
-        // Evita adicionar a mesma track duas vezes
         const senders = pc.getSenders();
         const alreadyExists = senders.find(s => s.track && s.track.id === track.id);
-        if (!alreadyExists) {
+        if (alreadyExists) return;
+        // CORRIGIDO: ao reconectar o mic (ex.: recuperação automática depois
+        // que a trilha antiga "morreu" sozinha), addTrack() sempre criava um
+        // sender NOVO em cima da conexão já aberta — o sender antigo (com
+        // track morta/null) ficava esquecido pra trás, disparando
+        // renegociações extras e deixando "lixo" acumulado a cada queda.
+        // Agora: se já existe um sender do mesmo tipo (áudio/vídeo) mas sem
+        // trilha viva (dispositivo caiu, trilha antiga terminou), troca a
+        // trilha nele com replaceTrack() — muito mais leve, não dispara
+        // "negotiationneeded" e não deixa sender fantasma acumulando.
+        const deadSameKind = senders.find(s => (!s.track || s.track.readyState==='ended') && s._kind === track.kind);
+        if (deadSameKind) {
+          console.log('[WebRTC] Substituindo track morta por nova (' + track.kind + ') no peer:', uid);
+          deadSameKind.replaceTrack(track).catch(function(e){
+            console.warn('[WebRTC] replaceTrack falhou, tentando addTrack:', e);
+            pc.addTrack(track, stream);
+          });
+        } else {
           console.log('[WebRTC] Adicionando track', track.kind, 'para peer:', uid);
-          pc.addTrack(track, stream);
+          const sender = pc.addTrack(track, stream);
+          sender._kind = track.kind; // marcado pra reconhecer esse sender em quedas futuras
         }
       } catch(e) { console.warn('[WebRTC] Erro ao adicionar track:', e); }
     });
