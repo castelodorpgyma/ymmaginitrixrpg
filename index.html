@@ -4003,10 +4003,12 @@ input:valid:not(:placeholder-shown) {
 .call-overlay.floating .call-controls{ padding:6px; gap:4px; }
 .call-overlay.floating .call-ctrl-btn{ width:30px; height:30px; font-size:.7rem; }
 .call-overlay.floating .call-ctrl-chevron{ display:none; }
-.call-overlay.floating .call-ctrl-group:nth-child(4),
-.call-overlay.floating .call-ctrl-group:nth-child(5),
-.call-overlay.floating .call-ctrl-group:nth-child(6),
-.call-overlay.floating .call-ctrl-group:nth-child(7){ display:none; } /* esconde música/sons/reação/config no modo flutuante — mic, câmera, tela e SAIR continuam visíveis */
+/* CORRIGIDO: a regra usava a classe ".call-ctrl-group", que nunca existe no
+   HTML (os botões reais são ".call-ctrl-pill", ".call-more-wrap" e botões soltos
+   dentro de "#call-controls") — a regra nunca selecionava nada. Agora aponta
+   pro elemento real: some só o menu de "mais opções" (música/sons/reações/
+   chat/config); mic, câmera, tela e SAIR continuam visíveis. */
+.call-overlay.floating .call-controls > .call-more-wrap:nth-of-type(2){ display:none; }
 .call-overlay.floating .call-panel{ display:none !important; }
 .call-fl-btn{
   background:none; border:1px solid rgba(255,255,255,.16); color:rgba(255,255,255,.78);
