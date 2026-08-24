@@ -13850,6 +13850,29 @@ function _startCall() {
   callState.timerSecs = 0;
   _fbPublishCallAccess(true);
 
+  // CORRIGIDO — CAUSA RAIZ de "o volume do mic de ninguém sai": o
+  // AudioContext compartilhado (_callSharedAudioCtx, usado por
+  // _applyCallVolume pra controlar o volume de saída de cada participante
+  // remoto via GainNode) só era criado de verdade na PRIMEIRA vez que uma
+  // trilha remota chegava (dentro de pc.ontrack → _attachRemoteStream) —
+  // ou seja, disparado por um evento de REDE, não por um clique. Política
+  // de autoplay do navegador (Chrome/Firefox/Safari) exige que um
+  // AudioContext seja criado/retomado dentro de um gesto do usuário pra
+  // realmente tocar som; criado fora disso, ele nasce (ou fica) 'suspended'
+  // e o .resume() chamado ali dentro, sem gesto, é silenciosamente
+  // ignorado em vários navegadores — resultado: conexão perfeita, trilha
+  // de áudio chegando certinha, mas NENHUM som sai, pra ninguém, até a
+  // pessoa mexer em algo que dispare um resume() de dentro de um clique
+  // de verdade (ex.: arrastar o slider de volume). Agora o contexto é
+  // criado/retomado AQUI, dentro do clique que inicia a call — cobrindo o
+  // caso comum de mic mudo desde o primeiro segundo.
+  if (typeof _callSharedAudioCtx === 'function') {
+    try {
+      var _ctxWarm = _callSharedAudioCtx();
+      if (_ctxWarm && _ctxWarm.state === 'suspended') _ctxWarm.resume().catch(function(){});
+    } catch(e) { console.warn('[Call] Falha ao pré-aquecer AudioContext:', e); }
+  }
+
   // Chip de status
   var chip = document.getElementById('call-status-chip');
   if (chip) { chip.textContent='AO VIVO'; chip.style.background='rgba(0,200,100,.18)'; chip.style.borderColor='rgba(0,200,100,.4)'; chip.style.color='rgba(100,255,180,.9)'; }
@@ -21374,6 +21397,13 @@ if (!window._autoplayRetryBound) {
   var _ymmRetryAutoplayAudio = function() {
     (window._pendingAutoplayAudioEls || []).forEach(function(a) { a.play().catch(function(){}); });
     window._pendingAutoplayAudioEls = [];
+    // Reforço: qualquer clique/toque na página também tenta retomar o
+    // AudioContext compartilhado da call (ver _startCall) — cobre o caso
+    // de ele ainda estar 'suspended' por algum motivo (ex.: call que já
+    // estava em andamento quando a aba ganhou foco de novo).
+    if (window._callAudioCtxInst && window._callAudioCtxInst.state === 'suspended') {
+      window._callAudioCtxInst.resume().catch(function(){});
+    }
   };
   document.addEventListener('click', _ymmRetryAutoplayAudio);
   document.addEventListener('touchstart', _ymmRetryAutoplayAudio);
