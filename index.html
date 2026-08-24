@@ -19693,12 +19693,42 @@ function _startRealtimeSync() {
     if (!v.pvTo && v.type !== 'system' && !v.isSystem) {
       var _myActiveCamp = chatState.campFilter || window._activeCampanhaId || null;
       if (!_myActiveCamp || v.campanhaId !== _myActiveCamp) {
+        // CORRIGIDO 2026-08-24 (CAMADA 9b — TETO DE MEMÓRIA) — numa mesa
+        // ativa há meses, com muita gente e várias campanhas, este objeto
+        // só cresceria pra sempre (nunca é limpo, de propósito, pra não
+        // reprocessar). Isso é memória, não CPU — bem mais barato — mas
+        // ainda assim tem um teto: numa sessão excepcionalmente longa
+        // (milhares de mensagens rejeitadas na mesma aba, sem dar F5), o
+        // objeto é resetado por completo. Pior caso possível: uma rodada
+        // de log repetida uma vez a mais, nunca um vazamento sem fim.
+        var _rejKeys = Object.keys(_rejectedChatIds);
+        if (_rejKeys.length > 2000) _rejectedChatIds = {};
         _rejectedChatIds[v.id] = true; // nunca mais reprocessa/loga este id
-        console.warn('[Chat] Mensagem descartada na entrada — campanhaId "'+(v.campanhaId||'(nenhum)')+'" não bate com a campanha ativa "'+(_myActiveCamp||'(nenhuma)')+'".');
+        // CORRIGIDO 2026-08-24 (CAMADA 9c — SEGUNDA TRAVA, INDEPENDENTE DA
+        // PRIMEIRA) — rede de segurança pro caso de existir algum OUTRO
+        // caminho no código (atual ou futuro) que chame _ingestChatMsg
+        // pra um id repetido sem passar pelas travas acima (ex.: um bug
+        // novo que ainda não existe). Mesmo que a Camada 9 falhe por
+        // algum motivo, este limitador garante que o MESMO texto de aviso
+        // não pode aparecer mais de 1x a cada 5s no console, não importa
+        // quantas vezes a função for chamada — troca "trava a aba" por
+        // "no pior caso, um log a cada 5s", que é inofensivo.
+        var _nowWarn = Date.now();
+        if (!window._lastChatDiscardWarnAt || (_nowWarn - window._lastChatDiscardWarnAt) > 5000) {
+          window._lastChatDiscardWarnAt = _nowWarn;
+          console.warn('[Chat] Mensagem descartada na entrada — campanhaId "'+(v.campanhaId||'(nenhum)')+'" não bate com a campanha ativa "'+(_myActiveCamp||'(nenhuma)')+'".');
+        }
         return false;
       }
     }
     window._syncHealth.chat = Date.now();
+    // Mesmo teto de memória da Camada 9b acima, agora pro lado das
+    // mensagens ACEITAS: liveSession.chat já é podado em 200 itens (ver
+    // abaixo), mas este registro de ids nunca era — cresceria pra sempre
+    // numa sessão de muitas horas com muita gente falando. Reset completo
+    // ao estourar o teto; pior caso é 1 mensagem duplicada reaparecer uma
+    // vez, nunca um vazamento sem fim.
+    if (Object.keys(_seenChatIds).length > 2000) _seenChatIds = {};
     _seenChatIds[v.id] = true;
     if (!liveSession.chat) liveSession.chat = [];
     liveSession.chat.push(v);
