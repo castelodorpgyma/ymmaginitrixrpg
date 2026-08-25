@@ -20777,6 +20777,15 @@ function _subscribeCallRoomExtras(roomId) {
       _screenPreviewOk = true;
       _pendingScreenStream = null;
       if (typeof window.hideScreenInvite === 'function') window.hideScreenInvite();
+      // CORRIGIDO 2026-08-25 (CAMADA 14b): se o stream WebRTC chegou antes
+      // deste aviso do Firebase (corrida), ele ficou no buffer temporário
+      // _pendingReclassify. Agora que confirmamos que é tela, pega ele de lá.
+      if (window._pendingReclassify && window._pendingReclassify[v.by]) {
+        var _buffered = window._pendingReclassify[v.by];
+        delete window._pendingReclassify[v.by];
+        _pendingScreenStream = _buffered.stream;
+        if (typeof window._attachPendingScreenShare === 'function') window._attachPendingScreenShare();
+      }
       // CORRIGIDO: mesmo com o Firebase agora avisado ANTES de a trilha
       // WebRTC começar a ser enviada, ainda existe uma janela residual (a
       // rede não é determinística) em que o vídeo chega e é classificado
@@ -21562,7 +21571,39 @@ function _attachRemoteStream(uid, stream) {
   var isScreenShare = _screenShareInfo && _screenShareInfo.active && _screenShareInfo.by === uid &&
     (stream.id === _screenShareInfo.streamId || _isAdditionalVideoStreamWhileSharing);
 
+  // CORRIGIDO 2026-08-25 (CAMADA 14 — RE-TRANSMISSÃO NÃO APARECIA APÓS PARAR E RECOMEÇAR) —
+  // CAUSA RAIZ: ao parar e recomeçar a transmissão, o Firebase primeiro seta
+  // active:false (viewer zera _pendingScreenStream/_screenPreviewOk) e depois
+  // active:true com o novo streamId. O novo stream WebRTC pode chegar no viewer
+  // ANTES de o Firebase entregar o active:true — quando chega, _screenShareInfo
+  // ainda está em active:false, isScreenShare vira false, o stream vai pro slot
+  // de câmera remota e fica preso lá para sempre (o Firebase atualiza depois,
+  // mas nenhum ontrack novo dispara). Solução: se o stream tem vídeo, a pessoa
+  // não tem câmera ativa conhecida, e há QUALQUER sinalização de tela recente
+  // desse uid (mesmo que ainda não tenha chegado o active:true), guarda num
+  // buffer temporário e tenta reclassificar em até 2s — tempo suficiente para
+  // o Firebase entregar a atualização.
+  if (!isScreenShare && stream.getVideoTracks().length > 0 && !_remoteCamStreams[uid]) {
+    // Pode ser tela chegando antes do Firebase — guarda e tenta depois
+    if (!window._pendingReclassify) window._pendingReclassify = {};
+    window._pendingReclassify[uid] = { stream: stream, ts: Date.now() };
+    setTimeout(function() {
+      var pending = window._pendingReclassify && window._pendingReclassify[uid];
+      if (!pending || pending.stream !== stream) return; // já foi usado ou substituído
+      delete window._pendingReclassify[uid];
+      var nowScreen = _screenShareInfo && _screenShareInfo.active && _screenShareInfo.by === uid;
+      if (nowScreen) {
+        // Firebase chegou: reclassifica como tela
+        _pendingScreenStream = stream;
+        if (typeof window._attachPendingScreenShare === 'function') window._attachPendingScreenShare();
+      }
+      // Se ainda não é tela, deixa o fluxo normal de câmera acontecer agora
+    }, 1800);
+  }
+
   if (isScreenShare) {
+    // Remove do buffer temporário se estava lá
+    if (window._pendingReclassify && window._pendingReclassify[uid]) delete window._pendingReclassify[uid];
     _pendingScreenStream = stream;
     // CORRIGIDO 2026-08-24 (CAMADA 13 — TELA NUNCA APARECIA PRA NINGUÉM) —
     // CAUSA RAIZ do "transmissão de tela fica preta": o comentário do
@@ -22059,6 +22100,10 @@ function _notifyMediaTransmission(gmName, mediaType) {
       Object.values(_peers).forEach(function(pc) {
         pc.getSenders().forEach(function(sender) {
           if (sender.track && sender.track.kind === 'video' && sender.track.id === _screenTrackId) {
+            // CORRIGIDO 2026-08-25 (CAMADA 15b): marca o sender com _kind ANTES
+            // de remover, para que a lógica de reaproveitamento do transceiver
+            // consiga encontrá-lo quando a transmissão recomeçar.
+            sender._kind = 'video';
             try { pc.removeTrack(sender); } catch(e){}
           }
         });
@@ -22089,7 +22134,46 @@ function _notifyMediaTransmission(gmName, mediaType) {
           ts: Date.now()
         }).catch(function(e){ _fbHandleWriteError(e, null, 'compartilhar tela'); });
       }
-      window._rtcAddMediaTrack(callState.screenStream);
+      // CORRIGIDO 2026-08-25 (CAMADA 15 — TRANSCEIVER INATIVO AO RE-TRANSMITIR) —
+      // Quando paramos via removeTrack(), o transceiver de vídeo da tela fica
+      // com direction='inactive' ou 'recvonly'. _rtcAddMediaTrack usa replaceTrack()
+      // em senders com track morta — mas removeTrack() limpa o sender.track pra null
+      // E muda a direção, então o reaproveitamento funcionava para câmera/mic (que
+      // ficam com track ended) mas não para tela (que usa removeTrack de verdade).
+      // Aqui: antes de adicionar, tenta reativar qualquer transceiver de vídeo inativo
+      // em cada peer — se encontrar, faz replaceTrack + restaura direção (sem nova
+      // negociação de m-lines, só renegociação leve); se não encontrar, cai no
+      // addTrack normal do _rtcAddMediaTrack.
+      (function _reactivateScreenTransceivers(stream) {
+        var track = stream.getVideoTracks()[0];
+        if (!track) { window._rtcAddMediaTrack(stream); return; }
+        Object.entries(_peers).forEach(function(entry) {
+          var uid = entry[0], pc = entry[1];
+          try {
+            // Procura transceiver de vídeo que estava ativo antes e agora está inativo/recvonly
+            var inactiveTv = pc.getTransceivers().find(function(tv) {
+              return tv.sender && tv.sender.track === null &&
+                (tv.direction === 'inactive' || tv.direction === 'recvonly' || tv.direction === 'sendrecv') &&
+                tv.sender._kind === 'video'; // marcado por _rtcAddMediaTrack em chamadas anteriores
+            });
+            if (inactiveTv) {
+              console.log('[WebRTC] Re-transmissão de tela: reativando transceiver inativo para', uid);
+              inactiveTv.sender.replaceTrack(track).then(function() {
+                try { if (inactiveTv.direction !== 'sendrecv') inactiveTv.direction = 'sendrecv'; } catch(e){}
+              }).catch(function(e) {
+                console.warn('[WebRTC] replaceTrack no transceiver de tela falhou, usando addTrack:', e);
+                try { pc.addTrack(track, stream); } catch(e2){}
+              });
+            } else {
+              // Nenhum transceiver reutilizável — addTrack normal (primeira vez)
+              try {
+                var already = pc.getSenders().some(function(s){ return s.track && s.track.id === track.id; });
+                if (!already) { var s = pc.addTrack(track, stream); s._kind = 'video'; }
+              } catch(e) { console.warn('[WebRTC] addTrack de tela falhou:', e); }
+            }
+          } catch(e) { console.warn('[WebRTC] Erro ao re-transmitir tela para', uid, e); }
+        });
+      })(callState.screenStream);
     }
   };
 
@@ -22101,6 +22185,7 @@ function _notifyMediaTransmission(gmName, mediaType) {
     Object.values(_peers).forEach(function(pc) {
       pc.getSenders().forEach(function(sender) {
         if (sender.track && sender.track.kind === 'video' && sender.track.id === _screenTrackId) {
+          sender._kind = 'video'; // CORRIGIDO 2026-08-25 (CAMADA 15c): marca antes de remover
           try { pc.removeTrack(sender); } catch(e){}
         }
       });
