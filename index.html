@@ -14071,11 +14071,27 @@ function callToggleMic() {
     showToast('🔇 Você foi silenciado pelo Mestre e não pode reativar o microfone','warn');
     return;
   }
-  // Se não tem stream: pede permissão
-  if (!callState.micStream) { _doRequestMic(); return; }
-  // Se tem stream: alterna mudo/ativo
+  // CORRIGIDO 2026-08-25 — CAUSA RAIZ de "o botão de mutar parou de
+  // funcionar": callState.micStream podia continuar apontando pra um
+  // MediaStream cujas tracks já tinham morrido sozinhas (fone bluetooth
+  // caindo, SO suspendendo o dispositivo, aba em segundo plano) SEM passar
+  // pelo handler `onended` (o navegador atrasa/perde esse evento em aba
+  // oculta). Nesse caso o botão continuava clicável, mas `getAudioTracks()`
+  // devolvia uma track morta (readyState 'ended') — mexer em `.enabled`
+  // dela não faz nada, então clicar no mic parecia simplesmente não
+  // funcionar. Agora, antes de alternar, confere se a track ainda está
+  // viva; se não estiver, trata como se não houvesse stream nenhuma e pede
+  // o microfone de novo do zero (mesmo caminho de quando nunca foi ligado).
+  var liveTracks = callState.micStream ? callState.micStream.getAudioTracks().filter(function(t){ return t.readyState === 'live'; }) : [];
+  if (!callState.micStream || !liveTracks.length) {
+    callState.micStream = null; callState.micState = 'idle'; callState.micOn = false;
+    _syncMicBtn();
+    _doRequestMic();
+    return;
+  }
+  // Se tem stream viva: alterna mudo/ativo
   callState.micOn = !callState.micOn;
-  callState.micStream.getAudioTracks().forEach(function(t){ t.enabled=callState.micOn; });
+  liveTracks.forEach(function(t){ t.enabled=callState.micOn; });
   callState.micState = callState.micOn ? 'active' : 'muted';
   _syncMicBtn();
   showToast(callState.micOn?'🎙 Mic ligado':'🔇 Mic mutado','ok');
@@ -14219,13 +14235,23 @@ function callStartScreenShare(withAudio) {
     return;
   }
   callState.screenState='requesting'; _syncScreenBtn('requesting');
-  showToast('🖥 Selecione a janela/aba para compartilhar...','warn');
+  showToast(withAudio ? '🖥 Selecione a ABA (não "Janela") e marque "Compartilhar áudio da aba"...' : '🖥 Selecione a janela/aba para compartilhar...','warn');
 
   // CORRIGIDO — ver comentário grande em callToggleScreen(): esta função
   // precisa DEVOLVER a Promise do getDisplayMedia (com "return" aqui na
   // frente), senão quem chama isso com "await" (o hook de WebRTC) nunca
   // espera de verdade a escolha da janela/aba terminar.
-  return navigator.mediaDevices.getDisplayMedia({video:{cursor:'always'}, audio:!!withAudio})
+  // CORRIGIDO 2026-08-25: quando withAudio=true, `audio:true` sozinho deixa
+  // a caixinha "Compartilhar áudio" no seletor do Chrome DESMARCADA por
+  // padrão — a pessoa precisa lembrar de marcá-la manualmente, e se
+  // esquecer, o áudio nunca existe (não é bug de rede nem de WebRTC, a
+  // trilha de áudio simplesmente não é criada). `systemAudio:'include'`
+  // (suportado no Chrome/Edge) faz o navegador já abrir essa caixinha
+  // PRÉ-MARCADA, então só falta a pessoa escolher "Aba" ou "Tela inteira"
+  // (com "Janela" o Chrome nem mostra a opção de áudio, é limitação do
+  // próprio navegador, não do site).
+  var displayMediaOpts = {video:{cursor:'always'}, audio: withAudio ? {systemAudio:'include'} : false};
+  return navigator.mediaDevices.getDisplayMedia(displayMediaOpts)
     .then(function(stream){
       callState.screenStream=stream; callState.screenState='active'; callState.screenOn=true;
       callState.screenHasAudio = stream.getAudioTracks().length > 0;
@@ -16341,10 +16367,56 @@ function sendChat() {
   // Firebase ainda está confirmando a sessão, espera em vez de recusar.
   window._runWhenAuthReady(_sendChatReady);
 }
+// ═══════════════════════════════════════
+//  Comandos de chat que começam com "/" — nunca são enviados como
+//  mensagem de verdade (ninguém mais vê), são tratados só localmente.
+// ═══════════════════════════════════════
+function _tryHandleChatCommand(text, inputEl) {
+  var t = (text || '').trim();
+  if (!t.startsWith('/')) return false;
+  var cmd = t.split(/\s+/)[0].toLowerCase();
+  if (cmd === '/thebug') {
+    if (inputEl) inputEl.value = '';
+    if (!callState.active) {
+      showToast('⚠ Entre numa call antes de usar /thebug','warn');
+      return true;
+    }
+    if (typeof window._runCallRepair !== 'function') {
+      showToast('⚠ Reparo de call indisponível nesta versão','err');
+      return true;
+    }
+    showToast('🛠 /thebug — tentando destravar a call...','warn');
+    window._runCallRepair().then(function(result){
+      if (!result || !result.ok) {
+        showToast((result && result.steps && result.steps[0]) || '⚠ Não deu pra reparar a call','err');
+        return;
+      }
+      // Mostra cada etapa como um toast curto, meio espaçado, pra dar pra
+      // ler o que foi feito em vez de tudo aparecer empilhado de uma vez.
+      result.steps.forEach(function(step, i){
+        setTimeout(function(){ showToast(step, 'ok'); }, i * 700);
+      });
+      setTimeout(function(){
+        showToast('✅ /thebug concluído — se ainda estiver travado, pode ser a regra do Firebase (veja os banners vermelhos, se algum aparecer)', 'ok');
+      }, result.steps.length * 700 + 200);
+    }).catch(function(e){
+      console.error('[thebug] Falha inesperada:', e);
+      showToast('⚠ /thebug falhou de forma inesperada — veja o console','err');
+    });
+    return true;
+  }
+  // Comando desconhecido começando com "/": avisa em vez de mandar como
+  // mensagem normal de chat (senão "/thebugg" por engano viraria spam pra
+  // todo mundo da campanha).
+  showToast('⚠ Comando desconhecido: ' + cmd, 'warn');
+  return true;
+}
+
 function _sendChatReady() {
   var inp = document.getElementById('chat-inp');
   var text = inp ? inp.value.trim() : '';
   if(!text) return;
+  if (_tryHandleChatCommand(text, inp)) return;
   // CORRIGIDO: qualquer erro daqui pra baixo (mesmo um imprevisto, não só o
   // _chatReplyState que já existia) agora é pego — antes, se algo quebrasse
   // no meio, o texto já tinha sido apagado do campo (linha abaixo) e a
@@ -16371,6 +16443,7 @@ function _sendChatOvReady() {
   var inp = document.getElementById('chat-inp-ov');
   var text = inp ? inp.value.trim() : '';
   if(!text) return;
+  if (_tryHandleChatCommand(text, inp)) return;
   try {
     var msg = { text: text, pvTo: chatState.activeTab !== 'geral' ? chatState.activeTab : null, _ts: Date.now() };
     if (_chatReplyState.id) { msg.replyTo = { id: _chatReplyState.id, sender: _chatReplyState.sender, text: _chatReplyState.text }; }
@@ -20272,6 +20345,7 @@ window.pushRoll = function(entry) {
 //  Cada sessão/campanha tem sua própria "sala" de call
 // ════════════════════════════════════════════════════════════════════════
 let _peers       = {};   // uid → RTCPeerConnection
+let _callHealthInterval = null; // auto-cura periódica leve enquanto a call está ativa
 let _callRoomRef = null;
 let _callSignalUnsub = null;
 let _membersUnsub = null;
@@ -21068,6 +21142,26 @@ window._joinCallRoom = async function(roomId) {
   window._activeCallRoomId = roomId;
   _subscribeCallRoomExtras(roomId);
   _callRoomRef = ref(db, 'calls/' + roomId);
+
+  // CORRIGIDO 2026-08-25 — auto-cura periódica leve: a cada 15s, enquanto a
+  // call estiver ativa, reenvia silenciosamente qualquer trilha local
+  // (mic/câmera/tela) que exista mas não esteja de fato saindo pra algum
+  // peer (mesma checagem "já existe sender com essa track" de dentro de
+  // _rtcAddMediaTrack, então não faz nada se já estiver tudo certo — só
+  // reconecta o que ficou pra trás). Isso cobre exatamente o padrão que o
+  // usuário relatou de "a transmissão falha consecutivamente": em vez de
+  // esperar a pessoa perceber e digitar /thebug, a própria call já se
+  // resincroniza sozinha em segundo plano.
+  if (_callHealthInterval) { try { clearInterval(_callHealthInterval); } catch(e){} }
+  _callHealthInterval = setInterval(function(){
+    if (!callState.active) return;
+    try {
+      if (callState.micStream) window._rtcAddMediaTrack(callState.micStream);
+      if (callState.camStream) window._rtcAddMediaTrack(callState.camStream);
+      if (callState.screenStream) window._rtcAddMediaTrack(callState.screenStream);
+      if (window._ambientAudioStream) window._rtcAddMediaTrack(window._ambientAudioStream);
+    } catch(e) { console.warn('[WebRTC] Auto-cura periódica falhou:', e); }
+  }, 15000);
 
   // Anuncia presença na call
   const mySlotRef = ref(db, 'calls/' + roomId + '/members/' + _myCallId);
@@ -22160,9 +22254,100 @@ window._rtcRemoveMediaTrack = function(stream) {
   });
 };
 
+// ═══════════════════════════════════════
+//  /thebug — reparo geral da call, sob demanda, via chat
+// ═══════════════════════════════════════
+// Junta num só botão TODAS as auto-curas que já existiam espalhadas pelo
+// código (restartIce isolado do vigia de tela, replaceTrack de sender morto
+// em _rtcAddMediaTrack, re-assinatura de listeners do Firebase) e roda tudo
+// de uma vez, na hora que a pessoa perceber que algo travou — sem precisar
+// esperar o vigia automático notar sozinho (que só cobre o caso específico
+// de transmissão de tela) nem sair e entrar de novo na call (o que derruba
+// todo mundo por um instante). Pensado pra ser chamado como comando de chat
+// "/thebug", mas fica exposto em window pra poder ser chamado de qualquer
+// lugar (ex.: um botão futuro no painel de call).
+window._runCallRepair = async function() {
+  var roomId = _curCallRoom();
+  var steps = [];
+  var peerUids = Object.keys(_peers);
+
+  if (!callState.active || !peerUids.length) {
+    return { ok:false, steps:['⚠ Você não está numa call com ninguém conectado no momento — não há o que reparar.'] };
+  }
+
+  // 1) Limpa senders mortos/duplicados e reenvia as trilhas locais que
+  //    deveriam estar ativas (mic/câmera/tela) — mesma lógica de
+  //    _rtcAddMediaTrack, mas passando por TODOS os peers de uma vez,
+  //    mesmo os que já pareciam "conectados" (uma track pode ter morrido
+  //    sem ninguém perceber).
+  var reSent = [];
+  peerUids.forEach(function(uid){
+    var pc = _peers[uid];
+    try {
+      pc.getSenders().forEach(function(sender){
+        // sender com track morta e sem substituto à vista: remove de vez
+        // pra não ficar lixo acumulado atrapalhando a próxima renegociação.
+        if (sender.track && sender.track.readyState === 'ended') {
+          var kind = sender.track.kind;
+          var hasReplacement =
+            (kind==='audio' && callState.micStream && callState.micStream.getAudioTracks().some(function(t){return t.readyState==='live';})) ||
+            (kind==='video' && ((callState.camStream && callState.camStream.getVideoTracks().some(function(t){return t.readyState==='live';})) ||
+                                 (callState.screenStream && callState.screenStream.getVideoTracks().some(function(t){return t.readyState==='live';}))));
+          if (!hasReplacement) { try { pc.removeTrack(sender); } catch(e){} }
+        }
+      });
+    } catch(e) { console.warn('[thebug] Limpeza de senders falhou para', uid, e); }
+  });
+  if (callState.micStream) { window._rtcAddMediaTrack(callState.micStream); reSent.push('microfone'); }
+  if (callState.camStream) { window._rtcAddMediaTrack(callState.camStream); reSent.push('câmera'); }
+  if (callState.screenStream) { window._rtcAddMediaTrack(callState.screenStream); reSent.push('tela'); }
+  if (window._ambientAudioStream) { window._rtcAddMediaTrack(window._ambientAudioStream); reSent.push('áudio ambiente'); }
+  steps.push(reSent.length ? ('🔁 Trilhas locais reenviadas: ' + reSent.join(', ') + '.') : '🔁 Nenhuma trilha local ativa pra reenviar.');
+
+  // 2) restartIce() em TODOS os peers, não só no que o vigia de tela
+  //    detectou travado — reabre a negociação ICE sem derrubar a call
+  //    (a mesma auto-cura que já existia isolada em dois pontos do código,
+  //    agora disponível pra qualquer peer sob demanda).
+  var iceOk = 0, iceFail = 0;
+  peerUids.forEach(function(uid){
+    try { _peers[uid].restartIce(); iceOk++; }
+    catch(e) { iceFail++; console.warn('[thebug] restartIce falhou para', uid, e); }
+  });
+  steps.push('📡 ICE reiniciado em ' + iceOk + ' conexão(ões)' + (iceFail ? (' — ' + iceFail + ' falharam') : '') + '.');
+
+  // 3) Re-assina do zero os listeners do Firebase da sala (membros,
+  //    transmissão de tela, mute forçado, música) — cobre o caso de um
+  //    listener ter caído silenciosamente (ex.: depois de uma reconexão de
+  //    rede) e nunca ter sido religado sozinho.
+  try {
+    if (roomId && typeof _subscribeCallRoomExtras === 'function') {
+      _subscribeCallRoomExtras(roomId);
+      steps.push('🔄 Listeners da sala (membros, transmissão de tela, mute, música) reassinados.');
+    }
+  } catch(e) { console.warn('[thebug] Reassinatura de listeners falhou:', e); steps.push('⚠ Falha ao reassinar listeners — veja o console.'); }
+
+  // 4) Some qualquer banner de erro de permissão do Firebase que já não
+  //    faz mais sentido — se a regra tiver sido corrigida nesse meio-tempo
+  //    mas o banner antigo ainda estiver na tela, o próximo onValue bem-
+  //    sucedido só o esconde no futuro; aqui forçamos uma checagem já.
+  if (typeof window._hideCallMembersPermBanner === 'function') window._hideCallMembersPermBanner();
+  if (typeof window._hideCallScreenPermBanner === 'function') window._hideCallScreenPermBanner();
+
+  // 5) Força o UI da call a redesenhar do zero (participantes, botões,
+  //    barras de status) — cobre qualquer dessincronia visual que tenha
+  //    sobrado dos passos acima.
+  if (typeof renderCallParticipants === 'function') renderCallParticipants();
+  if (typeof window._syncMicBtn === 'function') window._syncMicBtn();
+  if (typeof _syncCamBtn === 'function') _syncCamBtn();
+  steps.push('🖥 Interface da call redesenhada.');
+
+  return { ok:true, steps: steps };
+};
+
 // ── Sai da call ──
 window._leaveCallRoom = function(roomId) {
   roomId = roomId || 'main';
+  if (_callHealthInterval) { try { clearInterval(_callHealthInterval); } catch(e){} _callHealthInterval = null; }
   // CORRIGIDO: esta remoção não tinha NENHUM tratamento — se falhasse (rede
   // caindo bem na hora de sair, token expirado, etc.), seu cartão de
   // participante ficava "fantasma" no grid de call de todo mundo, mesmo
