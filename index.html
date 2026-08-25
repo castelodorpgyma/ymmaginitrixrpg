@@ -21883,7 +21883,26 @@ window._rtcAddMediaTrack = function(stream) {
         // trilha viva (dispositivo caiu, trilha antiga terminou), troca a
         // trilha nele com replaceTrack() — muito mais leve, não dispara
         // "negotiationneeded" e não deixa sender fantasma acumulando.
-        const deadSameKind = senders.find(s => (!s.track || s.track.readyState==='ended') && s._kind === track.kind);
+        // CORRIGIDO 2026-08-25 — CAUSA RAIZ de "câmera/mic funcionam na
+        // entrada da call, mas ao desligar e ligar de novo ninguém mais vê/
+        // ouve": esta busca só reconhecia um sender "morto" reaproveitável
+        // através da marca própria s._kind — mas essa marca só é gravada
+        // ali embaixo (linha "sender._kind = track.kind"), dentro DESTA
+        // mesma função. Os senders criados na ENTRADA da call (em
+        // _createOffer, ao ligar) e ao RESPONDER uma oferta (_addTrackIfNew,
+        // em _handleSignal) nunca passavam por aqui — logo nunca ganhavam
+        // essa marca. Resultado: da primeira vez que alguém desligava e
+        // religava câmera/mic depois de já estar na call, o sender original
+        // (criado na entrada) não era reconhecido como "do mesmo tipo",
+        // caía no ramo de baixo (addTrack novo) e o sender antigo, morto,
+        // ficava esquecido — sem nunca reativar o transceiver antigo nem
+        // reaproveitar o canal, deixando a trilha nova sem sair de verdade
+        // pro outro lado em vários casos. Um MediaStreamTrack mantém sua
+        // propriedade .kind mesmo depois de "ended" (só fica null se o
+        // sender for removido de vez com removeTrack) — então agora usamos
+        // s.track.kind quando o track ainda existe, e só caímos pra marca
+        // própria s._kind como reserva se ele já tiver sido removido.
+        const deadSameKind = senders.find(s => (!s.track || s.track.readyState==='ended') && (s.track ? s.track.kind : s._kind) === track.kind);
         if (deadSameKind) {
           console.log('[WebRTC] Substituindo track morta por nova (' + track.kind + ') no peer:', uid);
           deadSameKind.replaceTrack(track).then(function(){
