@@ -14246,7 +14246,7 @@ function callStartScreenShare(withAudio) {
       if (typeof _syncScreenVolumeUI === 'function') _syncScreenVolumeUI();
 
       stream.getVideoTracks().forEach(function(t){
-        t.onended=function(){ _stopScreenStream(); showToast('🖥 Compartilhamento encerrado','ok'); };
+        t.onended=function(){ (window._stopScreenStream||_stopScreenStream)(); showToast('🖥 Compartilhamento encerrado','ok'); };
       });
       showToast(withAudio ? '🔊 Tela + áudio do sistema sendo compartilhados!' : '🖥 Tela sendo compartilhada!','ok');
     })
@@ -20807,6 +20807,11 @@ function _subscribeCallRoomExtras(roomId) {
       if (!v.active) {
         _pendingScreenStream = null;
         _screenPreviewOk = false;
+        // FIX C: cancela qualquer buffer de reclassificacao pendente para esse uid,
+        // evitando que um setTimeout atrasado exiba um stream de tela ja encerrado.
+        if (window._pendingReclassify && v.by && window._pendingReclassify[v.by]) {
+          delete window._pendingReclassify[v.by];
+        }
         var area = document.getElementById('call-screen-area');
         if (area) { area.classList.remove('active'); area.style.display = 'none'; }
         var vid = document.getElementById('call-screen-video');
@@ -20902,6 +20907,8 @@ function _cleanupWebRTC() {
   // toda a sessão.
   window._callMembersCache = {};
   _pendingScreenStream = null; _screenPreviewOk = false; _screenTrackId = null;
+  // FIX E: limpa buffer de reclassificacao da Camada 14 ao encerrar a call
+  window._pendingReclassify = {};
   if (typeof window.hideScreenInvite === 'function') window.hideScreenInvite();
 }
 // CORRIGIDO — 202608221930 — CAUSA RAIZ PROVÁVEL DE "NINGUÉM CONSEGUE MAIS
@@ -21583,7 +21590,19 @@ function _attachRemoteStream(uid, stream) {
   // desse uid (mesmo que ainda não tenha chegado o active:true), guarda num
   // buffer temporário e tenta reclassificar em até 2s — tempo suficiente para
   // o Firebase entregar a atualização.
-  if (!isScreenShare && stream.getVideoTracks().length > 0 && !_remoteCamStreams[uid]) {
+  // CAMADA 14 — cobertura ampliada: ativa o buffer de reclassificação se:
+  // (a) o stream tem vídeo E isScreenShare ainda é false (Firebase atrasado) E
+  //     não há câmera conhecida dessa pessoa (caso: sem câmera), OU
+  // (b) há câmera conhecida mas o stream que chegou É DIFERENTE dela E
+  //     _screenShareInfo NÃO está ativa — sinal de retransmissão com corrida
+  //     mesmo quando a pessoa usa câmera + tela ao mesmo tempo.
+  var _isSuspectNewVideoStream = (
+    !isScreenShare && stream.getVideoTracks().length > 0 && (
+      !_remoteCamStreams[uid] ||
+      (_remoteCamStreams[uid] && _remoteCamStreams[uid].id !== stream.id && !(_screenShareInfo && _screenShareInfo.active))
+    )
+  );
+  if (_isSuspectNewVideoStream) {
     // CAMADA 14 CORRIGIDA: suspende o tratamento e aguarda o Firebase confirmar.
     // O `return` abaixo impede que o stream caia no slot de camara imediatamente.
     if (!window._pendingReclassify) window._pendingReclassify = {};
@@ -21738,6 +21757,10 @@ function _removeRemoteStream(uid) {
   var el = _remoteAudioEls[uid];
   if (el) { el.srcObject = null; el.remove(); delete _remoteAudioEls[uid]; }
   delete _remoteCamStreams[uid];
+  // FIX D: cancela buffer de reclassificacao se o peer desconectou
+  if (window._pendingReclassify && window._pendingReclassify[uid]) {
+    delete window._pendingReclassify[uid];
+  }
   if (typeof _stopRemoteSpeakingDetector === 'function') _stopRemoteSpeakingDetector(uid);
 }
 
