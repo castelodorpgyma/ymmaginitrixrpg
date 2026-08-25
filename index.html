@@ -21584,25 +21584,35 @@ function _attachRemoteStream(uid, stream) {
   // buffer temporário e tenta reclassificar em até 2s — tempo suficiente para
   // o Firebase entregar a atualização.
   if (!isScreenShare && stream.getVideoTracks().length > 0 && !_remoteCamStreams[uid]) {
-    // Pode ser tela chegando antes do Firebase — guarda e tenta depois
+    // CAMADA 14 CORRIGIDA: suspende o tratamento e aguarda o Firebase confirmar.
+    // O `return` abaixo impede que o stream caia no slot de camara imediatamente.
     if (!window._pendingReclassify) window._pendingReclassify = {};
     window._pendingReclassify[uid] = { stream: stream, ts: Date.now() };
     setTimeout(function() {
       var pending = window._pendingReclassify && window._pendingReclassify[uid];
-      if (!pending || pending.stream !== stream) return; // já foi usado ou substituído
+      if (!pending || pending.stream !== stream) return; // Firebase ja resolveu (14b) ou stream substituido
       delete window._pendingReclassify[uid];
       var nowScreen = _screenShareInfo && _screenShareInfo.active && _screenShareInfo.by === uid;
       if (nowScreen) {
-        // Firebase chegou: reclassifica como tela
+        // Firebase confirmou como tela: limpa slot de camara se necessario e exibe como tela
+        if (_remoteCamStreams[uid] && _remoteCamStreams[uid].id === stream.id) {
+          delete _remoteCamStreams[uid];
+          var wrongEl = document.getElementById('call-remote-vid-' + uid);
+          if (wrongEl) { wrongEl.srcObject = null; wrongEl.style.display = 'none'; }
+        }
         _pendingScreenStream = stream;
+        _screenPreviewOk = true;
         if (typeof window._attachPendingScreenShare === 'function') window._attachPendingScreenShare();
+      } else {
+        // Nao e tela: processa como camara agora (tratamento atrasado)
+        _attachRemoteStream(uid, stream);
       }
-      // Se ainda não é tela, deixa o fluxo normal de câmera acontecer agora
     }, 1800);
+    return; // CRITICO: nao cai no tratamento de camara agora; o setTimeout acima decide
   }
 
   if (isScreenShare) {
-    // Remove do buffer temporário se estava lá
+    // Remove do buffer temporario se estava la (Firebase chegou primeiro - caso rapido)
     if (window._pendingReclassify && window._pendingReclassify[uid]) delete window._pendingReclassify[uid];
     _pendingScreenStream = stream;
     // CORRIGIDO 2026-08-24 (CAMADA 13 — TELA NUNCA APARECIA PRA NINGUÉM) —
@@ -22151,10 +22161,15 @@ function _notifyMediaTransmission(gmName, mediaType) {
           var uid = entry[0], pc = entry[1];
           try {
             // Procura transceiver de vídeo que estava ativo antes e agora está inativo/recvonly
+            // Procura o transceiver que ENVIAVA a tela antes e ficou inativo apos removeTrack().
+            // removeTrack() zera sender.track e muda direction para 'inactive' ou 'recvonly'.
+            // Nao inclui 'sendrecv' aqui: um transceiver sendrecv com track null nunca enviou
+            // nada antes e nao deve ser reaproveitado como canal de tela.
+            // sender._kind foi marcado como 'video' antes do removeTrack() (Camada 15b/15c).
             var inactiveTv = pc.getTransceivers().find(function(tv) {
               return tv.sender && tv.sender.track === null &&
-                (tv.direction === 'inactive' || tv.direction === 'recvonly' || tv.direction === 'sendrecv') &&
-                tv.sender._kind === 'video'; // marcado por _rtcAddMediaTrack em chamadas anteriores
+                (tv.direction === 'inactive' || tv.direction === 'recvonly') &&
+                tv.sender._kind === 'video';
             });
             if (inactiveTv) {
               console.log('[WebRTC] Re-transmissão de tela: reativando transceiver inativo para', uid);
