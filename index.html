@@ -20251,7 +20251,18 @@ let _myCallId    = null;
 let _screenShareInfo   = { active:false, by:null, name:null, streamId:null };
 let _screenPreviewOk   = false;   // este viewer já aceitou ver a transmissão ATUAL?
 let _pendingScreenStream = null;  // stream de tela recebido mas ainda não exibido (aguardando opt-in)
-let _screenTrackId     = null;    // id da track de tela que EU estou enviando (p/ remover ao parar)
+let _screenTrackId     = null;    // id da track de VÍDEO de tela que EU estou enviando (p/ remover ao parar)
+// CORRIGIDO 2026-08-25 — CAUSA RAIZ de "compartilhar com áudio não vai": esta
+// variável só existia para o vídeo. O áudio do sistema (getDisplayMedia com
+// audio:true) era capturado normalmente e tocava localmente, mas a trilha de
+// ÁUDIO nunca era rastreada nem adicionada às conexões WebRTC — só o vídeo
+// era enviado (ver _reactivateScreenTransceivers). Resultado: o toast avisava
+// "🔊 Tela + áudio do sistema sendo compartilhados!" mas nenhum áudio saía de
+// verdade pra ninguém. Agora rastreamos a track de áudio da tela separada da
+// track de áudio do microfone (que usa o mesmo "kind" no WebRTC) marcando o
+// sender com _kind='screenaudio', pra não confundir as duas ao reaproveitar
+// transceivers.
+let _screenAudioTrackId = null;   // id da track de ÁUDIO de tela que EU estou enviando (p/ remover ao parar)
 let _screenShareUnsub  = null;
 let _ownMuteUnsub       = null;
 
@@ -22139,14 +22150,33 @@ function _notifyMediaTransmission(gmName, mediaType) {
             sender._kind = 'video';
             try { pc.removeTrack(sender); } catch(e){}
           }
+          // CORRIGIDO 2026-08-25 — a track de ÁUDIO do sistema (quando
+          // "Compartilhar com áudio" foi usado) também precisa ser removida
+          // ao parar, do mesmo jeito que a de vídeo — senão fica um sender
+          // morto acumulado. Marcada como 'screenaudio' (não 'audio' puro)
+          // para não ser confundida com a track do microfone ao reaproveitar
+          // transceivers na próxima vez.
+          if (sender.track && sender.track.kind === 'audio' && sender.track.id === _screenAudioTrackId) {
+            sender._kind = 'screenaudio';
+            try { pc.removeTrack(sender); } catch(e){}
+          }
         });
       });
       _screenTrackId = null;
+      _screenAudioTrackId = null;
       if (_myCallId) set(ref(db, 'calls/'+_curCallRoom()+'/screenShare'), { active: false, ts: Date.now() }).catch(function(){});
     } else if (callState.screenState === 'active' && callState.screenStream) {
       // Acabamos de COMEÇAR a compartilhar — a prévia local já foi mostrada pela função original
       var track = callState.screenStream.getVideoTracks()[0];
       _screenTrackId = track ? track.id : null;
+      // CORRIGIDO 2026-08-25: guarda também o id da track de ÁUDIO do sistema
+      // (só existe quando o usuário escolheu "Compartilhar com áudio do
+      // sistema" — getDisplayMedia({audio:true}) — e o navegador/janela
+      // escolhida realmente suporta capturar áudio). Sem isso, não havia
+      // como saber qual sender remover depois nem como diferenciar essa
+      // track da do microfone.
+      var screenAudioTrack = callState.screenStream.getAudioTracks()[0];
+      _screenAudioTrackId = screenAudioTrack ? screenAudioTrack.id : null;
       // CORRIGIDO: antes o addTrack (que já dispara toda a renegociação/ICE
       // pela rede local, geralmente RÁPIDA já que a conexão de áudio já
       // estava de pé) rodava ANTES de avisar o Firebase que isso é
@@ -22179,37 +22209,45 @@ function _notifyMediaTransmission(gmName, mediaType) {
       // addTrack normal do _rtcAddMediaTrack.
       (function _reactivateScreenTransceivers(stream) {
         var track = stream.getVideoTracks()[0];
-        if (!track) { window._rtcAddMediaTrack(stream); return; }
-        Object.entries(_peers).forEach(function(entry) {
-          var uid = entry[0], pc = entry[1];
+        // CORRIGIDO 2026-08-25 — CAUSA RAIZ de "compartilhar com áudio do
+        // sistema" nunca ter som pra quem assiste: esta função só cuidava da
+        // track de VÍDEO da tela. A track de ÁUDIO (quando existe, isto é,
+        // quando o usuário escolheu a opção "com áudio" e o navegador/janela
+        // conseguiu capturar) nunca era adicionada nem reaproveitada aqui —
+        // ela ficava só no stream local (por isso quem compartilha sempre
+        // ouvia normal, mas o áudio nunca saía pela rede). Agora tratamos a
+        // track de áudio exatamente como a de vídeo: reaproveita um
+        // transceiver inativo marcado como 'screenaudio' se existir, ou faz
+        // addTrack. Usa marca própria 'screenaudio' (não 'audio') para nunca
+        // ser confundida com a track do microfone, que reusa transceivers
+        // marcados como 'audio'.
+        var audioTrack = stream.getAudioTracks()[0];
+        function _sendOrReactivate(uid, pc, trk, kindMark) {
           try {
-            // Procura transceiver de vídeo que estava ativo antes e agora está inativo/recvonly
-            // Procura o transceiver que ENVIAVA a tela antes e ficou inativo apos removeTrack().
-            // removeTrack() zera sender.track e muda direction para 'inactive' ou 'recvonly'.
-            // Nao inclui 'sendrecv' aqui: um transceiver sendrecv com track null nunca enviou
-            // nada antes e nao deve ser reaproveitado como canal de tela.
-            // sender._kind foi marcado como 'video' antes do removeTrack() (Camada 15b/15c).
             var inactiveTv = pc.getTransceivers().find(function(tv) {
               return tv.sender && tv.sender.track === null &&
                 (tv.direction === 'inactive' || tv.direction === 'recvonly') &&
-                tv.sender._kind === 'video';
+                tv.sender._kind === kindMark;
             });
             if (inactiveTv) {
-              console.log('[WebRTC] Re-transmissão de tela: reativando transceiver inativo para', uid);
-              inactiveTv.sender.replaceTrack(track).then(function() {
+              console.log('[WebRTC] Re-transmissão de tela (' + kindMark + '): reativando transceiver inativo para', uid);
+              inactiveTv.sender.replaceTrack(trk).then(function() {
                 try { if (inactiveTv.direction !== 'sendrecv') inactiveTv.direction = 'sendrecv'; } catch(e){}
               }).catch(function(e) {
-                console.warn('[WebRTC] replaceTrack no transceiver de tela falhou, usando addTrack:', e);
-                try { pc.addTrack(track, stream); } catch(e2){}
+                console.warn('[WebRTC] replaceTrack no transceiver de tela (' + kindMark + ') falhou, usando addTrack:', e);
+                try { var s2 = pc.addTrack(trk, stream); s2._kind = kindMark; } catch(e2){}
               });
             } else {
-              // Nenhum transceiver reutilizável — addTrack normal (primeira vez)
-              try {
-                var already = pc.getSenders().some(function(s){ return s.track && s.track.id === track.id; });
-                if (!already) { var s = pc.addTrack(track, stream); s._kind = 'video'; }
-              } catch(e) { console.warn('[WebRTC] addTrack de tela falhou:', e); }
+              var already = pc.getSenders().some(function(s){ return s.track && s.track.id === trk.id; });
+              if (!already) { var s = pc.addTrack(trk, stream); s._kind = kindMark; }
             }
-          } catch(e) { console.warn('[WebRTC] Erro ao re-transmitir tela para', uid, e); }
+          } catch(e) { console.warn('[WebRTC] Erro ao re-transmitir tela (' + kindMark + ') para', uid, e); }
+        }
+        if (!track && !audioTrack) { window._rtcAddMediaTrack(stream); return; }
+        Object.entries(_peers).forEach(function(entry) {
+          var uid = entry[0], pc = entry[1];
+          if (track) _sendOrReactivate(uid, pc, track, 'video');
+          if (audioTrack) _sendOrReactivate(uid, pc, audioTrack, 'screenaudio');
         });
       })(callState.screenStream);
     }
@@ -22226,9 +22264,17 @@ function _notifyMediaTransmission(gmName, mediaType) {
           sender._kind = 'video'; // CORRIGIDO 2026-08-25 (CAMADA 15c): marca antes de remover
           try { pc.removeTrack(sender); } catch(e){}
         }
+        // CORRIGIDO 2026-08-25: remove também a track de áudio do sistema,
+        // caso esse encerramento tenha vindo do botão nativo "Parar de
+        // compartilhar" da barra do navegador (antes só o vídeo era limpo).
+        if (sender.track && sender.track.kind === 'audio' && sender.track.id === _screenAudioTrackId) {
+          sender._kind = 'screenaudio';
+          try { pc.removeTrack(sender); } catch(e){}
+        }
       });
     });
     _screenTrackId = null;
+    _screenAudioTrackId = null;
     if (_myCallId) set(ref(db, 'calls/'+_curCallRoom()+'/screenShare'), { active: false, ts: Date.now() }).catch(function(){});
     if (typeof _origStopScreenStream === 'function') _origStopScreenStream();
   };
