@@ -13196,7 +13196,14 @@ function _mediaErrMsg(err, tipo) {
   var isFile = (location.protocol === 'file:');
   if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
     if (isFile) return tipo + ': Chrome bloqueia arquivo local. Use Firefox ou Live Server no VSCode.';
-    return tipo + ': Permissão negada. Clique no 🔒 na barra de endereço e permita o acesso.';
+    // DETETIVE 2026-08-25 — se esse erro se repete IDÊNTICO em toda tentativa,
+    // mesmo depois de o site já ter pedido a permissão antes, a causa mais
+    // provável não é o site: é o WINDOWS bloqueando o Chrome no nível do
+    // sistema (Configurações → Privacidade e segurança → Microfone/Câmera →
+    // "Permitir que aplicativos de desktop acessem..."). O navegador nem
+    // chega a mostrar popup nenhum pra negar — a captura já falha antes
+    // disso, e o JS recebe este mesmo erro genérico de qualquer forma.
+    return tipo + ': Permissão negada. Confira o 🔒 na barra de endereço E também as configurações de privacidade do Windows (Microfone/Câmera → "aplicativos de desktop") — se o Windows estiver bloqueando, o Chrome nem chega a perguntar.';
   }
   if (err.name === 'NotFoundError') return tipo + ': Dispositivo não encontrado no sistema.';
   if (err.name === 'NotReadableError' || err.name === 'TrackStartError') return tipo + ': Dispositivo em uso por outro app. Feche e tente novamente.';
@@ -13208,7 +13215,7 @@ function _mediaErrMsg(err, tipo) {
 // ── Atualiza visual do botão mic ──
 function _syncMicBtn() {
   var btn = document.getElementById('ctrl-mic');
-  if (!btn) return;
+  if (!btn) { console.warn('[MIC] _syncMicBtn: #ctrl-mic não existe no DOM agora — o botão sumiu ou nunca foi renderizado.'); return; }
   btn.disabled = false;
   switch (callState.micState) {
     case 'requesting':
@@ -13270,6 +13277,17 @@ function callToggleDeafen() {
   }
   // Muta/desmuta o áudio da transmissão de tela também
   if (typeof _syncScreenVolumeUI === 'function') _syncScreenVolumeUI();
+  // CORRIGIDO 2026-08-25 (CASO SHERLOCK — "ENSURDECER" NÃO ENSURDECIA 100%) —
+  // CAUSA RAIZ: o elemento de ÁUDIO AMBIENTE (música de arquivo local
+  // compartilhada por alguém, ver #call-remote-music-audio em
+  // _attachRemoteStream) só recebia `.muted` UMA ÚNICA VEZ, no instante em
+  // que era criado — o toggle de "ensurdecer" nunca voltava a tocar nesse
+  // elemento depois. Resultado: mutar a voz de todo mundo funcionava, mas
+  // se alguém estivesse tocando música ambiente, ela continuava tocando
+  // pra quem tinha acabado de "ensurdecer". Agora o áudio ambiente também
+  // é sincronizado aqui, junto com voz e transmissão de tela.
+  var _remMusicEl = document.getElementById('call-remote-music-audio');
+  if (_remMusicEl) _remMusicEl.muted = callState.deafened;
   // Ensurdecer também desliga seu microfone (igual Discord) — reativar o mic desfaz o ensurdecer
   if (callState.deafened && callState.micState === 'active') {
     callState.micOn = false;
@@ -13409,6 +13427,19 @@ function _syncScreenVolumeUI() {
   var hasAudio = vid.srcObject && vid.srcObject.getAudioTracks && vid.srcObject.getAudioTracks().length > 0;
   ctrl.classList.toggle('show', !!hasAudio);
   if (!hasAudio) return;
+  // MELHORIA 2026-08-25 (CASO SHERLOCK — "NÃO DÁ PRA OUVIR A TRANSMISSÃO") —
+  // o vídeo de tela sempre nasce mutado (política de autoplay do navegador,
+  // ver comentário na declaração de _callScreenAudioMuted) e só o botão
+  // discreto 🔇/🔊 no canto do vídeo desmuta — muita gente nunca percebe
+  // que ele existe e acha que "o áudio não funciona". Agora, na primeira
+  // vez que uma transmissão COM áudio aparece nessa sessão, mostra um toast
+  // apontando pro botão, uma vez só (não fica repetindo a cada re-render).
+  if (!window._screenAudioHintShown && _callScreenAudioMuted) {
+    window._screenAudioHintShown = true;
+    if (typeof showToast === 'function') {
+      showToast('🔊 Essa transmissão tem áudio! Clique no botão de som no canto do vídeo pra ouvir.', 'ok');
+    }
+  }
   vid.muted = _callScreenAudioMuted || callState.deafened;
   var btn = document.getElementById('csv-mute-btn');
   if (btn) { btn.textContent = vid.muted ? '🔇' : '🔊'; btn.classList.toggle('muted', vid.muted); }
@@ -13917,6 +13948,22 @@ function _startCall() {
     var _room = callState.privateWith
       ? _privateCallRoomId(currentUser.id, callState.privateWith)
       : _callRoomForCampanha(window._activeCampanhaId);
+    // MELHORIA 2026-08-25 (CASO SHERLOCK — "SÓ VEJO/OUÇO QUEM CRIOU A
+    // CAMPANHA") — CAUSA RAIZ real desse sintoma: a sala de call é
+    // derivada de window._activeCampanhaId (ver _callRoomForCampanha), que
+    // só fica preenchido se esta conta tiver uma ficha de personagem
+    // vinculada à campanha (ou for dona/co-mestre dela — ver
+    // _pertenceACampanha). Sem esse vínculo, a conta cai em 'main' (ou
+    // fica sem campanha nenhuma) enquanto o resto da mesa está em
+    // 'camp_<id>' — cada lado entra numa sala DIFERENTE do Firebase e
+    // literalmente nunca se encontram, sem nenhum erro técnico acontecer
+    // (por isso não aparecia nada no console). Isso não tem como ser
+    // "consertado" via código sozinho — depende da ficha estar vinculada
+    // corretamente — mas agora pelo menos avisamos na hora, em vez de
+    // deixar a pessoa isolada sem entender o motivo.
+    if (!window._activeCampanhaId && typeof showToast === 'function') {
+      showToast('⚠ Você entrou na call sem estar vinculado a nenhuma campanha — pode não coincidir com a sala dos outros jogadores. Verifique se sua ficha de personagem está vinculada à campanha certa.', 'warn');
+    }
     window._joinCallRoom(_room).catch(function(e){
       console.warn('[Call] WebRTC join:', e);
       // CORRIGIDO — 202608221900: antes esse erro só ia pro console — se
@@ -14066,8 +14113,23 @@ function _doRequestMic() {
 }
 
 function callToggleMic() {
+  // DIAGNÓSTICO 2026-08-25 — log incondicional logo na entrada da função,
+  // ANTES de qualquer return. Isso existe pra responder uma pergunta muito
+  // mais básica do que "por que o mic não muta": o clique está sequer
+  // chegando até aqui? Se você clicar no botão e essa linha NÃO aparecer no
+  // console, o problema não está em nada disto aqui embaixo — é o clique
+  // sendo interceptado antes (um overlay/modal por cima do botão, o
+  // elemento #ctrl-mic sumindo/sendo substituído por outro sem esse
+  // onclick, ou a versão do site ainda sendo a antiga). Se ESSA linha
+  // aparecer mas nada mudar na tela, aí sim o bug está dentro da função.
+  console.log('[MIC] callToggleMic() chamado. Estado atual:', JSON.parse(JSON.stringify({
+    forceMuted: callState.forceMuted, micState: callState.micState, micOn: callState.micOn,
+    temStream: !!callState.micStream,
+    tracksVivas: callState.micStream ? callState.micStream.getAudioTracks().filter(function(t){return t.readyState==='live';}).length : 0
+  })));
   // Se o Mestre te silenciou à força, você não pode reativar sozinho
   if (callState.forceMuted) {
+    console.log('[MIC] Bloqueado: forceMuted está true (o Mestre te silenciou).');
     showToast('🔇 Você foi silenciado pelo Mestre e não pode reativar o microfone','warn');
     return;
   }
@@ -14084,6 +14146,7 @@ function callToggleMic() {
   // o microfone de novo do zero (mesmo caminho de quando nunca foi ligado).
   var liveTracks = callState.micStream ? callState.micStream.getAudioTracks().filter(function(t){ return t.readyState === 'live'; }) : [];
   if (!callState.micStream || !liveTracks.length) {
+    console.log('[MIC] Sem stream viva — pedindo microfone do zero.');
     callState.micStream = null; callState.micState = 'idle'; callState.micOn = false;
     _syncMicBtn();
     _doRequestMic();
@@ -14093,6 +14156,7 @@ function callToggleMic() {
   callState.micOn = !callState.micOn;
   liveTracks.forEach(function(t){ t.enabled=callState.micOn; });
   callState.micState = callState.micOn ? 'active' : 'muted';
+  console.log('[MIC] Alternado para:', callState.micState, '— track.enabled agora é', liveTracks.map(function(t){return t.enabled;}));
   _syncMicBtn();
   showToast(callState.micOn?'🎙 Mic ligado':'🔇 Mic mutado','ok');
 }
@@ -14309,7 +14373,14 @@ function callStartScreenShare(withAudio) {
     .catch(function(err){
       console.warn('[Call] Screen error:',err);
       callState.screenState='idle'; _syncScreenBtn('idle');
-      if(err.name==='NotAllowedError'||err.name==='AbortError') showToast('🖥 Compartilhamento cancelado','warn');
+      // DETETIVE 2026-08-25 — "Compartilhamento cancelado" fazia parecer que
+      // foi você quem cancelou no seletor. Mas esse MESMO erro também é o
+      // que o Chrome dá quando o WINDOWS bloqueia a captura de tela antes
+      // do seletor sequer abrir (Configurações → Privacidade e segurança →
+      // Câmera/tela → apps de desktop). Se isso acontece toda vez, mesmo
+      // clicando rápido sem hesitar, é sinal de bloqueio do sistema, não de
+      // cancelamento seu — agora o aviso menciona os dois casos.
+      if(err.name==='NotAllowedError'||err.name==='AbortError') showToast('🖥 Compartilhamento cancelado (ou bloqueado pelo Windows — confira Configurações → Privacidade → Câmera/tela → "apps de desktop" se isso se repetir sempre)','warn');
       else showToast('✕ '+_mediaErrMsg(err,'🖥 Tela'),'err');
     });
 }
