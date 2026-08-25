@@ -20850,22 +20850,30 @@ function _subscribeCallRoomExtras(roomId) {
       // sobrecarregado, peer connection travada), nada acontecia — nenhum
       // aviso, nenhum log visível, só a área de transmissão ficando vazia
       // pra sempre em silêncio, parecendo um "bug misterioso" sem pista
-      // nenhuma de causa. Agora, 6s depois de o Firebase confirmar que
-      // fulano está compartilhando, se _pendingScreenStream continuar vazio
-      // (nada chegou pelo WebRTC), mostra um aviso específico — bem
-      // diferente do aviso genérico de conexão — apontando exatamente pra
-      // essa pessoa e sugerindo sair/entrar de novo na call (o jeito mais
-      // confiável de forçar uma nova negociação ICE do zero com ela).
+      // nenhuma de causa. Agora, 5s depois de o Firebase confirmar que
+      // fulano está compartilhando, se _pendingScreenStream continuar vazio,
+      // tenta se AUTO-CURAR primeiro (restartIce() na conexão específica com
+      // essa pessoa — reforça a negociação SDP sem derrubar a call) antes de
+      // incomodar o usuário. Só se isso também não resolver em mais 5s é que
+      // mostra o aviso, já apontando exatamente pra essa pessoa.
       (function(byUid, expectedStreamId) {
-        setTimeout(function() {
+        function _stillBroken() {
           var stillActive = _screenShareInfo && _screenShareInfo.active && _screenShareInfo.by === byUid;
           var stillWaiting = !_pendingScreenStream && !(window._pendingReclassify && window._pendingReclassify[byUid]);
-          if (stillActive && stillWaiting) {
+          return stillActive && stillWaiting;
+        }
+        setTimeout(function() {
+          if (!_stillBroken()) return;
+          var pc = _peers[byUid];
+          console.warn('[WebRTC] Firebase confirma screenShare ativo de ' + byUid + ' mas nenhuma trilha de vídeo/áudio chegou via WebRTC depois de 5s. Tentando restartIce() antes de avisar.');
+          if (pc) { try { pc.restartIce(); } catch(e) { console.warn('[WebRTC] restartIce (vigia de tela) falhou:', e); } }
+          setTimeout(function() {
+            if (!_stillBroken()) { console.log('[WebRTC] Vigia de tela: restartIce() resolveu, transmissão chegou.'); return; }
             var nome = (window._callMembersCache && window._callMembersCache[byUid] && window._callMembersCache[byUid].username) || 'esse participante';
-            console.warn('[WebRTC] Firebase confirma screenShare ativo de ' + byUid + ' mas nenhuma trilha de vídeo/áudio chegou via WebRTC depois de 6s.');
+            console.warn('[WebRTC] Vigia de tela: restartIce() não resolveu depois de mais 5s.');
             showToast('⚠ ' + nome + ' está compartilhando a tela, mas a transmissão não chegou até você. Tente sair e entrar de novo na call.', 'warn');
-          }
-        }, 6000);
+          }, 5000);
+        }, 5000);
       })(v.by, v.streamId);
     } else {
       if (typeof window.hideScreenInvite === 'function') window.hideScreenInvite();
