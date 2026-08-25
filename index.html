@@ -14248,7 +14248,27 @@ function callStartScreenShare(withAudio) {
       stream.getVideoTracks().forEach(function(t){
         t.onended=function(){ (window._stopScreenStream||_stopScreenStream)(); showToast('🖥 Compartilhamento encerrado','ok'); };
       });
-      showToast(withAudio ? '🔊 Tela + áudio do sistema sendo compartilhados!' : '🖥 Tela sendo compartilhada!','ok');
+      // CORRIGIDO 2026-08-25: se a trilha de áudio do sistema terminar
+      // sozinha (ex.: usuário fecha a aba/janela compartilhada, ou o SO
+      // revoga a captura) sem a de vídeo terminar junto — situação rara mas
+      // possível — precisa encerrar/limpar a transmissão do mesmo jeito,
+      // senão o sender de áudio fica "morto" pendurado na conexão.
+      stream.getAudioTracks().forEach(function(t){
+        t.onended=function(){ (window._stopScreenStream||_stopScreenStream)(); showToast('🖥 Compartilhamento encerrado','ok'); };
+      });
+      // CORRIGIDO 2026-08-25 — quem pediu "com áudio do sistema" mas cujo
+      // navegador/SO/tipo de compartilhamento escolhido não devolve
+      // nenhuma trilha de áudio (comum: macOS sem app auxiliar, ou
+      // escolher "Janela" em vez de "Aba/Tela inteira" no Chrome) recebia
+      // a MESMA mensagem de sucesso "🔊 Tela + áudio..." mesmo sem áudio
+      // nenhum de verdade — dava a entender que o problema era no site,
+      // quando na verdade nenhuma trilha de áudio chegou a existir. Agora
+      // avisa isso explicitamente.
+      if (withAudio && stream.getAudioTracks().length === 0) {
+        showToast('🖥 Tela compartilhada, mas o navegador não entregou áudio do sistema (tente escolher "Aba" ou "Tela inteira" em vez de "Janela", ou verifique permissões de áudio do SO)','warn');
+      } else {
+        showToast(withAudio ? '🔊 Tela + áudio do sistema sendo compartilhados!' : '🖥 Tela sendo compartilhada!','ok');
+      }
     })
     .catch(function(err){
       console.warn('[Call] Screen error:',err);
@@ -21171,6 +21191,29 @@ async function _createOffer(roomId, targetUid) {
   if (window._ambientAudioStream) {
     window._ambientAudioStream.getTracks().forEach(t => pc.addTrack(t, window._ambientAudioStream));
   }
+  // CORRIGIDO 2026-08-25 — CAUSA RAIZ de "nem todo mundo consegue ver a
+  // transmissão de tela": se eu JÁ estava compartilhando a tela ANTES dessa
+  // pessoa entrar na call (caso muito comum: mestre compartilha e os
+  // jogadores vão entrando aos poucos depois), a conexão nova criada aqui
+  // nunca ganhava a trilha da tela — só quem já estava conectado no
+  // instante exato em que cliquei em "compartilhar" recebia (via
+  // _reactivateScreenTransceivers, que só percorre _peers existentes
+  // naquele momento). Quem entrava depois na call ficava sem ver e sem
+  // ouvir a transmissão, mesmo com tudo funcionando pros outros — dando a
+  // falsa impressão de "às vezes funciona, às vezes não" / "nem todo mundo
+  // consegue". Agora, toda vez que uma conexão nova é criada, também
+  // manda a tela (vídeo + áudio do sistema, se houver) que já estiver
+  // ativa, marcando os senders do mesmo jeito (_kind 'video'/'screenaudio')
+  // usado no resto do código, para que pausar/retomar a transmissão depois
+  // continue reconhecendo esses senders corretamente.
+  if (callState.screenStream && callState.screenState === 'active') {
+    callState.screenStream.getVideoTracks().forEach(function(t){
+      var s = pc.addTrack(t, callState.screenStream); s._kind = 'video';
+    });
+    callState.screenStream.getAudioTracks().forEach(function(t){
+      var s = pc.addTrack(t, callState.screenStream); s._kind = 'screenaudio';
+    });
+  }
   try {
     pc._makingOffer = true;
     const offer = await pc.createOffer();
@@ -21203,15 +21246,24 @@ async function _handleSignal(roomId, sig) {
     // silenciosamente e nunca respondia — a pessoa que ligou a câmera
     // ficava esperando pra sempre uma resposta que nunca vinha. Agora só
     // adiciona a trilha se ela ainda não estiver nessa conexão.
-    function _addTrackIfNew(track, stream) {
+    function _addTrackIfNew(track, stream, kindMark) {
       try {
         var already = pc.getSenders().some(function(s){ return s.track && s.track.id === track.id; });
-        if (!already) pc.addTrack(track, stream);
+        if (!already) { var s = pc.addTrack(track, stream); if (kindMark) s._kind = kindMark; }
       } catch(e) { console.warn('[WebRTC] Erro ao adicionar track própria ao responder oferta:', e); }
     }
     if (callState.micStream) callState.micStream.getTracks().forEach(t => _addTrackIfNew(t, callState.micStream));
     if (callState.camStream) callState.camStream.getTracks().forEach(t => _addTrackIfNew(t, callState.camStream));
     if (window._ambientAudioStream) window._ambientAudioStream.getTracks().forEach(t => _addTrackIfNew(t, window._ambientAudioStream));
+    // CORRIGIDO 2026-08-25 — mesma correção do lado de _createOffer (ver
+    // comentário lá): se eu já estava compartilhando a tela quando essa
+    // oferta chegou (alguém entrando na call depois que eu comecei a
+    // transmitir), a tela também precisa ser incluída na resposta —
+    // _addTrackIfNew já evita duplicar caso essa track já esteja na conexão.
+    if (callState.screenStream && callState.screenState === 'active') {
+      callState.screenStream.getVideoTracks().forEach(function(t){ _addTrackIfNew(t, callState.screenStream, 'video'); });
+      callState.screenStream.getAudioTracks().forEach(function(t){ _addTrackIfNew(t, callState.screenStream, 'screenaudio'); });
+    }
     // CORRIGIDO 2026-08-24 (CAMADA 12c — MESMA DEFESA DO LADO DA OFERTA) —
     // simétrico à Camada 12b no ramo 'answer': se duas ofertas do mesmo
     // peer chegarem quase juntas (mesma corrida de reentrega do Firebase
