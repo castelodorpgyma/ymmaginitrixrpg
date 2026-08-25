@@ -14245,17 +14245,27 @@ function callStartScreenShare(withAudio) {
       }
       if (typeof _syncScreenVolumeUI === 'function') _syncScreenVolumeUI();
 
-      stream.getVideoTracks().forEach(function(t){
-        t.onended=function(){ (window._stopScreenStream||_stopScreenStream)(); showToast('🖥 Compartilhamento encerrado','ok'); };
-      });
+      // CORRIGIDO 2026-08-25 (reforço) — quando vídeo E áudio da tela
+      // terminam juntos (caso mais comum: usuário clica "Parar de
+      // compartilhar" na barra nativa do navegador), as duas tracks disparam
+      // onended quase ao mesmo tempo — sem essa proteção, _stopScreenStream()
+      // rodava DUAS vezes e o toast "Compartilhamento encerrado" aparecia
+      // duplicado, o que pode passar a falsa impressão de instabilidade/bug.
+      // _screenStopHandled garante que só a primeira chamada realmente execute.
+      var _screenStopHandled = false;
+      function _handleScreenTrackEnded() {
+        if (_screenStopHandled) return;
+        _screenStopHandled = true;
+        (window._stopScreenStream||_stopScreenStream)();
+        showToast('🖥 Compartilhamento encerrado','ok');
+      }
+      stream.getVideoTracks().forEach(function(t){ t.onended = _handleScreenTrackEnded; });
       // CORRIGIDO 2026-08-25: se a trilha de áudio do sistema terminar
       // sozinha (ex.: usuário fecha a aba/janela compartilhada, ou o SO
       // revoga a captura) sem a de vídeo terminar junto — situação rara mas
       // possível — precisa encerrar/limpar a transmissão do mesmo jeito,
       // senão o sender de áudio fica "morto" pendurado na conexão.
-      stream.getAudioTracks().forEach(function(t){
-        t.onended=function(){ (window._stopScreenStream||_stopScreenStream)(); showToast('🖥 Compartilhamento encerrado','ok'); };
-      });
+      stream.getAudioTracks().forEach(function(t){ t.onended = _handleScreenTrackEnded; });
       // CORRIGIDO 2026-08-25 — quem pediu "com áudio do sistema" mas cujo
       // navegador/SO/tipo de compartilhamento escolhido não devolve
       // nenhuma trilha de áudio (comum: macOS sem app auxiliar, ou
@@ -22274,32 +22284,60 @@ function _notifyMediaTransmission(gmName, mediaType) {
         // ser confundida com a track do microfone, que reusa transceivers
         // marcados como 'audio'.
         var audioTrack = stream.getAudioTracks()[0];
-        function _sendOrReactivate(uid, pc, trk, kindMark) {
-          try {
-            var inactiveTv = pc.getTransceivers().find(function(tv) {
-              return tv.sender && tv.sender.track === null &&
-                (tv.direction === 'inactive' || tv.direction === 'recvonly') &&
-                tv.sender._kind === kindMark;
-            });
-            if (inactiveTv) {
-              console.log('[WebRTC] Re-transmissão de tela (' + kindMark + '): reativando transceiver inativo para', uid);
-              inactiveTv.sender.replaceTrack(trk).then(function() {
-                try { if (inactiveTv.direction !== 'sendrecv') inactiveTv.direction = 'sendrecv'; } catch(e){}
-              }).catch(function(e) {
-                console.warn('[WebRTC] replaceTrack no transceiver de tela (' + kindMark + ') falhou, usando addTrack:', e);
-                try { var s2 = pc.addTrack(trk, stream); s2._kind = kindMark; } catch(e2){}
-              });
-            } else {
-              var already = pc.getSenders().some(function(s){ return s.track && s.track.id === trk.id; });
-              if (!already) { var s = pc.addTrack(trk, stream); s._kind = kindMark; }
-            }
-          } catch(e) { console.warn('[WebRTC] Erro ao re-transmitir tela (' + kindMark + ') para', uid, e); }
-        }
         if (!track && !audioTrack) { window._rtcAddMediaTrack(stream); return; }
         Object.entries(_peers).forEach(function(entry) {
           var uid = entry[0], pc = entry[1];
-          if (track) _sendOrReactivate(uid, pc, track, 'video');
-          if (audioTrack) _sendOrReactivate(uid, pc, audioTrack, 'screenaudio');
+          // CORRIGIDO 2026-08-25 (reforço) — quando vídeo E áudio da tela
+          // precisam reativar transceivers inativos no MESMO peer, cada
+          // replaceTrack().then(troca de direção) resolvia em momentos
+          // diferentes (assíncrono), o que podia disparar DUAS
+          // renegociações (onnegotiationneeded) separadas e próximas uma da
+          // outra em vez de uma só — na maioria das vezes inofensivo (a
+          // "negociação perfeita" do resto do código lida com isso), mas é
+          // uma fonte extra de corrida/glare desnecessária bem na hora mais
+          // sensível (começo da transmissão). Agora: para cada peer, tenta
+          // reativar vídeo e áudio, mas só troca as direções (o que
+          // dispara a renegociação) DEPOIS que ambas as trocas de trilha
+          // terminarem — uma única renegociação carrega os dois no mesmo
+          // SDP.
+          var pendingReactivations = []; // { tv, trk, kindMark }
+          [ [track,'video'], [audioTrack,'screenaudio'] ].forEach(function(pair) {
+            var trk = pair[0], kindMark = pair[1];
+            if (!trk) return;
+            try {
+              var inactiveTv = pc.getTransceivers().find(function(tv) {
+                return tv.sender && tv.sender.track === null &&
+                  (tv.direction === 'inactive' || tv.direction === 'recvonly') &&
+                  tv.sender._kind === kindMark;
+              });
+              if (inactiveTv) {
+                pendingReactivations.push({ tv: inactiveTv, trk: trk, kindMark: kindMark });
+              } else {
+                var already = pc.getSenders().some(function(s){ return s.track && s.track.id === trk.id; });
+                if (!already) { var s = pc.addTrack(trk, stream); s._kind = kindMark; }
+              }
+            } catch(e) { console.warn('[WebRTC] Erro ao re-transmitir tela (' + kindMark + ') para', uid, e); }
+          });
+          if (pendingReactivations.length) {
+            Promise.all(pendingReactivations.map(function(p) {
+              console.log('[WebRTC] Re-transmissão de tela (' + p.kindMark + '): reativando transceiver inativo para', uid);
+              return p.tv.sender.replaceTrack(p.trk)
+                .then(function(){ return { ok:true, p:p }; })
+                .catch(function(e){
+                  console.warn('[WebRTC] replaceTrack no transceiver de tela (' + p.kindMark + ') falhou, usando addTrack:', e);
+                  try { var s2 = pc.addTrack(p.trk, stream); s2._kind = p.kindMark; } catch(e2){}
+                  return { ok:false, p:p };
+                });
+            })).then(function(results) {
+              // Só depois que TODAS as trocas de trilha desse peer terminaram
+              // é que as direções são restauradas juntas — uma renegociação
+              // só cobre vídeo e áudio ao mesmo tempo.
+              results.forEach(function(r) {
+                if (!r.ok) return;
+                try { if (r.p.tv.direction !== 'sendrecv') r.p.tv.direction = 'sendrecv'; } catch(e){}
+              });
+            });
+          }
         });
       })(callState.screenStream);
     }
