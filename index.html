@@ -20843,6 +20843,30 @@ function _subscribeCallRoomExtras(roomId) {
         _pendingScreenStream = misclassified;
         if (typeof window._attachPendingScreenShare === 'function') window._attachPendingScreenShare();
       }
+      // ADICIONADO 2026-08-25 — VIGIA "avisou que compartilha, mas o vídeo
+      // nunca chega": até agora, se o Firebase confirmava active:true mas a
+      // trilha de vídeo/áudio via WebRTC nunca chegasse de verdade pra ESTE
+      // viewer específico (ex.: ICE falhou só entre vocês dois, TURN
+      // sobrecarregado, peer connection travada), nada acontecia — nenhum
+      // aviso, nenhum log visível, só a área de transmissão ficando vazia
+      // pra sempre em silêncio, parecendo um "bug misterioso" sem pista
+      // nenhuma de causa. Agora, 6s depois de o Firebase confirmar que
+      // fulano está compartilhando, se _pendingScreenStream continuar vazio
+      // (nada chegou pelo WebRTC), mostra um aviso específico — bem
+      // diferente do aviso genérico de conexão — apontando exatamente pra
+      // essa pessoa e sugerindo sair/entrar de novo na call (o jeito mais
+      // confiável de forçar uma nova negociação ICE do zero com ela).
+      (function(byUid, expectedStreamId) {
+        setTimeout(function() {
+          var stillActive = _screenShareInfo && _screenShareInfo.active && _screenShareInfo.by === byUid;
+          var stillWaiting = !_pendingScreenStream && !(window._pendingReclassify && window._pendingReclassify[byUid]);
+          if (stillActive && stillWaiting) {
+            var nome = (window._callMembersCache && window._callMembersCache[byUid] && window._callMembersCache[byUid].username) || 'esse participante';
+            console.warn('[WebRTC] Firebase confirma screenShare ativo de ' + byUid + ' mas nenhuma trilha de vídeo/áudio chegou via WebRTC depois de 6s.');
+            showToast('⚠ ' + nome + ' está compartilhando a tela, mas a transmissão não chegou até você. Tente sair e entrar de novo na call.', 'warn');
+          }
+        }, 6000);
+      })(v.by, v.streamId);
     } else {
       if (typeof window.hideScreenInvite === 'function') window.hideScreenInvite();
       if (!v.active) {
@@ -21842,7 +21866,31 @@ window._attachPendingScreenShare = function() {
   if (!_pendingScreenStream) return;
   var vid = document.getElementById('call-screen-video');
   var area = document.getElementById('call-screen-area');
-  if (vid) { vid.srcObject = _pendingScreenStream; vid.style.display = 'block'; vid.play().catch(function(){}); }
+  if (vid) {
+    vid.srcObject = _pendingScreenStream;
+    vid.style.display = 'block';
+    // REFORÇADO 2026-08-25 — antes, se vid.play() falhasse (política de
+    // autoplay do navegador, aba em segundo plano, etc.), o erro era
+    // simplesmente engolido (.catch(function(){})) sem nenhum retry nem
+    // aviso — o vídeo ficava "conectado" (srcObject preenchido) mas
+    // parado/preto na tela, e não tinha como saber que era exatamente
+    // isso sem abrir o console. Agora tenta de novo automaticamente ao
+    // primeiro clique/toque em qualquer lugar da página (contorna
+    // bloqueio de autoplay que exige interação do usuário) e registra um
+    // aviso no console pra facilitar diagnóstico.
+    var _tryPlay = function() {
+      var p = vid.play();
+      if (p && p.catch) {
+        p.catch(function(e) {
+          console.warn('[WebRTC] Autoplay da transmissão de tela bloqueado, tentando novamente após interação:', e);
+          var retryOnce = function() { vid.play().catch(function(){}); document.removeEventListener('click', retryOnce); document.removeEventListener('touchstart', retryOnce); };
+          document.addEventListener('click', retryOnce, { once:true });
+          document.addEventListener('touchstart', retryOnce, { once:true });
+        });
+      }
+    };
+    _tryPlay();
+  }
   if (area) { area.classList.add('active'); area.style.display = 'block'; }
   var lbl = document.querySelector('#call-screen-area .call-screen-label');
   if (lbl) lbl.textContent = '🖥 TRANSMISSÃO DE TELA — ' + (_screenShareInfo.name || 'participante');
