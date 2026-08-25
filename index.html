@@ -7013,6 +7013,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
         <div class="call-more-menu-item" onclick="toggleCallMoreMenu();toggleCallReactions()"><span class="cmi-ic">😄</span> Reações</div>
         <div class="call-more-menu-item" onclick="toggleCallMoreMenu();toggleCallSideChat()"><span class="cmi-ic">💬</span> Bate-papo</div>
         <div class="call-more-menu-item" onclick="toggleCallMoreMenu();toggleCallPanel('settings')"><span class="cmi-ic">⚙</span> Configurações</div>
+        <div class="call-more-menu-item" onclick="toggleCallMoreMenu();showCallDiagnostico()"><span class="cmi-ic">🔍</span> Diagnóstico da call</div>
       </div>
     </div>
     <button class="call-end-btn" onclick="endCall()" title="Encerrar call">📵</button>
@@ -13260,7 +13261,48 @@ function _syncCamBtn() {
 }
 
 // ═══════════════════════════════════════
-//  ENSURDECER (deafen) — silencia todo mundo pra você, estilo Discord
+//  DIAGNÓSTICO DA CALL — CASO SHERLOCK 2026-08-25
+//  Mostra pro próprio usuário, em português claro, se a conta dele está
+//  vinculada à campanha certa e em qual sala de call ele está de fato —
+//  pra não ficar mais adivinhando por que "só vejo quem criou a campanha".
+// ═══════════════════════════════════════
+function showCallDiagnostico() {
+  var campId = window._activeCampanhaId || null;
+  var camp = campId ? (data.campanhas || []).find(function(c){ return c.id === campId; }) : null;
+  var room = (typeof _curCallRoom === 'function') ? _curCallRoom() : 'main';
+  var pertence = campId && typeof _pertenceACampanha === 'function' ? _pertenceACampanha(campId) : false;
+  var minhaFicha = currentUser ? (data.players || []).find(function(p){
+    return p.ownerId === currentUser.id || (p.player && currentUser.username && p.player.toLowerCase() === currentUser.username.toLowerCase());
+  }) : null;
+
+  var linhas = [];
+  linhas.push('👤 Conta: ' + (currentUser ? (currentUser.username || currentUser.name || currentUser.id) : '(não logado)'));
+  linhas.push('📋 Campanha ativa: ' + (camp ? camp.nome : '⚠ NENHUMA'));
+  linhas.push('🔗 Vinculado a essa campanha: ' + (campId ? (pertence ? '✅ Sim' : '❌ NÃO — é essa a causa mais provável de não se verem/ouvirem') : '— (sem campanha ativa)'));
+  linhas.push('📇 Ficha de personagem encontrada: ' + (minhaFicha ? (minhaFicha.nome || minhaFicha.player) : '⚠ Nenhuma ficha vinculada a esta conta'));
+  if (minhaFicha) linhas.push('   → campanha da ficha: ' + (minhaFicha.campanha ? ((data.campanhas||[]).find(function(c){return c.id===minhaFicha.campanha;})||{}).nome || minhaFicha.campanha : '⚠ SEM CAMPANHA'));
+  linhas.push('📡 Sala de call (interna): ' + room);
+  linhas.push('');
+  if (!campId || !pertence) {
+    linhas.push('👉 Diagnóstico: sua conta não está confirmada como pertencente à campanha, então você provavelmente está numa sala de call DIFERENTE do resto da mesa. Vá em "Nova Ficha de Personagem" e selecione a campanha certa no campo "campanha", depois recarregue a página.');
+  } else {
+    linhas.push('👉 Diagnóstico: sua vinculação está OK. Se ainda assim não estiver vendo/ouvindo alguém, peça pra essa pessoa abrir esse mesmo diagnóstico e compare a "Sala de call" dos dois — precisam ser idênticas.');
+  }
+
+  var html = '<div style="font-family:\'Share Tech Mono\',monospace;font-size:.68rem;line-height:1.9;white-space:pre-wrap;color:var(--c-text)">' + esc(linhas.join('\n')) + '</div>';
+  var modal = document.createElement('div');
+  modal.className = 'modal open';
+  modal.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;padding:20px';
+  modal.innerHTML = '<div style="background:var(--c-bg2);border:1px solid var(--c-border-r);border-radius:var(--r);max-width:480px;width:100%;padding:20px;max-height:80vh;overflow-y:auto">'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">'
+    + '<div style="font-family:\'Bebas Neue\',sans-serif;font-size:1.1rem;letter-spacing:.08em">🔍 DIAGNÓSTICO DA CALL</div>'
+    + '<button onclick="this.closest(\'.modal\').remove()" style="background:none;border:none;color:var(--c-muted);font-size:1.2rem;cursor:pointer">✕</button>'
+    + '</div>' + html + '</div>';
+  modal.addEventListener('click', function(e){ if (e.target === modal) modal.remove(); });
+  document.body.appendChild(modal);
+}
+window.showCallDiagnostico = showCallDiagnostico;
+
 // ═══════════════════════════════════════
 callState.deafened = false;
 function callToggleDeafen() {
