@@ -21661,6 +21661,33 @@ function _createPeerConn(roomId, peerUid) {
   // atualizada, então o áudio/vídeo simplesmente não chegava do outro lado
   // (conexão ficava "muda"), mesmo com o microfone visivelmente ativo.
   pc.onnegotiationneeded = async () => {
+    // CORRIGIDO 2026-08-25 (CASO SHERLOCK — "InvalidStateError: Failed to
+    // set local offer sdp: Called in wrong state: have-remote-offer") —
+    // CAUSA RAIZ: o comentário logo abaixo já dizia "já detecta glare via
+    // signalingState no lado que recebe" — só que isso é FALSO: a defesa
+    // de "perfect negotiation" (pc._polite / pc._ignoreOffer) só existia
+    // do lado que RECEBE uma oferta alheia (ver ramo 'offer' de
+    // _handleSignal, mais acima). Este handler — o lado que GERA a
+    // própria oferta — nunca checava pc.signalingState antes de chamar
+    // setLocalDescription(offer). Cenário real do print: uma oferta do
+    // outro lado chegou e já foi aplicada via setRemoteDescription (a
+    // conexão ficou no estado 'have-remote-offer', esperando eu montar
+    // uma RESPOSTA) — mas quase ao mesmo tempo, addTrack() nesta mesma
+    // conexão (ex.: ligar mic/câmera/tela) disparou onnegotiationneeded
+    // aqui, que tentava criar e aplicar uma OFERTA nova por cima desse
+    // estado — o navegador recusa (não dá pra aplicar uma oferta local
+    // quando já existe uma oferta remota pendente de resposta) e lança
+    // exatamente esse InvalidStateError, deixando a trilha nova (mic/
+    // câmera/tela) sem sair pro outro lado. Agora só cria a oferta quando
+    // a conexão está realmente 'stable' — se não estiver (uma negociação
+    // já em andamento), a trilha já vai sair na resposta que está sendo
+    // montada nesse exato momento pelo ramo 'offer' de _handleSignal (ou,
+    // se sobrar alguma pendência, o navegador dispara este mesmo evento de
+    // novo assim que a conexão voltar a ficar estável).
+    if (pc.signalingState !== 'stable') {
+      console.log('[WebRTC] Renegociação com', peerUid, 'adiada — conexão ocupada (signalingState:', pc.signalingState + ')');
+      return;
+    }
     try {
       pc._makingOffer = true;
       const offer = await pc.createOffer();
