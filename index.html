@@ -6,13 +6,31 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>Ymmaginitrix — Gerenciador de Campanhas</title>
-<meta name="version" content="202608190800">
+<meta name="version" content="202608260900">
 <meta name="description" content="Ymmaginitrix — Plataforma de gerenciamento de campanhas de RPG">
 <meta name="application-name" content="Ymmaginitrix">
 <meta property="og:title" content="Ymmaginitrix — Gerenciador de Campanhas RPG">
 <meta property="og:description" content="Plataforma completa para mestres e jogadores de RPG">
 <meta property="og:type" content="application">
 <meta name="robots" content="noindex, nofollow">
+
+<!-- CORREÇÕES DE CALL (WebRTC) — v202608260900
+     1) Vídeo da transmissão de tela (#call-screen-video) tinha o atributo
+        muted="" fixo no HTML — o JS controlava .muted corretamente por
+        código, mas o navegador aplicava o atributo do HTML antes disso, e
+        em vários fluxos o valor calculado acabava batendo com "mudo"
+        mesmo assim. Resultado: quem transmitia a tela nunca tinha o som
+        do compartilhamento ouvido por ninguém. Removido o atributo fixo;
+        o volume/mudo continua 100% controlado pelo JS (_callScreenAudioMuted
+        / deafen), só que agora partindo de "com som" por padrão.
+     2) Câmera remota podia ficar preta PARA SEMPRE: a heurística que
+        adia a exibição de um vídeo novo pra confirmar com o Firebase se é
+        câmera ou tela (_isSuspectNewVideoStream) rodava de novo, no mesmo
+        stream, quando o próprio timeout de confirmação disparava — e como
+        a condição de suspeita nunca deixava de ser verdadeira pra esse
+        stream, entrava num loop infinito de adiamento e a câmera nunca
+        chegava a aparecer. Agora o stream é marcado na primeira passada
+        pra não cair de novo na mesma suspeita. -->
 
 <!-- CORREÇÕES DE CALL (WebRTC) — v202608161445
      1) Sala de call de grupo não era mais determinada por "campanha aberta
@@ -6952,7 +6970,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     <div class="call-video-zone" id="call-video-zone">
       <!-- Screen share preview -->
       <div class="call-screen-area" id="call-screen-area">
-        <video id="call-screen-video" autoplay="" playsinline="" muted="" disablepictureinpicture></video>
+        <video id="call-screen-video" autoplay="" playsinline="" disablepictureinpicture></video>
         <div class="call-screen-label">🖥 TRANSMISSÃO DE TELA</div>
         <div class="call-screen-vol-ctrl" id="call-screen-vol-ctrl">
           <button class="csv-btn" id="csv-mute-btn" onclick="toggleScreenAudioMute()" title="Mutar/ativar áudio da transmissão">🔇</button>
@@ -21962,13 +21980,24 @@ function _attachRemoteStream(uid, stream) {
   //     _screenShareInfo NÃO está ativa — sinal de retransmissão com corrida
   //     mesmo quando a pessoa usa câmera + tela ao mesmo tempo.
   var _isSuspectNewVideoStream = (
-    !isScreenShare && stream.getVideoTracks().length > 0 && (
+    !isScreenShare && !stream.__ymmAlreadyDeferred && stream.getVideoTracks().length > 0 && (
       !_remoteCamStreams[uid] ||
       (_remoteCamStreams[uid] && _remoteCamStreams[uid].id !== stream.id && !(_screenShareInfo && _screenShareInfo.active))
     )
   );
   if (_isSuspectNewVideoStream) {
-    // CAMADA 14 CORRIGIDA: suspende o tratamento e aguarda o Firebase confirmar.
+    // CAMADA 15 — CORRIGIDO: a CAMADA 14 tinha um loop infinito escondido.
+    // Quando o timeout de 1800ms expirava e o Firebase AINDA não confirmava
+    // tela (nowScreen=false), o código chamava _attachRemoteStream(uid,stream)
+    // de novo pra "tratar como câmera agora" — mas como _remoteCamStreams[uid]
+    // continuava vazio (só é preenchido lá embaixo, no bloco que esse `return`
+    // pula), a MESMA condição de suspeita disparava de novo, criando um novo
+    // buffer/timeout, pra sempre — o stream de câmera nunca chegava a ser
+    // exibido e a transmissão ficava preta permanentemente. Agora o stream é
+    // marcado (stream.__ymmAlreadyDeferred) na primeira vez que passa por
+    // aqui, então a segunda chamada (vinda do próprio setTimeout) já pula
+    // direto pro tratamento normal de câmera em vez de entrar em novo buffer.
+    stream.__ymmAlreadyDeferred = true;
     // O `return` abaixo impede que o stream caia no slot de camara imediatamente.
     if (!window._pendingReclassify) window._pendingReclassify = {};
     window._pendingReclassify[uid] = { stream: stream, ts: Date.now() };
