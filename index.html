@@ -22001,13 +22001,28 @@ function _attachRemoteStream(uid, stream) {
       mEl.style.display = 'none';
       document.body.appendChild(mEl);
     }
-    mEl.srcObject = stream;
+    // CORRIGIDO 2026-08-25 (CASO SHERLOCK — "TELA PRETA + MIC PARA DE
+    // FUNCIONAR") — CAUSA RAIZ real: cada MediaStream manda vídeo e áudio
+    // como TRACKS separadas, e o navegador dispara um evento ontrack POR
+    // TRACK — ou seja, _attachRemoteStream() roda 2x (ou mais, em cada
+    // renegociação) para o MESMO stream. Antes, TODA vez reatribuía
+    // "srcObject = stream" e chamava .play() de novo, mesmo quando já era
+    // exatamente o mesmo stream já tocando. Reatribuir srcObject num
+    // <audio>/<video> que já está no meio de um play() força um reload
+    // implícito e CANCELA a promise anterior — exatamente o
+    // "AbortError: play() request was interrupted by a new load request"
+    // que aparecia no console. Cada track nova (ou cada renegociação)
+    // interrompia a anterior, numa cascata que deixava a tela
+    // permanentemente preta e podia travar o pipeline de áudio (inclusive
+    // o mic, que depende da mesma engine de mídia do navegador). Agora só
+    // reatribui/replay quando o stream realmente mudou.
+    if (mEl.srcObject !== stream) {
+      mEl.srcObject = stream;
+      _ymmTryPlayAudioEl(mEl, false);
+    }
     var volSlider = document.getElementById('call-music-vol');
     mEl.volume = volSlider ? (parseInt(volSlider.value, 10) / 100) : 0.6;
     mEl.muted = !!(typeof callState !== 'undefined' && callState.deafened);
-    // Mesmo bug do áudio de voz (ver comentário no bloco "Áudio" abaixo):
-    // faltava um .play() explícito aqui também.
-    _ymmTryPlayAudioEl(mEl, false);
     return; // não é voz de ninguém — não cria elemento de mic nem vídeo
   }
 
@@ -22021,6 +22036,11 @@ function _attachRemoteStream(uid, stream) {
     document.body.appendChild(el);
     _remoteAudioEls[uid] = el;
   }
+  // CORRIGIDO 2026-08-25 (mesma causa raiz do bloco de música acima): só
+  // reatribui srcObject e chama .play() de novo se o stream mudou —
+  // evita interromper/cancelar o play() em andamento a cada track nova
+  // do MESMO stream (voz + eventuais renegociações).
+  var _isNewAudioStream = el.srcObject !== stream;
   el.srcObject = stream;
   el.dataset.streamId = stream.id; // usado acima pra reconhecer uma 2ª trilha de áudio como música, não como um novo "microfone"
   // CORRIGIDO: usa _applyCallVolume (GainNode) em vez de atribuir direto em
@@ -22029,23 +22049,7 @@ function _attachRemoteStream(uid, stream) {
   // alguém novo entrava com o "turbo" de volume já ligado (mesmo bug do
   // callSetOutVol, ver comentário lá).
   _applyCallVolume(el, (typeof callState !== 'undefined' && callState.outVol != null) ? callState.outVol : 1.0);
-  // CORRIGIDO — o elemento de áudio remoto (a VOZ da outra pessoa) só tinha
-  // o atributo "autoplay", sem nunca chamar .play() de verdade — diferente
-  // de TODO outro elemento de mídia da call (vídeo local, vídeo remoto,
-  // tela compartilhada), que sempre chama .play().catch(...) explicitamente.
-  // Como esse <audio> é criado dinamicamente (fora do clique que iniciou a
-  // call) e o navegador barra autoplay com som em boa parte dos casos assim,
-  // a trilha às vezes nunca tocava — mesmo com tudo conectado certinho no
-  // WebRTC — e ficava SEM NENHUM aviso na tela (a promise rejeitada do
-  // autoplay não tinha catch nenhum, então o erro nem aparecia no console).
-  // Isso também explicava o botão de silenciar/dessilenciar da moderação
-  // parecer "não fazer nada": o forceMuted mexe no microfone de QUEM FALA,
-  // não no seu próprio áudio bloqueado — então mesmo destravando o mic da
-  // outra pessoa, seu navegador continuava sem tocar nada.
-  // Agora: chama .play() de verdade e, se o navegador recusar (política de
-  // autoplay), guarda esse elemento numa lista e tenta de novo no PRÓXIMO
-  // clique/toque em qualquer lugar da página — sem precisar recarregar.
-  _ymmTryPlayAudioEl(el, true);
+  if (_isNewAudioStream) _ymmTryPlayAudioEl(el, true);
   if (typeof _applyDeafenToStream === 'function') _applyDeafenToStream(uid);
   if (typeof _startRemoteSpeakingDetector === 'function') _startRemoteSpeakingDetector(uid, stream);
   
@@ -22056,7 +22060,8 @@ function _attachRemoteStream(uid, stream) {
   if (!vidEl && hasVideo) {
     vidEl = _createRemoteVideoElement(uid);
   }
-  if (vidEl && hasVideo) {
+  // CORRIGIDO 2026-08-25 (mesma causa raiz): idem pro vídeo da câmera.
+  if (vidEl && hasVideo && vidEl.srcObject !== stream) {
     vidEl.srcObject = stream;
     vidEl.style.display = 'block';
     vidEl.play().catch(e => console.warn('[WebRTC] Erro ao dar play no vídeo remoto:', e));
@@ -22081,7 +22086,18 @@ window._attachPendingScreenShare = function() {
   if (!_pendingScreenStream) return;
   var vid = document.getElementById('call-screen-video');
   var area = document.getElementById('call-screen-area');
-  if (vid) {
+  // CORRIGIDO 2026-08-25 (CASO SHERLOCK — mesma causa raiz do bloco de
+  // voz/câmera/música acima): esta função é chamada de VÁRIOS lugares
+  // (ontrack de vídeo, ontrack de áudio do mesmo stream, confirmação do
+  // Firebase, reclassificação atrasada) — toda vez que rodava, reatribuía
+  // srcObject e chamava .play() de novo, MESMO quando já era o mesmo
+  // stream já tocando. Isso interrompia a promise de play() anterior a
+  // cada chamada extra (era exatamente o "AbortError: play() request was
+  // interrupted by a new load request" no console), deixando a
+  // transmissão permanentemente preta numa cascata de interrupções.
+  // Agora só reatribui/replay quando o stream realmente mudou.
+  var _isNewScreenStream = vid && vid.srcObject !== _pendingScreenStream;
+  if (vid && _isNewScreenStream) {
     vid.srcObject = _pendingScreenStream;
     vid.style.display = 'block';
     // REFORÇADO 2026-08-25 — antes, se vid.play() falhasse (política de
