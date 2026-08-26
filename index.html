@@ -19910,6 +19910,26 @@ function _startRealtimeSync() {
   var _rejectedChatIds = {}; // CORRIGIDO 2026-08-24 — ver comentário abaixo
   function _ingestChatMsg(v, opts) {
     if (!v || !v.id) return false;
+    // CORRIGIDO 2026-08-26 (CASO SHERLOCK — "[VIGIA DO CHAT] SOCKET
+    // CONECTADO MAS CHAT NÃO RECEBE NADA HÁ Xs" EM LOOP INFINITO) — CAUSA
+    // RAIZ: window._syncHealth.chat só era marcado como "vivo" (linha mais
+    // abaixo) DEPOIS de passar pelas travas de duplicata (_seenChatIds/
+    // _rejectedChatIds, logo ali embaixo) e de campanha errada. Só que o
+    // "Vigia do chat" (setInterval mais abaixo no arquivo) força
+    // exatamente esse tipo de releitura do HISTÓRICO INTEIRO via get()
+    // pra "provar" que o listener está vivo — e esse histórico é, na
+    // prática, sempre o MESMO conjunto de ids já vistos/rejeitados antes
+    // (mensagens antigas sem campanhaId, por exemplo). Ou seja: o próprio
+    // vigia disparava uma releitura cujo resultado era 100% descartado
+    // ANTES de marcar saúde — nunca conseguia se "curar" sozinho, então
+    // repetia pra sempre a cada ~90s (100s, 205s, 295s, 400s...) mesmo com
+    // o chat funcionando normalmente por baixo dos panos. Um listener que
+    // recebe uma mensagem e CORRETAMENTE decide descartá-la (duplicata ou
+    // de outra campanha) ainda está vivo e fazendo seu trabalho — por
+    // isso a marcação de saúde agora acontece aqui em cima, antes de
+    // qualquer trava, valendo pra QUALQUER mensagem que o listener
+    // realmente recebeu, aceita ou não.
+    window._syncHealth.chat = Date.now();
     // CORRIGIDO 2026-08-24 (CAMADA 9 — PARA DE REPROCESSAR O QUE JÁ FOI
     // VISTO/REJEITADO) — causa raiz do console entupido e da aba travando:
     // a checagem de duplicidade (_seenChatIds) rodava DEPOIS do filtro de
@@ -19967,7 +19987,6 @@ function _startRealtimeSync() {
         return false;
       }
     }
-    window._syncHealth.chat = Date.now();
     // Mesmo teto de memória da Camada 9b acima, agora pro lado das
     // mensagens ACEITAS: liveSession.chat já é podado em 200 itens (ver
     // abaixo), mas este registro de ids nunca era — cresceria pra sempre
@@ -20046,6 +20065,13 @@ function _startRealtimeSync() {
     // Histórico inicial: lido UMA vez (get), não fica "ouvindo" por isso —
     // só popula a lista de largada.
     get(chatRef).then(function(snap) {
+      // CORRIGIDO 2026-08-26 (mesma causa raiz do Vigia do chat em loop,
+      // ver comentário grande em _ingestChatMsg): campanha nova/sem
+      // mensagem nenhuma ainda também precisa contar como "chat vivo" —
+      // sem isso, uma campanha que começou vazia jamais marcava saúde e
+      // o vigia ficava reassinando pra sempre um chat que só está
+      // silencioso porque ninguém falou nada ainda, não porque quebrou.
+      window._syncHealth.chat = Date.now();
       if (!snap.exists()) return;
       var initial = [];
       snap.forEach(function(child) { var v = child.val(); if (v) initial.push(v); });
