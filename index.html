@@ -7070,7 +7070,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
       <button class="call-music-btn" onclick="callLoadYoutube()">▶ TOCAR</button>
     </div>
     <div id="call-yt-wrap">
-      <iframe id="call-yt-iframe" width="100%" height="120" frameborder="0" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="no-referrer-when-downgrade"></iframe>
+      <iframe id="call-yt-iframe" width="100%" height="120" frameborder="0" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" referrerpolicy="no-referrer-when-downgrade"></iframe>
       <!-- CORRIGIDO: navegadores (celular principalmente, mas PC também)
            bloqueiam autoplay COM SOM — a sincronização em tempo real "não
            funcionava" pra quem recebia a música de outro participante
@@ -21730,6 +21730,14 @@ function _createPeerConn(roomId, peerUid) {
     // novo assim que a conexão voltar a ficar estável).
     if (pc.signalingState !== 'stable') {
       console.log('[WebRTC] Renegociação com', peerUid, 'adiada — conexão ocupada (signalingState:', pc.signalingState + ')');
+      // CORRIGIDO 2026-08-26 — CAUSA RAIZ de "transmissão nunca chega": o
+      // navegador só dispara onnegotiationneeded UMA vez por trilha nova —
+      // ao entregar o evento ele já zera a flag interna, então só dar
+      // "return" aqui (como antes) descartava a renegociação pra sempre,
+      // mesmo a conexão voltando a ficar 'stable' depois. Agora marcamos
+      // que ficou pendente, e o handler onsignalingstatechange (abaixo)
+      // dispara a renegociação de novo assim que a conexão desocupar.
+      pc._negotiationNeededQueued = true;
       return;
     }
     try {
@@ -21739,6 +21747,19 @@ function _createPeerConn(roomId, peerUid) {
       _sendSignal(roomId, peerUid, { type: 'offer', sdp: offer.sdp, from: _myCallId });
     } catch(e) { console.warn('[WebRTC] Erro ao renegociar com', peerUid, ':', e); }
     finally { pc._makingOffer = false; }
+  };
+
+  // Complemento da correção acima: quando a conexão volta a ficar 'stable'
+  // e havia uma renegociação pendente (trilha nova que não pôde ser
+  // ofertada na hora porque a conexão estava ocupada), refaz a chamada de
+  // onnegotiationneeded manualmente — sem isso a trilha ficava presa pra
+  // sempre e a transmissão nunca chegava do outro lado.
+  pc.onsignalingstatechange = () => {
+    if (pc.signalingState === 'stable' && pc._negotiationNeededQueued) {
+      pc._negotiationNeededQueued = false;
+      console.log('[WebRTC] Retomando renegociação pendente com', peerUid, '(conexão ficou stable de novo)');
+      pc.onnegotiationneeded();
+    }
   };
 
   // v202608171200 — ANTES: qualquer 'disconnected'/'failed' fechava a conexão
