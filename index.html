@@ -7,13 +7,34 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>Ymmaginitrix — Gerenciador de Campanhas</title>
-<meta name="version" content="202608260900">
+<meta name="version" content="202608281700">
 <meta name="description" content="Ymmaginitrix — Plataforma de gerenciamento de campanhas de RPG">
 <meta name="application-name" content="Ymmaginitrix">
 <meta property="og:title" content="Ymmaginitrix — Gerenciador de Campanhas RPG">
 <meta property="og:description" content="Plataforma completa para mestres e jogadores de RPG">
 <meta property="og:type" content="application">
 <meta name="robots" content="noindex, nofollow">
+
+<!-- CORREÇÕES DE CALL (WebRTC) — v202608281700
+     1) CAUSA RAIZ do "compartilhamento de tela só funciona ~12% das vezes
+        em call de GRUPO" (mic/câmera funcionavam quase sempre, só a tela
+        falhava): a captura de tela era pedida sem limite de resolução/fps
+        e enviada sem limite de bitrate. Como a arquitetura é "mesh" (cada
+        pessoa manda a tela DIRETO pra cada uma das outras), numa call de
+        N pessoas a banda necessária multiplica por N-1 — e boa parte
+        dessas conexões passa pelos relays TURN gratuitos/comunitários
+        (freestun, openrelay, elixir-webrtc), que têm banda limitada.
+        Vídeo grande = trava/derruba a conexão especificamente da tela,
+        justo a que mais precisa de banda. Sair e voltar "às vezes"
+        funcionava só por sorte de qual candidato ICE/relay aguentava
+        naquele momento — não corrigia nada de verdade. Agora: (a) a
+        captura pede no máximo 1280x720 a 12fps (de sobra pra ler mapa/
+        ficha/texto de RPG); (b) cada conexão aplica um teto de 700kbps
+        na trilha de vídeo da tela via RTCRtpSender.setParameters(), tanto
+        ao começar a compartilhar quanto ao entrar alguém novo na call ou
+        recuperar a trilha depois de uma queda. Bitrate necessário cai
+        bastante e passa a caber nos relays gratuitos mesmo com vários
+        peers ao mesmo tempo — sem depender de sorte.
 
 <!-- CORREÇÕES DE CALL (WebRTC) — v202608260900
      1) Vídeo da transmissão de tela (#call-screen-video) tinha o atributo
@@ -14415,11 +14436,40 @@ function callStartScreenShare(withAudio) {
   // PRÉ-MARCADA, então só falta a pessoa escolher "Aba" ou "Tela inteira"
   // (com "Janela" o Chrome nem mostra a opção de áudio, é limitação do
   // próprio navegador, não do site).
-  var displayMediaOpts = {video:{cursor:'always'}, audio: withAudio ? {systemAudio:'include'} : false};
+  // CORRIGIDO 2026-08-28 — CAUSA RAIZ do "compartilhamento de tela só
+  // funciona ~12% das vezes em call de GRUPO" (mic/câmera funcionam quase
+  // sempre, só a tela falha): a captura de tela era pedida SEM nenhum
+  // limite de resolução/fps — em telas 1440p/4K ou monitores duplos isso
+  // gera um vídeo de vários megabits por segundo. Como a arquitetura daqui
+  // é "mesh" (cada pessoa manda a tela DIRETO pra cada uma das outras, sem
+  // servidor central), numa call de grupo com N pessoas quem compartilha
+  // precisa enviar essa mesma trilha pesada N-1 VEZES SIMULTANEAMENTE — e
+  // em várias dessas conexões o caminho passa pelos relays TURN gratuitos/
+  // comunitários (freestun, openrelay, elixir-webrtc), que têm banda
+  // limitada e derrubam ou engasgam o fluxo quando ele é grande demais.
+  // Isso explica todo o padrão: (1) só a tela falha, não o mic (áudio é
+  // minúsculo perto de vídeo); (2) piora em grupo (a banda necessária
+  // multiplica por peer); (3) sair e entrar de novo "às vezes" resolve —
+  // pura sorte de qual candidato ICE/relay calha de aguentar daquela vez,
+  // não uma correção de verdade. Agora a captura já pede um teto de
+  // 1280x720 a 12fps (o suficiente pra ler tela de RPG/mapa/ficha, bem
+  // mais leve que 4K/60fps) — bitrate necessário cai bastante e passa a
+  // caber nos relays gratuitos mesmo com vários peers ao mesmo tempo. Um
+  // teto de BITRATE por conexão (não só de captura) é aplicado logo abaixo,
+  // em _capMediaSenderBitrate, chamado tanto ao entrar quanto ao renegociar.
+  var displayMediaOpts = {video:{cursor:'always', width:{ideal:1280,max:1920}, height:{ideal:720,max:1080}, frameRate:{ideal:12,max:15}}, audio: withAudio ? {systemAudio:'include'} : false};
   return navigator.mediaDevices.getDisplayMedia(displayMediaOpts)
     .then(function(stream){
       callState.screenStream=stream; callState.screenState='active'; callState.screenOn=true;
       callState.screenHasAudio = stream.getAudioTracks().length > 0;
+      // Marca a trilha de vídeo como "tela" de duas formas: (1) contentHint
+      // 'detail' — dá uma dica pro ENCODER do navegador priorizar nitidez de
+      // texto/UI sobre taxa de quadros, o que é mais eficiente pra tela (com
+      // texto/mapa parado a maior parte do tempo) do que o padrão pensado pra
+      // câmera; (2) uma flag própria (_isScreenTrack), usada logo abaixo por
+      // _capMediaSenderBitrate pra saber em quais senders aplicar o teto de
+      // bitrate (ver comentário grande acima, em callStartScreenShare).
+      stream.getVideoTracks().forEach(function(t){ try { t.contentHint = 'detail'; t._isScreenTrack = true; } catch(e){} });
       _syncScreenBtn('active');
 
       var area = document.getElementById('call-screen-area');
@@ -21583,7 +21633,7 @@ async function _handleSignal(roomId, sig) {
     function _addTrackIfNew(track, stream, kindMark) {
       try {
         var already = pc.getSenders().some(function(s){ return s.track && s.track.id === track.id; });
-        if (!already) { var s = pc.addTrack(track, stream); if (kindMark) s._kind = kindMark; }
+        if (!already) { var s = pc.addTrack(track, stream); if (kindMark) s._kind = kindMark; if (typeof _capMediaSenderBitrate === 'function') _capMediaSenderBitrate(s, track); }
       } catch(e) { console.warn('[WebRTC] Erro ao adicionar track própria ao responder oferta:', e); }
     }
     if (callState.micStream) callState.micStream.getTracks().forEach(t => _addTrackIfNew(t, callState.micStream));
@@ -22435,6 +22485,32 @@ window.callToggleScreenFullscreen = function() {
   }
 };
 
+// CORRIGIDO 2026-08-28 — ver comentário grande em callStartScreenShare()
+// sobre a CAUSA RAIZ do "tela só funciona ~12% das vezes em grupo": além de
+// capar a CAPTURA (resolução/fps), também é preciso capar o que sai de fato
+// pela CONEXÃO — addTrack()/replaceTrack() sozinhos deixam o navegador livre
+// pra mandar o bitrate que ele achar melhor (que em rede boa pode passar de
+// 3-4 Mbps por peer). Isso multiplica pelo número de participantes na call
+// de grupo (mesh: um peer conexão por pessoa) e estoura a banda dos relays
+// TURN gratuitos/comunitários. RTCRtpSender.setParameters() com um teto de
+// maxBitrate por encoding resolve isso na ORIGEM — o navegador para de tentar
+// mandar mais do que isso, então cada conexão fica leve o bastante pra sempre
+// caber, mesmo com vários peers simultâneos.
+function _capMediaSenderBitrate(sender, track) {
+  try {
+    if (!sender || !track || track.kind !== 'video' || !track._isScreenTrack) return;
+    var params = sender.getParameters();
+    if (!params.encodings || !params.encodings.length) params.encodings = [{}];
+    // 700 kbps é suficiente pra ler texto/mapa/ficha com nitidez a 12fps
+    // (bem acima do que 1 tela de RPG realmente precisa) e cabe folgado nos
+    // relays gratuitos mesmo com vários peers na mesma call de grupo.
+    params.encodings.forEach(function(enc){ enc.maxBitrate = 700000; });
+    sender.setParameters(params).catch(function(e){
+      console.warn('[WebRTC] Não foi possível limitar bitrate da tela (navegador pode não suportar setParameters aqui):', e);
+    });
+  } catch(e) { console.warn('[WebRTC] Erro ao limitar bitrate da tela:', e); }
+}
+
 // ── Hook: quando mic/cam é ativado, adiciona trilha nos peers existentes ──
 window._rtcAddMediaTrack = function(stream) {
   if (!stream) return;
@@ -22496,6 +22572,7 @@ window._rtcAddMediaTrack = function(stream) {
               var _tv = pc.getTransceivers().find(function(t){ return t.sender === deadSameKind; });
               if (_tv && _tv.direction !== 'sendrecv') _tv.direction = 'sendrecv';
             } catch(e) { console.warn('[WebRTC] Falha ao restaurar direção do transceiver:', e); }
+            _capMediaSenderBitrate(deadSameKind, track);
           }).catch(function(e){
             console.warn('[WebRTC] replaceTrack falhou, tentando addTrack:', e);
             pc.addTrack(track, stream);
@@ -22504,6 +22581,7 @@ window._rtcAddMediaTrack = function(stream) {
           console.log('[WebRTC] Adicionando track', track.kind, 'para peer:', uid);
           const sender = pc.addTrack(track, stream);
           sender._kind = track.kind; // marcado pra reconhecer esse sender em quedas futuras
+          _capMediaSenderBitrate(sender, track);
         }
       } catch(e) { console.warn('[WebRTC] Erro ao adicionar track:', e); }
     });
