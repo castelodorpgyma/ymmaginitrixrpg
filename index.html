@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="pt-BR"><head>
+<script src="android-screen-bridge.js"></script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
@@ -13442,7 +13443,20 @@ function _stopCamStream() {
   if (vid) { try{vid.srcObject=null;}catch(e){} vid.style.display='none'; }
 }
 function _stopScreenStream() {
-  if (callState.screenStream) { callState.screenStream.getTracks().forEach(function(t){t.stop();}); callState.screenStream = null; }
+  if (callState.screenStream) {
+    // CORRIGIDO — ao parar de compartilhar a tela no Android nativo (ponte
+    // android-screen-bridge.js), só dar stop() nas tracks do canvas NÃO
+    // avisa o plugin nativo (MediaProjection) pra parar de gravar de
+    // verdade. Resultado: o Android continuava capturando a tela em
+    // segundo plano (com a notificação de gravação grudada e gastando
+    // bateria) mesmo depois do usuário "parar" pelo app. Agora, se essa
+    // stream veio da ponte nativa, avisa ela primeiro.
+    if (typeof callState.screenStream._ymmaginitrixStopNative === 'function') {
+      try { callState.screenStream._ymmaginitrixStopNative(); } catch(e) { console.warn('[ScreenShare] Falha ao parar captura nativa Android:', e); }
+    }
+    callState.screenStream.getTracks().forEach(function(t){t.stop();});
+    callState.screenStream = null;
+  }
   var scvid = document.getElementById('call-screen-video'); if(scvid){try{scvid.srcObject=null;}catch(e){}}
   var area = document.getElementById('call-screen-area');
   if(area) { area.classList.remove('active'); area.style.display = 'none'; } // limpa o display:block inline (senão a caixa preta fica presa mesmo sem stream)
@@ -14339,6 +14353,33 @@ document.addEventListener('click', function(e){
 function callStartScreenShare(withAudio) {
   if (callState.screenState==='active') { showToast('🖥 Você já está compartilhando a tela','warn'); return; }
   if (!navigator.mediaDevices || typeof navigator.mediaDevices.getDisplayMedia!=='function') {
+    // Ponte nativa Android — ver android-screen-bridge.js. O WebView não
+    // tem getDisplayMedia, então aqui a gente desvia pro plugin nativo
+    // (MediaProjection) ANTES de cair no aviso genérico de "celular não
+    // suporta", que só deve aparecer pro iOS (lá não tem saída nativa
+    // fácil — Replaykit exige extensão de app separada).
+    if (window._androidScreenShareAvailable && window._androidScreenShareAvailable()) {
+      callState.screenState='requesting'; _syncScreenBtn('requesting');
+      showToast('🖥 Autorize a captura de tela no Android...','warn');
+      return window._startAndroidNativeScreenShare().then(function(stream){
+        callState.screenStream=stream; callState.screenState='active'; callState.screenOn=true;
+        callState.screenHasAudio=false; // v1 nativo Android é só vídeo, sem áudio do sistema
+        _syncScreenBtn('active');
+        window._rtcAddMediaTrack(stream);
+        showToast('🖥 Compartilhando sua tela','ok');
+        // CORRIGIDO — chamava "callStopScreenShare", uma função que nunca
+        // existiu no arquivo (ReferenceError silencioso dentro do evento
+        // "onended"). Isso acontecia sempre que a captura nativa era
+        // interrompida por FORA do app (ex.: pela notificação do próprio
+        // Android), deixando o botão preso em "compartilhando" mesmo com a
+        // gravação já parada de verdade. A função certa é _stopScreenStream.
+        stream.getVideoTracks()[0].onended=function(){ _stopScreenStream(); };
+        return stream;
+      }).catch(function(e){
+        callState.screenState='idle'; _syncScreenBtn('idle');
+        showToast('⚠ Não foi possível compartilhar a tela: '+(e&&e.message||e),'err');
+      });
+    }
     var isMob=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
     if(isMob){
       // CORRIGIDO: a mensagem antiga sugeria o "Transmitir" (Cast) do Android,
