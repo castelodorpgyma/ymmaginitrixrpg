@@ -7,13 +7,32 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>Ymmaginitrix — Gerenciador de Campanhas</title>
-<meta name="version" content="202608281700">
+<meta name="version" content="202608291830">
 <meta name="description" content="Ymmaginitrix — Plataforma de gerenciamento de campanhas de RPG">
 <meta name="application-name" content="Ymmaginitrix">
 <meta property="og:title" content="Ymmaginitrix — Gerenciador de Campanhas RPG">
 <meta property="og:description" content="Plataforma completa para mestres e jogadores de RPG">
 <meta property="og:type" content="application">
 <meta name="robots" content="noindex, nofollow">
+
+<!-- CORREÇÕES DE CALL (WebRTC) — v202608291830 (confirmadas pelo console do usuário)
+     1) "InvalidStateError: have-remote-offer" derrubando a conexão de vez
+        (tela preta + sem áudio pra sempre com quem pegou esse erro): o
+        código criava a oferta em dois passos (createOffer + setLocalDescription),
+        deixando uma brecha de corrida onde uma oferta do outro lado podia
+        chegar no meio e quebrar o passo seguinte. Trocado por
+        setLocalDescription() implícito (sem argumento), que faz os dois
+        passos como uma operação só, do jeito recomendado pela W3C pra
+        "perfect negotiation" — sem essa brecha.
+     2) Conexão de gente que continuava normalmente na call sendo fechada
+        por engano bem no instante em que a internet reconectava (log
+        mostrou isso literalmente: "socket DESCONECTADO" → reconecta →
+        "não está mais na lista de membros — fechando conexão"): um
+        snapshot do Firebase chegando incompleto logo após reconectar fazia
+        parecer que a pessoa tinha saído da call. Agora espera 4s de
+        confirmação antes de fechar de verdade — se a pessoa reaparecer em
+        qualquer leitura nesse meio-tempo (o normal numa reconexão), a
+        conexão real é mantida.
 
 <!-- CORREÇÕES DE CALL (WebRTC) — v202608281700
      1) CAUSA RAIZ do "compartilhamento de tela só funciona ~12% das vezes
@@ -21534,12 +21553,47 @@ window._joinCallRoom = async function(roomId) {
     // está mais no snapshot atual tem sua conexão fechada e removida —
     // na próxima vez que ela entrar, a condição acima vê "!_peers[uid]"
     // = verdadeiro de novo e uma oferta nova é criada normalmente.
+    // CORRIGIDO 2026-08-29 (CAUSA RAIZ CONFIRMADA POR LOG DO USUÁRIO — "tela
+    // preta + sem áudio" acontecendo ALEATORIAMENTE com qualquer pessoa) —
+    // o log mostrou isto acontecendo bem depois de "[Firebase] socket
+    // DESCONECTADO" seguido de reconexão: assim que a internet volta, o
+    // Firebase entrega ESTE listener de novo, mas o snapshot que chega logo
+    // na reconexão pode vir incompleto/desatualizado por uma fração de
+    // segundo (cache local ainda sincronizando) — mesmo a pessoa continuando
+    // normalmente na call do lado dela. Antes, bastava ESSE UM snapshot
+    // suspeito não trazer o uid pra conexão real e funcionando ser fechada
+    // na hora (pc.close()) — sem volta: mesmo o próximo snapshot (correto)
+    // chegando 1s depois, a conexão já estava destruída e ninguém criava uma
+    // nova oferta pra essa pessoa automaticamente (ela nunca "saiu" de
+    // verdade, então a lógica de "!_peers[uid] → nova oferta" não disparava).
+    // Resultado: silêncio e tela preta pra essa pessoa até alguém recarregar
+    // a página. Agora não fecha mais na hora: guarda a suspeita, espera 4s
+    // (tempo de sobra pro Firebase sincronizar de verdade depois de uma
+    // reconexão) e só fecha se a pessoa CONTINUAR fora da lista depois desse
+    // prazo — se ela reaparecer em qualquer snapshot nesse meio-tempo
+    // (window._callMembersCache é atualizado a cada leitura), a suspeita é
+    // cancelada e a conexão real continua intacta.
+    if (!window._peerEvictionTimers) window._peerEvictionTimers = {};
     Object.keys(_peers).forEach(function(existingUid) {
       if (!cache[existingUid]) {
-        console.log('[WebRTC] ' + existingUid + ' não está mais na lista de membros — fechando conexão antiga.');
-        try { _peers[existingUid].close(); } catch(e){}
-        delete _peers[existingUid];
-        try { _removeRemoteStream(existingUid); } catch(e){}
+        if (window._peerEvictionTimers[existingUid]) return; // já tem uma verificação pendente pra esse uid
+        console.log('[WebRTC]', existingUid, 'sumiu de um snapshot da lista de membros — aguardando 4s pra confirmar antes de fechar (evita falso positivo de reconexão do Firebase).');
+        window._peerEvictionTimers[existingUid] = setTimeout(function() {
+          delete window._peerEvictionTimers[existingUid];
+          var stillMissing = !window._callMembersCache || !window._callMembersCache[existingUid];
+          if (stillMissing && _peers[existingUid]) {
+            console.log('[WebRTC]', existingUid, 'confirmado fora da lista de membros após 4s — fechando conexão antiga.');
+            try { _peers[existingUid].close(); } catch(e){}
+            delete _peers[existingUid];
+            try { _removeRemoteStream(existingUid); } catch(e){}
+          } else {
+            console.log('[WebRTC]', existingUid, 'reapareceu na lista — falso alarme, conexão mantida.');
+          }
+        }, 4000);
+      } else if (window._peerEvictionTimers[existingUid]) {
+        // Reapareceu antes do timer disparar — cancela a suspeita.
+        clearTimeout(window._peerEvictionTimers[existingUid]);
+        delete window._peerEvictionTimers[existingUid];
       }
     });
     window._callMembersCache = cache;
@@ -21600,9 +21654,12 @@ async function _createOffer(roomId, targetUid) {
   }
   try {
     pc._makingOffer = true;
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-    _sendSignal(roomId, targetUid, { type: 'offer', sdp: offer.sdp, from: _myCallId });
+    // CORRIGIDO 2026-08-29 — mesma correção aplicada em onnegotiationneeded
+    // (ver comentário grande lá): usa a forma implícita de setLocalDescription()
+    // pra fechar a mesma janela de corrida também na oferta inicial de entrada
+    // na call, não só nas renegociações.
+    await pc.setLocalDescription();
+    _sendSignal(roomId, targetUid, { type: 'offer', sdp: pc.localDescription.sdp, from: _myCallId });
   } finally {
     pc._makingOffer = false;
   }
@@ -21833,9 +21890,26 @@ function _createPeerConn(roomId, peerUid) {
     }
     try {
       pc._makingOffer = true;
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer); // usa setLocalDescription(offer) implícito — já detecta glare via signalingState no lado que recebe
-      _sendSignal(roomId, peerUid, { type: 'offer', sdp: offer.sdp, from: _myCallId });
+      // CORRIGIDO 2026-08-29 (CAUSA RAIZ CONFIRMADA POR LOG DO USUÁRIO —
+      // "InvalidStateError: Failed to set local offer sdp: Called in wrong
+      // state: have-remote-offer") — o código antigo fazia createOffer() e
+      // setLocalDescription(offer) como DOIS passos separados. Entre um
+      // 'await' e outro existe uma janela real onde o event loop roda outra
+      // coisa: se justo nesse intervalo uma oferta do OUTRO lado chegar
+      // (offerCollision), o ramo 'offer' de _handleSignal aplica um rollback
+      // + setRemoteDescription (pois pc._makingOffer já estava true), o que
+      // muda signalingState de 'stable' para 'have-remote-offer' ANTES do
+      // nosso setLocalDescription(offer) (que já tinha sido criado com o
+      // estado antigo) rodar — e o navegador recusa aplicar uma oferta local
+      // por cima de uma oferta remota pendente. Resultado: a conexão fica
+      // com o transporte quebrado (é exatamente o padrão "funciona uma vez,
+      // aí trava" — tela preta + sem áudio pro peer atingido). A correção
+      // padrão da W3C pra "perfect negotiation" é chamar setLocalDescription()
+      // SEM argumento: o navegador então cria e aplica a oferta como uma
+      // operação única (sem deixar esse intervalo pro rollback alheio entrar
+      // no meio), fechando de vez essa corrida.
+      await pc.setLocalDescription();
+      _sendSignal(roomId, peerUid, { type: 'offer', sdp: pc.localDescription.sdp, from: _myCallId });
     } catch(e) { console.warn('[WebRTC] Erro ao renegociar com', peerUid, ':', e); }
     finally { pc._makingOffer = false; }
   };
