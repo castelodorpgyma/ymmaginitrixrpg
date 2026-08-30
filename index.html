@@ -16061,6 +16061,7 @@ function callSetCustomAvatarFile(ev) {
     _callRefreshAvatarPreview();
     _callSyncCustomAvatarToRoom(dataUrl);
     if (typeof renderCallParticipants === 'function') renderCallParticipants();
+    if (typeof _refreshLocalCallCardIdentity === 'function') _refreshLocalCallCardIdentity();
     showToast(_cachedOk ? '🖼 Ícone da call atualizado' : '🖼 Ícone atualizado (só nesta sessão — arquivo grande demais pro cache do navegador salvar de forma permanente)', _cachedOk ? 'ok' : 'warn');
   };
   reader.readAsDataURL(file);
@@ -16070,6 +16071,7 @@ function callClearCustomAvatar() {
   _callRefreshAvatarPreview();
   _callSyncCustomAvatarToRoom(null);
   if (typeof renderCallParticipants === 'function') renderCallParticipants();
+  if (typeof _refreshLocalCallCardIdentity === 'function') _refreshLocalCallCardIdentity();
   showToast('🗑 Ícone removido — voltando ao avatar da ficha/padrão','ok');
 }
 
@@ -16133,6 +16135,7 @@ function callSaveCustomChar(silent) {
   catch(err) { showToast('⚠ Não foi possível salvar (armazenamento local cheio)','warn'); return; }
   _callSyncCustomCharToRoom(charObj);
   if (typeof renderCallParticipants === 'function') renderCallParticipants();
+  if (typeof _refreshLocalCallCardIdentity === 'function') _refreshLocalCallCardIdentity();
   if (!silent) showToast('✅ Personagem da call atualizado','ok');
 }
 function callClearCustomChar() {
@@ -16140,6 +16143,7 @@ function callClearCustomChar() {
   _callRefreshCharPreview();
   _callSyncCustomCharToRoom(null);
   if (typeof renderCallParticipants === 'function') renderCallParticipants();
+  if (typeof _refreshLocalCallCardIdentity === 'function') _refreshLocalCallCardIdentity();
   showToast('🗑 Personagem customizado removido — voltando à ficha vinculada (se houver)','ok');
 }
 // Botões −/+ ao lado de cada status: ajustam e já salvam/sincronizam na hora
@@ -16360,7 +16364,7 @@ function buildParticipantCard(user, isLocal, uid, canModerate) {
 
   return '<div class="call-participant" '+localId+' data-uid="'+uid+'" data-sender="'+esc(name)+'"'+(charName?' data-char="'+esc(charName)+'"':'')+'>'
     +'<div class="call-part-av-wrap">'
-    +'<div class="call-part-av">'+av+'</div>'
+    +'<div class="call-part-av"'+(isLocal?' id="call-part-local-av"':'')+'>'+av+'</div>'
     +'<div class="speaking-ring"></div><div class="speaking-ring-2"></div>'
     +vidTag
     +'<div class="call-part-muted '+muteVis+'">🔇</div>'
@@ -16373,6 +16377,45 @@ function buildParticipantCard(user, isLocal, uid, canModerate) {
     +'<div class="call-part-role">'+role+'</div>'
     +statsHtml
     +'</div>';
+}
+
+// CORRIGIDO 2026-08-30 — CAUSA RAIZ de "troco a foto/nome na call e não
+// atualiza pra ninguém até eu sair e entrar de novo de novo": quando o bug
+// da câmera sumindo sozinha foi corrigido (mais acima, em
+// renderCallParticipants), o card do participante LOCAL passou a nunca mais
+// ser recriado do zero enquanto a call está ativa — de propósito, pra não
+// perder o <video> da câmera no meio do caminho. Só que isso também tirou
+// o único jeito que a troca de ícone/nome/status tinha de aparecer na hora:
+// ela dependia justamente desse rebuild completo pra se refletir no seu
+// próprio card (os OUTROS participantes já recebiam a atualização certinha,
+// via Firebase + o rebuild dos cards remotos, que continua acontecendo
+// normal). Esta função atualiza só o pedacinho necessário (foto, nome,
+// nome do personagem, barras de status) do seu card já existente, sem
+// tocar no elemento de vídeo — resolve os dois problemas ao mesmo tempo.
+function _refreshLocalCallCardIdentity() {
+  var card = document.getElementById('call-part-local');
+  if (!card) return;
+  var user = currentUser || {username:'Você', role:'player', avatar:null};
+  var tmp = document.createElement('div');
+  tmp.innerHTML = buildParticipantCard(user, true, window._myCallId || 'local', false);
+  var fresh = tmp.firstElementChild;
+  if (!fresh) return;
+  var freshAv = fresh.querySelector('#call-part-local-av');
+  var liveAv = card.querySelector('#call-part-local-av');
+  if (freshAv && liveAv) liveAv.innerHTML = freshAv.innerHTML;
+  var freshName = fresh.querySelector('.call-part-name');
+  var liveName = card.querySelector('.call-part-name');
+  if (freshName && liveName) liveName.innerHTML = freshName.innerHTML;
+  var freshStats = fresh.querySelector('.call-part-stats');
+  var liveStats = card.querySelector('.call-part-stats');
+  if (freshStats) {
+    if (liveStats) liveStats.outerHTML = freshStats.outerHTML;
+    else card.insertAdjacentHTML('beforeend', freshStats.outerHTML);
+  } else if (liveStats) {
+    liveStats.remove();
+  }
+  try { if (typeof _freezeAnimatedAvatars === 'function') _freezeAnimatedAvatars(card); } catch(e){}
+  try { if (window.lucide) lucide.createIcons(); } catch(e){}
 }
 
 // ── Ver câmera de um participante em tela cheia (local ou remoto) ──
