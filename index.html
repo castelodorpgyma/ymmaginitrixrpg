@@ -21849,18 +21849,24 @@ window._joinCallRoom = async function(roomId) {
 async function _createOffer(roomId, targetUid) {
   const pc = _createPeerConn(roomId, targetUid);
   // Adiciona trilhas de áudio/vídeo locais se disponíveis
+  // CORRIGIDO 2026-08-30 — todo sender de mídia agora sai já marcado com
+  // s._kind desde a criação (não só quando reaproveitado depois em
+  // _rtcAddMediaTrack). Isso evita que a voz do microfone e o áudio
+  // ambiente (os dois trilhas de kind 'audio') se confundam um com o outro
+  // ao reaproveitar um sender morto numa reconexão — ver comentário grande
+  // em _rtcAddMediaTrack.
   if (callState.micStream) {
-    callState.micStream.getTracks().forEach(t => pc.addTrack(t, callState.micStream));
+    callState.micStream.getTracks().forEach(t => { var s = pc.addTrack(t, callState.micStream); s._kind = 'micaudio'; });
   }
   if (callState.camStream) {
-    callState.camStream.getTracks().forEach(t => pc.addTrack(t, callState.camStream));
+    callState.camStream.getTracks().forEach(t => { var s = pc.addTrack(t, callState.camStream); s._kind = 'video'; });
   }
   // Se eu já estava transmitindo áudio ambiente (música de arquivo local)
   // ANTES dessa pessoa entrar na call, ela também precisa receber essa
   // trilha — senão só quem já estava conectado no momento em que cliquei
   // "play" ouviria a música, e quem chegasse depois ficaria em silêncio.
   if (window._ambientAudioStream) {
-    window._ambientAudioStream.getTracks().forEach(t => pc.addTrack(t, window._ambientAudioStream));
+    window._ambientAudioStream.getTracks().forEach(t => { var s = pc.addTrack(t, window._ambientAudioStream); s._kind = 'ambientaudio'; });
   }
   // CORRIGIDO 2026-08-25 — CAUSA RAIZ de "nem todo mundo consegue ver a
   // transmissão de tela": se eu JÁ estava compartilhando a tela ANTES dessa
@@ -21879,7 +21885,7 @@ async function _createOffer(roomId, targetUid) {
   // continue reconhecendo esses senders corretamente.
   if (callState.screenStream && callState.screenState === 'active') {
     callState.screenStream.getVideoTracks().forEach(function(t){
-      var s = pc.addTrack(t, callState.screenStream); s._kind = 'video';
+      var s = pc.addTrack(t, callState.screenStream); s._kind = 'screenvideo';
     });
     callState.screenStream.getAudioTracks().forEach(function(t){
       var s = pc.addTrack(t, callState.screenStream); s._kind = 'screenaudio';
@@ -21926,16 +21932,16 @@ async function _handleSignal(roomId, sig) {
         if (!already) { var s = pc.addTrack(track, stream); if (kindMark) s._kind = kindMark; if (typeof _capMediaSenderBitrate === 'function') _capMediaSenderBitrate(s, track); }
       } catch(e) { console.warn('[WebRTC] Erro ao adicionar track própria ao responder oferta:', e); }
     }
-    if (callState.micStream) callState.micStream.getTracks().forEach(t => _addTrackIfNew(t, callState.micStream));
-    if (callState.camStream) callState.camStream.getTracks().forEach(t => _addTrackIfNew(t, callState.camStream));
-    if (window._ambientAudioStream) window._ambientAudioStream.getTracks().forEach(t => _addTrackIfNew(t, window._ambientAudioStream));
+    if (callState.micStream) callState.micStream.getTracks().forEach(t => _addTrackIfNew(t, callState.micStream, 'micaudio'));
+    if (callState.camStream) callState.camStream.getTracks().forEach(t => _addTrackIfNew(t, callState.camStream, 'video'));
+    if (window._ambientAudioStream) window._ambientAudioStream.getTracks().forEach(t => _addTrackIfNew(t, window._ambientAudioStream, 'ambientaudio'));
     // CORRIGIDO 2026-08-25 — mesma correção do lado de _createOffer (ver
     // comentário lá): se eu já estava compartilhando a tela quando essa
     // oferta chegou (alguém entrando na call depois que eu comecei a
     // transmitir), a tela também precisa ser incluída na resposta —
     // _addTrackIfNew já evita duplicar caso essa track já esteja na conexão.
     if (callState.screenStream && callState.screenState === 'active') {
-      callState.screenStream.getVideoTracks().forEach(function(t){ _addTrackIfNew(t, callState.screenStream, 'video'); });
+      callState.screenStream.getVideoTracks().forEach(function(t){ _addTrackIfNew(t, callState.screenStream, 'screenvideo'); });
       callState.screenStream.getAudioTracks().forEach(function(t){ _addTrackIfNew(t, callState.screenStream, 'screenaudio'); });
     }
     // CORRIGIDO 2026-08-24 (CAMADA 12c — MESMA DEFESA DO LADO DA OFERTA) —
@@ -22821,12 +22827,50 @@ function _capMediaSenderBitrate(sender, track) {
 // ── Hook: quando mic/cam é ativado, adiciona trilha nos peers existentes ──
 window._rtcAddMediaTrack = function(stream) {
   if (!stream) return;
+  // CORRIGIDO 2026-08-30 — CAUSA RAIZ de "às vezes não vejo a transmissão de
+  // alguém / nem todo mundo vê a minha câmera": tanto a trilha de vídeo da
+  // CÂMERA quanto a de TELA compartilhada eram marcadas com o mesmo
+  // s._kind='video' (ver histórico de correções acima). Quando um sender
+  // "morto" era procurado pra reaproveitar (linha "deadSameKind" abaixo), a
+  // busca só olhava pra kind==='video' — sem distinguir câmera de tela.
+  // Resultado: se o sender da CÂMERA de alguém morresse e a tela dessa
+  // mesma pessoa também tivesse um sender morto (ou vice-versa), religar a
+  // câmera podia reaproveitar por engano o canal que o outro lado já
+  // esperava ser "tela" (ou o contrário) — o vídeo saía, só que pelo canal
+  // trocado, então às vezes aparecia pro outro lado e às vezes não,
+  // dependendo de qual sender "morto" existia no momento. Agora a tela usa
+  // a marca própria 'screenvideo' (nunca mais 'video' puro) em todos os
+  // lugares do código, e aqui calculamos a marca certa ANTES de procurar um
+  // sender morto pra reaproveitar, pra nunca misturar os dois tipos de vídeo.
+  // CORRIGIDO 2026-08-30 (2) — MESMA CAUSA RAIZ, agora em ÁUDIO: a trilha de
+  // voz do MICROFONE e a trilha de ÁUDIO AMBIENTE (música compartilhada) são
+  // as duas simples MediaStreamTrack de kind 'audio', sem marca própria —
+  // então a mesma confusão do vídeo (câmera x tela) também acontecia aqui.
+  // Se o sender da voz caísse (fone bluetooth cortando, aba em segundo
+  // plano, etc — ver comentário grande em _doRequestMic) bem perto de um
+  // sender morto do áudio ambiente, religar o microfone podia reaproveitar
+  // por engano o canal que o outro lado já esperava ser "música" — a voz
+  // saía tecnicamente, mas o outro lado classificava como áudio ambiente
+  // (ou simplesmente não tocava, dependendo do estado local dele), então
+  // ninguém ouvia a pessoa falando até ela sair e entrar de novo na call
+  // (o que recria a conexão do zero, sem nenhum sender morto pra confundir).
+  // Agora mic e áudio ambiente também ganham marcas próprias e nunca mais
+  // são reaproveitados um pelo outro.
+  var _isScreenStream = !!(callState.screenStream && stream === callState.screenStream);
+  var _isMicStream = !!(callState.micStream && stream === callState.micStream);
+  var _isAmbientStream = !!(window._ambientAudioStream && stream === window._ambientAudioStream);
   Object.entries(_peers).forEach(([uid, pc]) => {
     stream.getTracks().forEach(track => {
       try {
         const senders = pc.getSenders();
         const alreadyExists = senders.find(s => s.track && s.track.id === track.id);
         if (alreadyExists) return;
+        var matchKind = track.kind;
+        if (_isScreenStream && track.kind === 'video') matchKind = 'screenvideo';
+        else if (track.kind === 'audio') {
+          if (_isMicStream) matchKind = 'micaudio';
+          else if (_isAmbientStream) matchKind = 'ambientaudio';
+        }
         // CORRIGIDO: ao reconectar o mic (ex.: recuperação automática depois
         // que a trilha antiga "morreu" sozinha), addTrack() sempre criava um
         // sender NOVO em cima da conexão já aberta — o sender antigo (com
@@ -22855,7 +22899,7 @@ window._rtcAddMediaTrack = function(stream) {
         // sender for removido de vez com removeTrack) — então agora usamos
         // s.track.kind quando o track ainda existe, e só caímos pra marca
         // própria s._kind como reserva se ele já tiver sido removido.
-        const deadSameKind = senders.find(s => (!s.track || s.track.readyState==='ended') && (s.track ? s.track.kind : s._kind) === track.kind);
+        const deadSameKind = senders.find(s => (!s.track || s.track.readyState==='ended') && ((s.track && !s._kind) ? s.track.kind : s._kind) === matchKind);
         if (deadSameKind) {
           console.log('[WebRTC] Substituindo track morta por nova (' + track.kind + ') no peer:', uid);
           deadSameKind.replaceTrack(track).then(function(){
@@ -22887,7 +22931,7 @@ window._rtcAddMediaTrack = function(stream) {
         } else {
           console.log('[WebRTC] Adicionando track', track.kind, 'para peer:', uid);
           const sender = pc.addTrack(track, stream);
-          sender._kind = track.kind; // marcado pra reconhecer esse sender em quedas futuras
+          sender._kind = matchKind; // marcado pra reconhecer esse sender em quedas futuras (câmera != tela, mesmo kind 'video')
           _capMediaSenderBitrate(sender, track);
         }
       } catch(e) { console.warn('[WebRTC] Erro ao adicionar track:', e); }
@@ -23119,7 +23163,7 @@ function _notifyMediaTransmission(gmName, mediaType) {
             // CORRIGIDO 2026-08-25 (CAMADA 15b): marca o sender com _kind ANTES
             // de remover, para que a lógica de reaproveitamento do transceiver
             // consiga encontrá-lo quando a transmissão recomeçar.
-            sender._kind = 'video';
+            sender._kind = 'screenvideo';
             try { pc.removeTrack(sender); } catch(e){}
           }
           // CORRIGIDO 2026-08-25 — a track de ÁUDIO do sistema (quando
@@ -23211,7 +23255,7 @@ function _notifyMediaTransmission(gmName, mediaType) {
           // terminarem — uma única renegociação carrega os dois no mesmo
           // SDP.
           var pendingReactivations = []; // { tv, trk, kindMark }
-          [ [track,'video'], [audioTrack,'screenaudio'] ].forEach(function(pair) {
+          [ [track,'screenvideo'], [audioTrack,'screenaudio'] ].forEach(function(pair) {
             var trk = pair[0], kindMark = pair[1];
             if (!trk) return;
             try {
@@ -23261,7 +23305,7 @@ function _notifyMediaTransmission(gmName, mediaType) {
     Object.values(_peers).forEach(function(pc) {
       pc.getSenders().forEach(function(sender) {
         if (sender.track && sender.track.kind === 'video' && sender.track.id === _screenTrackId) {
-          sender._kind = 'video'; // CORRIGIDO 2026-08-25 (CAMADA 15c): marca antes de remover
+          sender._kind = 'screenvideo'; // CORRIGIDO 2026-08-25 (CAMADA 15c): marca antes de remover
           try { pc.removeTrack(sender); } catch(e){}
         }
         // CORRIGIDO 2026-08-25: remove também a track de áudio do sistema,
