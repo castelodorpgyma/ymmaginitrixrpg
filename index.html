@@ -13788,7 +13788,7 @@ function _syncScreenAreaVisibility() {
 // ═══════════════════════════════════════
 //  VOLUME DA TRANSMISSÃO DE TELA (individual por quem assiste)
 // ═══════════════════════════════════════
-var _callScreenAudioMuted = true; // começa mutado (política de autoplay dos navegadores + evita susto de volume alto)
+var _callScreenAudioMuted = false; // CORRIGIDO 2026-08-30 — tenta tocar COM som por padrão (ver _attachPendingScreenShare); só vira true se o navegador bloquear o autoplay com som
 function _syncScreenVolumeUI() {
   var vid = document.getElementById('call-screen-video');
   var ctrl = document.getElementById('call-screen-vol-ctrl');
@@ -22630,16 +22630,55 @@ window._attachPendingScreenShare = function() {
   if (vid && _isNewScreenStream) {
     vid.srcObject = _pendingScreenStream;
     vid.style.display = 'block';
-    // REFORÇADO 2026-08-25 — antes, se vid.play() falhasse (política de
-    // autoplay do navegador, aba em segundo plano, etc.), o erro era
-    // simplesmente engolido (.catch(function(){})) sem nenhum retry nem
-    // aviso — o vídeo ficava "conectado" (srcObject preenchido) mas
-    // parado/preto na tela, e não tinha como saber que era exatamente
-    // isso sem abrir o console. Agora tenta de novo automaticamente ao
-    // primeiro clique/toque em qualquer lugar da página (contorna
-    // bloqueio de autoplay que exige interação do usuário) e registra um
-    // aviso no console pra facilitar diagnóstico.
+    // CORRIGIDO 2026-08-30 (pedido do usuário: "quando eu transmito com som
+    // não vai") — CAUSA RAIZ: o vídeo sempre nascia com vid.muted=true e só
+    // tocava som depois que a pessoa assistindo clicava manualmente no
+    // botão 🔇/🔊 discreto no canto — quase ninguém percebe esse botão, e
+    // pra quem não clica o áudio realmente nunca é ouvido, mesmo chegando
+    // certinho pela rede (o WebRTC entrega a trilha normalmente). Agora,
+    // como quem está vendo isso já entrou na call por um clique/toque (ou
+    // seja, já existe uma interação recente do usuário na página), tenta
+    // tocar DIRETO com som primeiro — a maioria dos navegadores permite
+    // isso nesse contexto. Só cai pro modo mudo + aviso na tela se o
+    // navegador realmente bloquear o autoplay com som (NotAllowedError).
+    var _hasAudioNow = _pendingScreenStream.getAudioTracks && _pendingScreenStream.getAudioTracks().length > 0;
     var _tryPlay = function() {
+      if (_hasAudioNow && !callState.deafened) {
+        vid.muted = false;
+        var p1 = vid.play();
+        if (p1 && p1.catch) {
+          p1.catch(function(e) {
+            // Autoplay com som bloqueado — recua pro modo mudo (garantido de
+            // funcionar) e mostra o aviso apontando pro botão manual.
+            console.warn('[WebRTC] Autoplay COM som da transmissão bloqueado, recuando pra mudo:', e);
+            _callScreenAudioMuted = true;
+            vid.muted = true;
+            var p2 = vid.play();
+            if (p2 && p2.catch) {
+              p2.catch(function(e2) {
+                console.warn('[WebRTC] Autoplay da transmissão de tela bloqueado, tentando novamente após interação:', e2);
+                var retryOnce = function() { vid.play().catch(function(){}); document.removeEventListener('click', retryOnce); document.removeEventListener('touchstart', retryOnce); };
+                document.addEventListener('click', retryOnce, { once:true });
+                document.addEventListener('touchstart', retryOnce, { once:true });
+              });
+            }
+            if (typeof _syncScreenVolumeUI === 'function') _syncScreenVolumeUI();
+          }).then(function(){
+            // Tocou com som de primeira — garante que o estado/UI reflitam "com som".
+            if (vid && !vid.muted) { _callScreenAudioMuted = false; if (typeof _syncScreenVolumeUI === 'function') _syncScreenVolumeUI(); }
+          });
+        }
+        return;
+      }
+      // REFORÇADO 2026-08-25 — antes, se vid.play() falhasse (política de
+      // autoplay do navegador, aba em segundo plano, etc.), o erro era
+      // simplesmente engolido (.catch(function(){})) sem nenhum retry nem
+      // aviso — o vídeo ficava "conectado" (srcObject preenchido) mas
+      // parado/preto na tela, e não tinha como saber que era exatamente
+      // isso sem abrir o console. Agora tenta de novo automaticamente ao
+      // primeiro clique/toque em qualquer lugar da página (contorna
+      // bloqueio de autoplay que exige interação do usuário) e registra um
+      // aviso no console pra facilitar diagnóstico.
       var p = vid.play();
       if (p && p.catch) {
         p.catch(function(e) {
