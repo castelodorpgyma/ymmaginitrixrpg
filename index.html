@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>Ymmaginitrix — Gerenciador de Campanhas</title>
-<meta name="version" content="202608291830">
+<meta name="version" content="202608291900">
 <meta name="description" content="Ymmaginitrix — Plataforma de gerenciamento de campanhas de RPG">
 <meta name="application-name" content="Ymmaginitrix">
 <meta property="og:title" content="Ymmaginitrix — Gerenciador de Campanhas RPG">
@@ -22791,6 +22791,17 @@ window._leaveCallRoom = function(roomId) {
   }
   Object.values(_peers).forEach(pc => { try { pc.close(); } catch(e){} });
   _peers = {};
+  // Limpa qualquer timer de confirmação de saída (ver onValue(membersRef) —
+  // "aguardando 4s pra confirmar antes de fechar") que ainda esteja pendente:
+  // sem isso, ele dispararia sozinho alguns segundos depois já fora da call
+  // atual (ou pior, durante uma call NOVA se a pessoa reentrar rápido),
+  // checando um _peers que já foi zerado — inofensivo pro fechamento em si,
+  // mas deixava lixo acumulando em window._peerEvictionTimers e um log
+  // confuso no console.
+  if (window._peerEvictionTimers) {
+    Object.values(window._peerEvictionTimers).forEach(function(t){ try { clearTimeout(t); } catch(e){} });
+    window._peerEvictionTimers = {};
+  }
   Object.values(_remoteAudioEls).forEach(el => { el.srcObject = null; el.remove(); });
   Object.keys(_remoteAudioEls).forEach(k => delete _remoteAudioEls[k]);
   // Áudio ambiente que EU estava recebendo de outra pessoa (ver _attachRemoteStream) —
