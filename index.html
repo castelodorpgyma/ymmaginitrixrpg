@@ -6326,7 +6326,15 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
           <button class="dq-btn" onclick="quickRoll('2d8')">2d8</button>
           <button class="dq-btn" onclick="quickRoll('2d12')">2d12</button>
           <button class="dq-btn" onclick="rollLiveRoleta()">🎰 Roleta</button>
+          <!-- ADICIONADO 2026-08-30 (pedido do usuário) — Tabela D60 de Azar
+               também precisa ficar visível/acessível na aba de Sessão, não
+               só na Mesa de Dados. -->
+          <button class="dq-btn" onclick="rollTabelaAzar()" style="background:rgba(140,20,20,.35);border-color:rgba(210,40,40,.4)">☠ Azar D60</button>
         </div>
+        <!-- Resultado da Tabela de Azar (mesma caixa usada na Mesa de Dados,
+             #azar-result-box — _renderAzarResult() já escreve nela; aqui ela
+             fica visível também dentro da tela de Sessão). -->
+        <div id="azar-result-box-sessao" class="azar-result-box" style="display:none;margin-top:10px;padding:10px 12px;background:rgba(140,20,20,.12);border:1px solid rgba(210,40,40,.3);border-radius:8px"></div>
         <div class="roll-feed" id="live-roll-feed">
           <div style="opacity:.25;text-align:center;font-family:'Share Tech Mono',monospace;font-size:.6rem;padding:8px">// histórico de rolagens //</div>
         </div>
@@ -11533,14 +11541,21 @@ function rollTabelaAzar() {
   var rollEntry = { expr: resumo, total: principal.n, isCrit:false, isFail:true,
     sender: currentUser ? currentUser.username : 'Mestre',
     avatar: currentUser ? currentUser.avatar : null, time: time };
-  if (typeof diceOverlayVisible !== 'undefined' && diceOverlayVisible && typeof pushRoll === 'function') {
-    pushRoll(rollEntry);
-  }
+  // CORRIGIDO 2026-08-30 (pedido do usuário: "faça ficar visível a roleta
+  // do azar nas campanhas") — CAUSA RAIZ: este `if` só mandava o resultado
+  // pro feed de rolagens (pushRoll → live-roll-feed + sincroniza pra todo
+  // mundo via saveLive) quando `diceOverlayVisible` já existia e estava
+  // true — uma flag da tela de Mesa de Dados que normalmente está false/
+  // indefinida. Na prática, isso significava que rolar a Tabela de Azar
+  // quase nunca aparecia em lugar nenhum visível pros outros jogadores —
+  // só ficava na caixinha local (#azar-result-box), que nem sempre está na
+  // tela. Agora pushRoll() é chamado sempre, do mesmo jeito que qualquer
+  // outra rolagem rápida (d4~d20, Roleta) — aparece no histórico da Sessão
+  // e sincroniza pra toda a campanha.
+  if (typeof pushRoll === 'function') pushRoll(rollEntry);
 }
 
 function _renderAzarResult(principal, extras) {
-  var box = document.getElementById('azar-result-box');
-  if (!box) return;
   function linha(e) {
     return '<div style="margin-bottom:8px">'
       + '<div style="font-family:\'Bebas Neue\',sans-serif;font-size:1rem;letter-spacing:.04em;color:#ff6a6a">#'+e.n+' — '+esc(e.efeito)+'</div>'
@@ -11552,8 +11567,16 @@ function _renderAzarResult(principal, extras) {
     html += '<div style="font-family:\'Share Tech Mono\',monospace;font-size:.55rem;letter-spacing:.12em;color:rgba(255,120,120,0.85);margin:6px 0 4px">// REAÇÃO EM CADEIA — 3 EFEITOS SIMULTÂNEOS //</div>';
     extras.forEach(function(e){ html += linha(e); });
   }
-  box.innerHTML = html;
-  box.style.display = 'block';
+  // CORRIGIDO 2026-08-30 — antes só escrevia em #azar-result-box (existe só
+  // na Mesa de Dados). Agora escreve em TODAS as caixas de resultado de
+  // Azar presentes na página (Mesa de Dados e Sessão), pra funcionar não
+  // importa em qual tela o botão foi clicado.
+  ['azar-result-box', 'azar-result-box-sessao'].forEach(function(boxId){
+    var box = document.getElementById(boxId);
+    if (!box) return;
+    box.innerHTML = html;
+    box.style.display = 'block';
+  });
 }
 
 function rollRoleta() {
