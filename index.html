@@ -22098,6 +22098,7 @@ window._joinCallRoom = async function(roomId) {
   // esperar a pessoa perceber e digitar /thebug, a própria call já se
   // resincroniza sozinha em segundo plano.
   if (_callHealthInterval) { try { clearInterval(_callHealthInterval); } catch(e){} }
+  window._lastFullRejoinAt = window._lastFullRejoinAt || 0;
   _callHealthInterval = setInterval(function(){
     if (!callState.active) return;
     try {
@@ -22106,6 +22107,42 @@ window._joinCallRoom = async function(roomId) {
       if (callState.screenStream) window._rtcAddMediaTrack(callState.screenStream);
       if (window._ambientAudioStream) window._rtcAddMediaTrack(window._ambientAudioStream);
     } catch(e) { console.warn('[WebRTC] Auto-cura periódica falhou:', e); }
+
+    // v202608302300 — ÚLTIMO RECURSO: REJOIN COMPLETO DA SALA. Tudo que foi
+    // construído até aqui (restartIce, relay fallback, keepalive) conserta
+    // conexões peer-a-peer individuais. Mas existe uma classe de problema
+    // que NENHUM restartIce resolve: algo sistêmico do MEU lado — ex.: o
+    // canal de sinalização do Firebase pra ESTA sala específica ficou preso
+    // (onValue parou de entregar atualizações silenciosamente, algo raro
+    // mas que já aconteceu em quedas de socket mal recuperadas). O sintoma
+    // é: TODOS os peers ao mesmo tempo ficam sem conectar, nenhum
+    // restartIce individual ajuda porque o problema não tá na rota ICE de
+    // cada um — tá em algo comum a todos. Se, com pelo menos 2 pessoas na
+    // call, 100% delas estiverem fora de 'connected' por tempo suficiente
+    // (garantido pelas 6 tentativas + relay fallback já terem tido chance
+    // de agir antes), sai da sala e entra de novo do zero — refaz TODOS os
+    // listeners e conexões, o equivalente a recarregar a página mas sem
+    // precisar recarregar. Cooldown de 2 minutos entre tentativas pra nunca
+    // entrar num loop de rejoin repetido caso o problema seja persistente
+    // (ex.: sem internet de verdade — nesse caso rejoin não ajudaria mesmo,
+    // e ninguém quer um rejoin a cada 15s pra sempre).
+    var uids = Object.keys(_peers);
+    if (uids.length >= 2 && navigator.onLine) {
+      var allBad = uids.every(function(uid){
+        var pc = _peers[uid];
+        return pc && pc.connectionState !== 'connected' && pc.connectionState !== 'connecting' && pc.connectionState !== 'new';
+      });
+      if (allBad && (Date.now() - window._lastFullRejoinAt) > 120000) {
+        window._lastFullRejoinAt = Date.now();
+        console.warn('[WebRTC] TODOS os peers (' + uids.length + ') fora de conexão ao mesmo tempo — sinal de problema sistêmico. Fazendo rejoin completo da sala.');
+        showToast('🔄 Reconexão geral da call (todos os participantes ficaram fora ao mesmo tempo)...', 'warn');
+        var _room = roomId;
+        try { window._leaveCallRoom(_room); } catch(e){}
+        setTimeout(function(){
+          if (callState.active && typeof window._joinCallRoom === 'function') window._joinCallRoom(_room).catch(function(e){ console.warn('[WebRTC] Rejoin completo falhou:', e); });
+        }, 1500);
+      }
+    }
   }, 15000);
 
   // Anuncia presença na call
