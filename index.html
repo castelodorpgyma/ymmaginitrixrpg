@@ -5707,9 +5707,17 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
           </div>
           <!-- Roleta -->
           <button class="d-die special" onclick="rollRoleta()" style="width:100%;font-size:.8rem;padding:12px">🎰 &nbsp;ROLETA DO DESTINO</button>
+          <!-- ADICIONADO 2026-08-30 (pedido do usuário) — Tabela D50 de Sorte -->
+          <button class="d-die special" onclick="rollTabelaSorte()" style="width:100%;font-size:.8rem;padding:12px;margin-top:8px;background:linear-gradient(135deg,rgba(20,120,60,.5),rgba(6,50,26,.3));border-color:rgba(60,200,110,.5)">🍀 &nbsp;ROLETA DA SORTE (D50)</button>
+          <div id="sorte-result-box" style="display:none;margin-top:10px;background:rgba(40,200,100,.08);border:1px solid rgba(60,200,110,.3);border-radius:10px;padding:12px 14px"></div>
           <!-- ADICIONADO 2026-08-30 (pedido do usuário) — Tabela D60 de Azar & Infortúnios -->
-          <button class="d-die special" onclick="rollTabelaAzar()" style="width:100%;font-size:.8rem;padding:12px;margin-top:8px;background:linear-gradient(135deg,rgba(140,20,20,.5),rgba(60,4,4,.3));border-color:rgba(210,40,40,.5)">☠ &nbsp;TABELA DE AZAR (D60)</button>
+          <button class="d-die special" onclick="rollTabelaAzar()" style="width:100%;font-size:.8rem;padding:12px;margin-top:8px;background:linear-gradient(135deg,rgba(140,20,20,.5),rgba(60,4,4,.3));border-color:rgba(210,40,40,.5)">☠ &nbsp;TABELA DE AZAR (D110)</button>
           <div id="azar-result-box" style="display:none;margin-top:10px;background:rgba(210,40,40,.08);border:1px solid rgba(210,40,40,.3);border-radius:10px;padding:12px 14px"></div>
+          <!-- ADICIONADO 2026-08-30 (pedido do usuário: "botão que faça eu
+               conseguir ver tudo que pode acontecer") — abre modal com as
+               duas tabelas completas (Sorte D50 + Azar D110) pra consulta,
+               sem precisar rolar de verdade. -->
+          <button class="d-die special" onclick="openTabelaDestino()" style="width:100%;font-size:.72rem;padding:10px;margin-top:8px;background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.15);color:rgba(230,232,245,.85)">👁 &nbsp;VER TUDO (SORTE &amp; AZAR)</button>
           <!-- Log -->
           <div class="dice-log-new" id="dice-log">
             <div style="font-family:'Share Tech Mono',monospace;font-size:.58rem;color:rgba(255,255,255,0.72);text-align:center;padding:6px">// histórico //</div>
@@ -6326,11 +6334,19 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
           <button class="dq-btn" onclick="quickRoll('2d8')">2d8</button>
           <button class="dq-btn" onclick="quickRoll('2d12')">2d12</button>
           <button class="dq-btn" onclick="rollLiveRoleta()">🎰 Roleta</button>
+          <!-- ADICIONADO 2026-08-30 (pedido do usuário) — Tabela D50 de Sorte
+               também disponível na aba de Sessão. -->
+          <button class="dq-btn" onclick="rollTabelaSorte()" style="background:rgba(20,120,60,.35);border-color:rgba(60,200,110,.4)">🍀 Sorte D50</button>
           <!-- ADICIONADO 2026-08-30 (pedido do usuário) — Tabela D60 de Azar
                também precisa ficar visível/acessível na aba de Sessão, não
                só na Mesa de Dados. -->
-          <button class="dq-btn" onclick="rollTabelaAzar()" style="background:rgba(140,20,20,.35);border-color:rgba(210,40,40,.4)">☠ Azar D60</button>
+          <button class="dq-btn" onclick="rollTabelaAzar()" style="background:rgba(140,20,20,.35);border-color:rgba(210,40,40,.4)">☠ Azar D110</button>
+          <!-- ADICIONADO 2026-08-30 (pedido do usuário: "ver tudo que pode
+               acontecer") -->
+          <button class="dq-btn" onclick="openTabelaDestino()" style="background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.18)">👁 Ver tudo</button>
         </div>
+        <!-- Resultado da Tabela de Sorte (mesmo padrão da Tabela de Azar). -->
+        <div id="sorte-result-box-sessao" style="display:none;margin-top:10px;padding:10px 12px;background:rgba(20,120,60,.12);border:1px solid rgba(60,200,110,.3);border-radius:8px"></div>
         <!-- Resultado da Tabela de Azar (mesma caixa usada na Mesa de Dados,
              #azar-result-box — _renderAzarResult() já escreve nela; aqui ela
              fica visível também dentro da tela de Sessão). -->
@@ -7605,7 +7621,32 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   </div>
 </div>
 
+<!-- ══ MODAL: VER TUDO (SORTE & AZAR) ══ -->
+<!-- ADICIONADO 2026-08-30 (pedido do usuário: "crie um botão que faça eu
+     conseguir ver tudo que pode acontecer tanto na roleta da sorte quanto
+     da roleta do azar") — lista as duas tabelas completas (1d50 Sorte e
+     1d110 Azar) por abas, com busca por palavra-chave, pra consulta rápida
+     sem precisar rolar de verdade nenhuma das duas. -->
+<div class="modal-overlay" id="modal-tabela-destino" onclick="if(event.target===this)closeModal('modal-tabela-destino')">
+  <div class="modal" style="max-width:560px;padding:0;border-radius:18px;overflow:hidden;display:flex;flex-direction:column;max-height:86vh">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px;background:rgba(255,255,255,.03);border-bottom:1px solid rgba(255,255,255,.08)">
+      <h2 style="margin:0;font-family:'Bebas Neue',sans-serif;letter-spacing:.04em;font-size:1.2rem">👁 O QUE PODE ACONTECER</h2>
+      <button class="modal-close" onclick="closeModal('modal-tabela-destino')" style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:rgba(200,205,225,0.72);cursor:pointer;border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center">✕</button>
+    </div>
+    <div style="display:flex;gap:8px;padding:12px 18px 0">
+      <button id="td-tab-sorte" class="roleta-target-btn sel" style="flex:1;background:rgba(20,120,60,.2);border-color:rgba(60,200,110,.4)" onclick="setTabelaDestinoAba('sorte')">🍀 SORTE (D50)</button>
+      <button id="td-tab-azar" class="roleta-target-btn" style="flex:1;background:rgba(140,20,20,.2);border-color:rgba(210,40,40,.4)" onclick="setTabelaDestinoAba('azar')">☠ AZAR (D110)</button>
+    </div>
+    <div style="padding:10px 18px">
+      <input type="text" id="td-search" placeholder="🔎 Buscar por nome ou efeito..." oninput="_filterTabelaDestino(this.value)"
+        style="width:100%;font-family:'Share Tech Mono',monospace;font-size:.7rem;padding:8px 10px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:var(--c-text);outline:none">
+    </div>
+    <div id="tabela-destino-body" data-aba="sorte" style="flex:1;overflow-y:auto;padding:0 6px 12px"></div>
+  </div>
+</div>
+
 <div id="notif"></div>
+
 
 <!-- ── EMOJI REACTIONS DA CALL ── -->
 <!-- ══ CALL FLUTUANTE (PiP) ══ -->
@@ -11447,8 +11488,14 @@ function rollMulti(n, sides) {
 // próprias imagens: ao tirar 1 natural no d20 (falha crítica), ou pra
 // personagens "azarados/amaldiçoados" no início de um combate ou cena
 // social importante, role nesta tabela pra um contratempo dinâmico.
+// AMPLIADO 2026-08-30 (2) — pedido do usuário: "+50 de azar pra ficar
+// 1d110". Entradas 61–110 adicionadas na mesma linha da tabela original
+// (mesmo tom de infortúnio cotidiano/cômico, intensidade crescente perto
+// do fim), e a entrada 110 vira uma segunda "Catástrofe Suprema" — o
+// mecanismo de `chain:true` já é genérico (rollTabelaAzar não depende de
+// nenhum número fixo), então basta marcar a entrada.
 // ══════════════════════════════════════════════════════════════════
-var TABELA_D60_AZAR = [
+var TABELA_D110_AZAR = [
   {n:1,  efeito:'Cadarço Solto',          desc:'Você tropeça na própria capa/bainha/cadarço e cai no chão (ficando Caído).'},
   {n:2,  efeito:'Ataque de Vespa',        desc:'Um inseto espalhafatosamente barulhento entra na sua armadura ou túnica.'},
   {n:3,  efeito:'Coceira Inoportuna',     desc:'Uma coceira incontrolável no meio das costas dá desvantagem na próxima jogada.'},
@@ -11508,13 +11555,63 @@ var TABELA_D60_AZAR = [
   {n:57, efeito:'Tontura Súbita',         desc:'Ao virar a cabeça rápido demais, você sente uma labirintite momentânea e fica tonto por 1 rodada.'},
   {n:58, efeito:'Suor nos Olhos',         desc:'Uma gota de suor salgado escorre direto para o seu olho durante um momento decisivo.'},
   {n:59, efeito:'Catarro Enroscado',      desc:'Você tenta fazer um discurso imponente, mas limpa a garganta de forma patética e engasga.'},
-  {n:60, efeito:'Catástrofe de Azar Suprema', desc:'Reação em cadeia! Role 3 vezes nesta tabela e aplique os três efeitos simultaneamente!', chain:true}
+  {n:60, efeito:'Catástrofe de Azar Suprema', desc:'Reação em cadeia! Role 3 vezes nesta tabela e aplique os três efeitos simultaneamente!', chain:true},
+  {n:61, efeito:'Degrau Traiçoeiro',      desc:'Um degrau mais alto do que parecia faz você tropeçar subindo uma escada.'},
+  {n:62, efeito:'Vinho nas Vestes',       desc:'Alguém esbarra em você e derrama uma bebida inteira nas suas roupas.'},
+  {n:63, efeito:'Mochila Emborcada',      desc:'Sua mochila abre sozinha e parte do conteúdo se espalha pelo chão.'},
+  {n:64, efeito:'Trombada Feia',          desc:'Você bate de frente com um poste, coluna ou moldura de porta (1 de dano, um tanto humilhante).'},
+  {n:65, efeito:'Chapéu Voa',             desc:'Uma rajada leva seu chapéu, capuz ou elmo mais leve pra longe, na direção errada.'},
+  {n:66, efeito:'Fivela Emperrada',       desc:'Uma fivela da armadura ou cinto emperra bem na hora que você mais precisa dela solta.'},
+  {n:67, efeito:'Grito de Susto',         desc:'Algo inofensivo (um rato, um galho, sua própria sombra) te assusta e você grita alto demais.'},
+  {n:68, efeito:'Balde de Água Gelada',   desc:'Você esbarra um balde ou vaso e recebe água gelada em cima sem aviso.'},
+  {n:69, efeito:'Trovão Falso',           desc:'Um estrondo distante e inofensivo te faz pular de susto na frente de todo mundo.'},
+  {n:70, efeito:'Perda de Equilíbrio',    desc:'Uma tontura passageira faz você cambalear por 1 rodada (desvantagem no próximo teste de Acrobacia).'},
+  {n:71, efeito:'Faísca no Olho',         desc:'Uma faísca de fogueira ou forja voa direto pro seu olho. Fica com visão embaçada por 1 rodada.'},
+  {n:72, efeito:'Bolso Vazio',            desc:'Ao procurar uma moeda ou item pequeno no bolso, você percebe que ele já não está mais lá.'},
+  {n:73, efeito:'Cheiro Grudento',        desc:'Você esbarra em algo com cheiro forte e pegajoso que gruda em você por horas.'},
+  {n:74, efeito:'Escorregão na Lama',     desc:'Uma poça de lama disfarçada de chão firme te derruba (fica Caído).'},
+  {n:75, efeito:'Corda Arrebentada',      desc:'Uma corda, cadarço ou correia que você usava se rompe bem na hora errada.'},
+  {n:76, efeito:'Vento Contrário',        desc:'Um vento forte contra você reduz seu deslocamento em 1,5m nesta cena.'},
+  {n:77, efeito:'Bota na Lama',           desc:'Seu pé afunda numa poça de lama funda; leva 1 ação pra se soltar.'},
+  {n:78, efeito:'Espinho na Mão',         desc:'Um espinho, farpa ou lasca se crava na sua mão. -1 em testes que exijam as mãos por 1 rodada.'},
+  {n:79, efeito:'Sombra Assustadora',     desc:'Uma sombra mal-projetada te faz reagir a uma ameaça que não existe, gastando sua reação à toa.'},
+  {n:80, efeito:'Insulto Sem Querer',     desc:'Uma frase mal formulada soa como um insulto grave pro NPC errado. Ele fica visivelmente ofendido.'},
+  {n:81, efeito:'Perna Dormente',         desc:'Depois de ficar parado tempo demais, sua perna dorme. Seu primeiro movimento da cena é mais lento.'},
+  {n:82, efeito:'Visão Embaçada',         desc:'Poeira, fumaça ou suor embaçam sua visão por um instante crucial (desvantagem no próximo ataque à distância).'},
+  {n:83, efeito:'Ruído do Nada',          desc:'Um barulho alto e sem origem aparente ecoa perto de você, chamando atenção indesejada.'},
+  {n:84, efeito:'Item Emprestado Some',   desc:'Um item que você emprestou de um aliado desaparece do seu inventário sem explicação — ele quer de volta.'},
+  {n:85, efeito:'Fumaça nos Olhos',       desc:'Uma lufada de fumaça de fogueira ou forja vai direto na sua cara. Tosse incontrolável por 1 rodada.'},
+  {n:86, efeito:'Cheiro de Queimado',     desc:'Algo que você carregava (comida, pergaminho, corda) chamusca sem querer perto de uma chama.'},
+  {n:87, efeito:'Erro de Cálculo',        desc:'Você errou a conta de moedas, distância ou tempo — e só percebe na pior hora possível.'},
+  {n:88, efeito:'Balde Derrubado',        desc:'Você chuta sem querer um balde, caixote ou vaso, fazendo um barulho enorme.'},
+  {n:89, efeito:'Nó nos Cabelos',         desc:'Seus cabelos ou pelagem enroscam em um galho, elmo ou fivela — 1 ação pra se soltar.'},
+  {n:90, efeito:'Mancha Indelével',       desc:'Uma mancha de tinta, sangue ou graxa gruda na sua roupa e não sai de jeito nenhum por dias.'},
+  {n:91, efeito:'Palavra Trocada',        desc:'Você troca uma palavra importante por outra parecida — e muda completamente o sentido da frase.'},
+  {n:92, efeito:'Prateleira Instável',    desc:'Um objeto cai de uma prateleira ou saliência perto de você, quase acertando sua cabeça.'},
+  {n:93, efeito:'Enxame de Mosquitos',    desc:'Uma nuvem de insetos decide que você é o alvo perfeito pelos próximos 10 minutos.'},
+  {n:94, efeito:'Piscada Nervosa',        desc:'Um tique nervoso na hora errada é interpretado como um sinal ou cumplicidade por quem está por perto.'},
+  {n:95, efeito:'Confusão de Nomes',      desc:'Você chama alguém importante pelo nome errado — bem na frente dele.'},
+  {n:96, efeito:'Casca de Fruta',         desc:'Uma casca escorregadia no chão te derruba de um jeito cômico e nada digno.'},
+  {n:97, efeito:'Tocha Apagada',          desc:'Uma rajada de vento apaga exatamente a tocha ou lanterna que iluminava seu caminho.'},
+  {n:98, efeito:'Comichão Generalizada',  desc:'Uma coceira incontrolável no corpo todo atrapalha sua concentração por 1 rodada.'},
+  {n:99, efeito:'Rota Errada',            desc:'Você segue por um caminho errado sem perceber, perdendo tempo precioso antes de notar.'},
+  {n:100, efeito:'Espirro em Cadeia',     desc:'Uma sequência de espirros incontroláveis denuncia sua posição a quem estiver por perto.'},
+  {n:101, efeito:'Superstição Provocada', desc:'Um gesto seu sem querer é lido como um péssimo augúrio por moradores locais supersticiosos.'},
+  {n:102, efeito:'Barulho Constrangedor', desc:'Seu estômago ronca (ou pior) muito alto num momento de silêncio absoluto.'},
+  {n:103, efeito:'Sentado sem Querer',    desc:'O chão, cadeira ou tronco em que você se apoiava cede, e você cai sentado feio.'},
+  {n:104, efeito:'Voz Sumida',            desc:'Sua voz falha completamente por 1 rodada bem no meio de uma fala importante.'},
+  {n:105, efeito:'Rajada Gelada',         desc:'Um vento gelado repentino te faz tremer e perder a concentração numa magia ou tarefa delicada.'},
+  {n:106, efeito:'Tropeço Duplo',         desc:'Você tropeça, se recupera parcialmente, e tropeça de novo no mesmo obstáculo.'},
+  {n:107, efeito:'Vergonha Pública',      desc:'Um deslize seu vira motivo de risada visível entre quem está por perto.'},
+  {n:108, efeito:'Item na Água',          desc:'Um objeto de valor escorrega da sua mão e cai num rio, poço ou lago — recuperá-lo não vai ser simples.'},
+  {n:109, efeito:'Silêncio Constrangedor', desc:'Uma pausa incomodamente longa se instala depois de algo que você disse ou fez.'},
+  {n:110, efeito:'Convergência Cataclísmica de Azar', desc:'O azar do dia inteiro desaba de uma vez! Role 3 vezes nesta tabela e aplique os três efeitos simultaneamente — a pior sorte possível.', chain:true}
 ];
 
 // Rola 1 entrada da tabela (uso interno — tratamento especial do 60 fica em rollTabelaAzar)
 function _rollUmAzar() {
-  var idx = Math.floor(Math.random() * 60); // 0..59
-  return TABELA_D60_AZAR[idx];
+  var idx = Math.floor(Math.random() * 110); // 0..109 (1d110)
+  return TABELA_D110_AZAR[idx];
 }
 
 // Botão principal — "🎲‍☠ TABELA DE AZAR (D60)". Trata a entrada 60
@@ -11578,6 +11675,172 @@ function _renderAzarResult(principal, extras) {
     box.style.display = 'block';
   });
 }
+
+// ══════════════════════════════════════════════════════════════════
+// ADICIONADO 2026-08-30 (pedido do usuário) — TABELA D50 DE SORTE.
+// Transcrita da imagem de referência do usuário ("TABELA EXCLUSIVA DE
+// SORTE (D20)") e ampliada com +30 entradas pra virar 1d50, mantendo as
+// mesmas faixas de intensidade (Sutil → Leve → Boa → Grande → Muita →
+// Rara → Milagrosa) na mesma proporção da tabela original. A entrada 50
+// funciona como a contraparte "do bem" da Catástrofe de Azar: 3 bênçãos
+// simultâneas (mesmo mecanismo `chain:true`, já genérico).
+// ══════════════════════════════════════════════════════════════════
+var TABELA_D50_SORTE = [
+  {n:1,  nivel:'SORTE SUTIL', efeito:'Moeda no Chão',        desc:'Você encontra algumas moedas de prata no bolso de um casaco antigo ou esquecidas na estrada.'},
+  {n:2,  nivel:'SORTE SUTIL', efeito:'Lugar Seco',           desc:'Exatamente quando começa a chover, você encontra um abrigo perfeito e confortável para se proteger.'},
+  {n:3,  nivel:'SORTE SUTIL', efeito:'Refeição Grátis',      desc:'Um taberneiro ou morador local simpatiza com você e lhe oferece um prato quente de cortesia.'},
+  {n:4,  nivel:'SORTE LEVE',  efeito:'Atalho Seguro',        desc:'Você descobre um caminho que economiza 1 hora de viagem sem nenhum risco adicional.'},
+  {n:5,  nivel:'SORTE LEVE',  efeito:'Intuição Sutil',       desc:'Você sente um pressentimento positivo que evita que você caia em um mal-entendido ou pequeno transtorno.'},
+  {n:6,  nivel:'SORTE LEVE',  efeito:'Munição Extra',        desc:'Você acha uma aljava com flechas intactas ou uma bolsa com suprimentos úteis no caminho.'},
+  {n:7,  nivel:'SORTE LEVE',  efeito:'Desconto Amigável',    desc:'O comerciante gosta de você e dá 10% de desconto em qualquer compra do dia.'},
+  {n:8,  nivel:'BOA SORTE',   efeito:'Poção Abandonada',     desc:'Você encontra um frasco com uma Poção de Cura Menor intacta esquecida em uma prateleira ou baú.'},
+  {n:9,  nivel:'BOA SORTE',   efeito:'Dica Valiosa',         desc:'Um transeunte menciona um boato verdadeiro sobre a fraqueza de um monstro ou tesouro na região.'},
+  {n:10, nivel:'BOA SORTE',   efeito:'Recuperação Rápida',   desc:'Seu próximo descanso curto cura o valor máximo de um de seus dados de vida sem gastar recursos extras.'},
+  {n:11, nivel:'BOA SORTE',   efeito:'Coincidência Perfeita', desc:'O NPC exato de quem você precisava de uma informação passa caminhando ao seu lado.'},
+  {n:12, nivel:'BOA SORTE',   efeito:'Ferramenta Certa',     desc:'Você encontra exatamente o item mundano que precisava no momento (uma corda, tocha ou gazua).'},
+  {n:13, nivel:'GRANDE SORTE', efeito:'Aliado Inesperado',   desc:'Um guardião ou guerreiro local oferece ajuda de graça para sua próxima tarefa simples.'},
+  {n:14, nivel:'GRANDE SORTE', efeito:'Achado de Ouro',      desc:'Você encontra um pequeno saquinho contendo 20 moedas de ouro ou uma pedra preciosa menor.'},
+  {n:15, nivel:'GRANDE SORTE', efeito:'Inspiração Heroica',  desc:'A sorte renova seus espíritos! Você ganha 1 ponto de Inspiração (ou Vantagem no seu próximo teste).'},
+  {n:16, nivel:'GRANDE SORTE', efeito:'Equipamento Superior', desc:'Você encontra ou ganha uma peça de equipamento de excelente qualidade (arma ou armadura reforçada).'},
+  {n:17, nivel:'MUITA SORTE', efeito:'Mapa do Tesouro',      desc:'Você acha um mapa antigo detalhando o esconderijo de um baú ou recurso oculto por perto.'},
+  {n:18, nivel:'MUITA SORTE', efeito:'Perdão Espontâneo',    desc:'Um guarda, autoridade ou rival decide ignorar uma infração sua por pura simpatia ou bom humor.'},
+  {n:19, nivel:'SORTE RARA',  efeito:'Item Mágico Menor',    desc:'Você encontra um item mágico utilitário ou um pergaminho de feitiço poderoso.'},
+  {n:20, nivel:'SORTE MILAGROSA', efeito:'Intervenção do Destino', desc:'Um milagre acontece! Um problema crítico do grupo é resolvido ou um desejo menor é concedido.'},
+  // AMPLIAÇÃO 2026-08-30 (21–50) — mesma proporção de faixas, escalando
+  // gradualmente até o topo da tabela.
+  {n:21, nivel:'SORTE SUTIL', efeito:'Vento a Favor',        desc:'Uma brisa favorável ajuda sua viagem por terra ou água, economizando um tempo pequeno mas notável.'},
+  {n:22, nivel:'SORTE SUTIL', efeito:'Sombra Amiga',         desc:'Uma sombra oportuna esconde você de um olhar indesejado por tempo suficiente.'},
+  {n:23, nivel:'SORTE SUTIL', efeito:'Fósforo Seco',         desc:'Mesmo debaixo de chuva, você encontra um jeito de acender fogo sem esforço extra.'},
+  {n:24, nivel:'SORTE SUTIL', efeito:'Troco Certo',          desc:'Um comerciante distraído te dá troco a mais sem perceber.'},
+  {n:25, nivel:'SORTE SUTIL', efeito:'Sono Tranquilo',       desc:'Seu descanso longo é livre de qualquer interrupção ou pesadelo nesta noite.'},
+  {n:26, nivel:'SORTE SUTIL', efeito:'Chuva Que Passa',      desc:'Uma tempestade que ameaçava atrapalhar seus planos se dissipa antes de te alcançar.'},
+  {n:27, nivel:'SORTE SUTIL', efeito:'Aroma Convidativo',    desc:'O cheiro de uma refeição te guia até um lugar hospitaleiro exatamente quando você precisava.'},
+  {n:28, nivel:'SORTE LEVE',  efeito:'Porta Destrancada',    desc:'Uma porta que você esperava ter que arrombar ou destrancar já está aberta.'},
+  {n:29, nivel:'SORTE LEVE',  efeito:'Cão Amigável',         desc:'Um animal local se apega a você e avisa de um perigo próximo antes que ele te alcance.'},
+  {n:30, nivel:'SORTE LEVE',  efeito:'Vela Acesa',           desc:'Você encontra uma fonte de luz já preparada num lugar escuro, economizando seus próprios recursos.'},
+  {n:31, nivel:'SORTE LEVE',  efeito:'Ferramenta Emprestada', desc:'Um NPC te empresta de bom grado uma ferramenta ou item que você precisava, sem cobrar nada.'},
+  {n:32, nivel:'SORTE LEVE',  efeito:'Cheiro de Pão Fresco', desc:'Você segue um cheiro convidativo até um lugar seguro e acolhedor pra descansar.'},
+  {n:33, nivel:'SORTE LEVE',  efeito:'Direção Certa',        desc:'Você escolhe o caminho certo de primeira, sem precisar de nenhum teste de navegação.'},
+  {n:34, nivel:'SORTE LEVE',  efeito:'Cordas Firmes',        desc:'Um equipamento que normalmente falharia (corda, gancho, correia) aguenta perfeitamente desta vez.'},
+  {n:35, nivel:'BOA SORTE',   efeito:'Lâmina Afiada',        desc:'Sua arma parece cortar com uma precisão incomum: seu próximo dano de arma usa o maior valor possível do dado.'},
+  {n:36, nivel:'BOA SORTE',   efeito:'Poção Extra',          desc:'Você encontra um segundo frasco de poção útil escondido junto com outro item.'},
+  {n:37, nivel:'BOA SORTE',   efeito:'Testemunha Ocular',    desc:'Alguém viu exatamente o que você precisava saber e está disposto a contar sem exigir nada em troca.'},
+  {n:38, nivel:'BOA SORTE',   efeito:'Rota Alternativa',     desc:'Você descobre uma passagem secundária que evita um perigo conhecido pela frente.'},
+  {n:39, nivel:'BOA SORTE',   efeito:'Contato Confiável',    desc:'Um NPC influente se lembra de você com carinho e está disposto a ajudar quando for preciso.'},
+  {n:40, nivel:'BOA SORTE',   efeito:'Chave Certa',          desc:'Uma chave, gazua ou senha que você tinha guardada serve perfeitamente pra uma fechadura importante.'},
+  {n:41, nivel:'BOA SORTE',   efeito:'Vigia Distraído',      desc:'Um guarda ou sentinela está momentaneamente distraído, abrindo uma janela de oportunidade.'},
+  {n:42, nivel:'GRANDE SORTE', efeito:'Reforço Chega',       desc:'Um aliado inesperado chega bem na hora certa pra virar o rumo de um combate ou negociação.'},
+  {n:43, nivel:'GRANDE SORTE', efeito:'Elo Espiritual',      desc:'Você sente uma conexão momentânea com algo maior: seu próximo teste de resistência tem Vantagem.'},
+  {n:44, nivel:'GRANDE SORTE', efeito:'Brecha no Inimigo',   desc:'Você percebe uma falha na guarda ou no plano de um adversário, ganhando Vantagem no seu próximo ataque contra ele.'},
+  {n:45, nivel:'GRANDE SORTE', efeito:'Sussurro do Destino', desc:'Uma voz interior te avisa de um perigo iminente antes que ele aconteça, evitando uma cilada.'},
+  {n:46, nivel:'GRANDE SORTE', efeito:'Marca de Favor',      desc:'Uma figura influente da região passa a te dever um favor genuíno, utilizável mais tarde na campanha.'},
+  {n:47, nivel:'MUITA SORTE', efeito:'Tesouro Enterrado',    desc:'Você encontra um pequeno tesouro esquecido há muito tempo, escondido debaixo de terra ou entulho.'},
+  {n:48, nivel:'MUITA SORTE', efeito:'Bênção Passageira',    desc:'Uma energia protetora envolve você por 1 hora: o próximo dano que sofreria é reduzido pela metade.'},
+  {n:49, nivel:'SORTE RARA',  efeito:'Artefato Adormecido',  desc:'Você encontra um item mágico incomum, ainda sem despertar todo seu potencial — cabe ao mestre decidir o que ele faz.'},
+  {n:50, nivel:'SORTE MILAGROSA', efeito:'Convergência da Sorte', desc:'A sorte se acumula toda de uma vez! Role 3 vezes nesta tabela e aplique as três bênçãos simultaneamente.', chain:true}
+];
+
+// Rola 1 entrada da tabela de Sorte (uso interno)
+function _rollUmaSorte() {
+  var idx = Math.floor(Math.random() * 50); // 0..49 (1d50)
+  return TABELA_D50_SORTE[idx];
+}
+
+// Botão principal — "🍀 ROLETA DA SORTE (D50)". Mesmo mecanismo da Tabela
+// de Azar: a entrada 50 (Convergência da Sorte) rola mais 3 vezes e
+// mostra as 3 bênçãos juntas.
+function rollTabelaSorte() {
+  var principal = _rollUmaSorte();
+  var extras = [];
+  if (principal.chain) {
+    for (var i = 0; i < 3; i++) extras.push(_rollUmaSorte());
+  }
+  _renderSorteResult(principal, extras);
+  _diceSessionUpdate(principal.n, 50, 'Sorte');
+
+  var resumo = '🍀 D50 SORTE: #' + principal.n + ' ' + principal.efeito
+    + (extras.length ? ' (+ ' + extras.map(function(e){return '#'+e.n+' '+e.efeito;}).join(', ') + ')' : '');
+  var time = new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+  var rollEntry = { expr: resumo, total: principal.n, isCrit:true, isFail:false,
+    sender: currentUser ? currentUser.username : 'Mestre',
+    avatar: currentUser ? currentUser.avatar : null, time: time };
+  if (typeof pushRoll === 'function') pushRoll(rollEntry);
+}
+
+function _renderSorteResult(principal, extras) {
+  function linha(e) {
+    return '<div style="margin-bottom:8px">'
+      + '<div style="font-family:\'Share Tech Mono\',monospace;font-size:.48rem;letter-spacing:.1em;color:#ffd76a;opacity:.85">'+esc(e.nivel||'')+'</div>'
+      + '<div style="font-family:\'Bebas Neue\',sans-serif;font-size:1rem;letter-spacing:.04em;color:#7bd88f">#'+e.n+' — '+esc(e.efeito)+'</div>'
+      + '<div style="font-family:\'Rajdhani\',sans-serif;font-size:.85rem;color:rgba(230,232,245,.86);margin-top:2px">'+esc(e.desc)+'</div>'
+      + '</div>';
+  }
+  var html = linha(principal);
+  if (extras.length) {
+    html += '<div style="font-family:\'Share Tech Mono\',monospace;font-size:.55rem;letter-spacing:.12em;color:rgba(120,220,140,0.85);margin:6px 0 4px">// CONVERGÊNCIA DA SORTE — 3 BÊNÇÃOS SIMULTÂNEAS //</div>';
+    extras.forEach(function(e){ html += linha(e); });
+  }
+  // Igual ao padrão da Tabela de Azar: escreve em todas as caixas de
+  // resultado de Sorte presentes na página (Mesa de Dados e Sessão).
+  ['sorte-result-box', 'sorte-result-box-sessao'].forEach(function(boxId){
+    var box = document.getElementById(boxId);
+    if (!box) return;
+    box.innerHTML = html;
+    box.style.display = 'block';
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════
+// "VER TUDO QUE PODE ACONTECER" — modal com as duas tabelas completas
+// (Sorte D50 e Azar D110), lado a lado por abas, pra consulta rápida sem
+// precisar rolar de verdade. Pedido do usuário: "crie um botão que faça
+// eu conseguir ver tudo que pode acontecer tanto na roleta da sorte
+// quanto da roleta do azar".
+// ══════════════════════════════════════════════════════════════════
+function _tabelaDestinoLinha(e, corTitulo) {
+  return '<div style="padding:8px 10px;border-bottom:1px solid rgba(255,255,255,.06);display:flex;gap:10px;align-items:baseline">'
+    + '<div style="font-family:\'Bebas Neue\',sans-serif;font-size:.95rem;color:'+corTitulo+';min-width:34px;text-align:right;flex-shrink:0">#'+e.n+'</div>'
+    + '<div style="flex:1;min-width:0">'
+    + (e.nivel ? '<div style="font-family:\'Share Tech Mono\',monospace;font-size:.46rem;letter-spacing:.1em;color:rgba(255,255,255,.45);margin-bottom:1px">'+esc(e.nivel)+'</div>' : '')
+    + '<div style="font-family:\'Rajdhani\',sans-serif;font-weight:700;font-size:.8rem;color:rgba(230,232,245,.92)">'+esc(e.efeito)+(e.chain?' ★':'')+'</div>'
+    + '<div style="font-family:\'Rajdhani\',sans-serif;font-size:.72rem;color:rgba(200,205,225,.72);margin-top:1px">'+esc(e.desc)+'</div>'
+    + '</div></div>';
+}
+function openTabelaDestino(aba) {
+  var box = document.getElementById('tabela-destino-body');
+  if (box) {
+    if (!aba) aba = box.dataset.aba || 'sorte';
+  } else {
+    aba = aba || 'sorte';
+  }
+  setTabelaDestinoAba(aba);
+  openModal('modal-tabela-destino');
+}
+function setTabelaDestinoAba(aba) {
+  var box = document.getElementById('tabela-destino-body');
+  if (!box) return;
+  box.dataset.aba = aba;
+  var btnSorte = document.getElementById('td-tab-sorte');
+  var btnAzar = document.getElementById('td-tab-azar');
+  if (btnSorte) btnSorte.classList.toggle('sel', aba === 'sorte');
+  if (btnAzar) btnAzar.classList.toggle('sel', aba === 'azar');
+  var lista = aba === 'azar' ? TABELA_D110_AZAR : TABELA_D50_SORTE;
+  var cor = aba === 'azar' ? '#ff6a6a' : '#7bd88f';
+  box.innerHTML = lista.map(function(e){ return _tabelaDestinoLinha(e, cor); }).join('');
+}
+window._filterTabelaDestino = function(termo) {
+  var box = document.getElementById('tabela-destino-body');
+  if (!box) return;
+  var aba = box.dataset.aba || 'sorte';
+  var lista = aba === 'azar' ? TABELA_D110_AZAR : TABELA_D50_SORTE;
+  var cor = aba === 'azar' ? '#ff6a6a' : '#7bd88f';
+  termo = (termo||'').trim().toLowerCase();
+  var filtrada = !termo ? lista : lista.filter(function(e){
+    return (e.efeito+' '+e.desc+' '+(e.nivel||'')+' '+e.n).toLowerCase().indexOf(termo) !== -1;
+  });
+  box.innerHTML = filtrada.length ? filtrada.map(function(e){ return _tabelaDestinoLinha(e, cor); }).join('')
+    : '<div style="text-align:center;padding:20px;opacity:.5;font-family:\'Share Tech Mono\',monospace;font-size:.6rem">nenhum resultado pra "'+esc(termo)+'"</div>';
+};
 
 function rollRoleta() {
   var options = ['1d4','1d6','1d8','1d10','1d12','1d20'];
