@@ -21404,11 +21404,64 @@ var _RTC_STATIC_ICE_SERVERS = [
 // freestun, openrelay) juntos, + Metered também se você tiver configurado
 // a chave própria. O navegador testa todos e usa o primeiro que responder —
 // quanto mais opções, menor a chance de TODOS caírem ao mesmo tempo.
-function _getRtcConfig() {
-  return {
-    iceCandidatePoolSize: 4,
+function _getRtcConfig(forceRelay) {
+  var cfg = {
+    // v202608301900 — subiu de 4 pra 8: em redes ruins (4G, wifi público,
+    // firewall corporativo) quanto mais candidatos ICE pré-coletados, mais
+    // rápido e mais confiável o navegador acha um caminho válido entre os
+    // dois lados — o custo é só um pouco mais de CPU/rede no início da call.
+    iceCandidatePoolSize: 8,
     iceServers: _rtcDynamicIceServers.concat(_RTC_STATIC_ICE_SERVERS)
   };
+  if (forceRelay) cfg.iceTransportPolicy = 'relay'; // ver comentário em _createPeerConn
+  return cfg;
+}
+
+// ═══════════════════════════════════════
+//  CALL LONGA E ESTÁVEL — v202608301900
+//  Antes, quando a internet caía e voltava (troca de wifi/4G, notebook saiu
+//  de suspensão, etc.), cada RTCPeerConnection só reagia se o PRÓPRIO
+//  navegador detectasse 'disconnected'/'failed' — o que às vezes demora
+//  demais ou nem dispara direito (ex.: guia em segundo plano tem os timers
+//  do JS pausados/atrasados pelo navegador, mascarando o problema até você
+//  voltar pra guia). Agora, sempre que (a) a internet volta a responder ou
+//  (b) a guia volta a ficar visível depois de ter ficado em segundo plano,
+//  força um restartIce() em TODA conexão de call que não estiver
+//  'connected' — não espera o navegador perceber sozinho.
+// ═══════════════════════════════════════
+function _forceReconnectStaleCallPeers(motivo) {
+  if (typeof _peers === 'undefined' || !_peers) return;
+  // v202608302100 — ESCALONAMENTO: quando a internet cai e volta com VÁRIOS
+  // peers ao mesmo tempo (ex.: call de grupo com 5+ pessoas), forçar
+  // restartIce() em todos simultaneamente gera uma rajada de mensagens de
+  // sinalização de uma vez só no Firebase — o que pode, ironicamente,
+  // atrasar ou derrubar sinais uns dos outros bem no momento mais sensível
+  // da reconexão. Agora escalona com um pequeno atraso crescente entre
+  // cada peer (300ms de diferença) em vez de disparar tudo no mesmo tick.
+  var _delayStep = 0;
+  Object.keys(_peers).forEach(function(uid) {
+    var pc = _peers[uid];
+    if (!pc || pc.connectionState === 'connected') return;
+    var _thisDelay = _delayStep;
+    _delayStep += 300;
+    setTimeout(function() {
+      console.log('[WebRTC] Forçando reconexão com', uid, 'após', motivo, '(estado atual:', pc.connectionState + ')');
+      var safeFn = window._safeRestartIceByPeer && window._safeRestartIceByPeer[uid];
+      if (safeFn) safeFn(motivo); else { try { pc.restartIce(); } catch(e) { console.warn('[WebRTC] restartIce (forçado) falhou:', e); } }
+    }, _thisDelay);
+  });
+}
+// Guarda contra registro duplicado destes listeners globais, caso este
+// bloco de script seja executado mais de uma vez por qualquer motivo (ex.:
+// hot-reload em dev, ou o app recarregando parte do DOM sem reload total).
+if (!window._ymmCallResilienceListenersBound) {
+  window._ymmCallResilienceListenersBound = true;
+  window.addEventListener('online', function() { _forceReconnectStaleCallPeers('internet voltar'); });
+  document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'visible') _forceReconnectStaleCallPeers('guia voltar a ficar visível');
+  });
+  window.addEventListener('pagehide', _emergencyLeaveAllCallRooms);
+  window.addEventListener('beforeunload', _emergencyLeaveAllCallRooms);
 }
 
 // v202608171200 — Diagnóstico de conexão sem precisar de F12/console.
@@ -22420,9 +22473,21 @@ async function _flushPendingIce(pc) {
   }
 }
 
-function _createPeerConn(roomId, peerUid) {
+function _createPeerConn(roomId, peerUid, forceRelay) {
   if (_peers[peerUid]) return _peers[peerUid];
-  const pc = new RTCPeerConnection(_getRtcConfig());
+  // v202608302130 — FALLBACK TURN-RELAY: quando uma conexão falha
+  // repetidamente mesmo depois de várias tentativas de restartIce(), é um
+  // sinal forte de que a rota P2P direta nunca vai funcionar pra esse par
+  // (ex.: um dos dois lados tá atrás de NAT simétrico ou firewall
+  // corporativo rígido — comum em rede de empresa/escola). Nesses casos,
+  // insistir em restartIce() normal é insistir numa rota que não existe.
+  // _giveUp() (mais abaixo) detecta esse padrão e recria a conexão do zero
+  // forçando iceTransportPolicy:'relay' — obriga o tráfego a passar pelo
+  // servidor TURN em vez de tentar P2P direto. É mais lento e usa mais
+  // banda de servidor, mas muitas vezes é a ÚNICA forma de conectar dois
+  // lados atrás de redes restritivas.
+  const pc = new RTCPeerConnection(_getRtcConfig(!!forceRelay));
+  pc._forceRelay = !!forceRelay;
   _peers[peerUid] = pc;
 
   // CORRIGIDO — CAUSA RAIZ de "mic e transmissão funcionam uma vez e depois
@@ -22450,6 +22515,28 @@ function _createPeerConn(roomId, peerUid) {
   pc.onicecandidate = (e) => {
     if (e.candidate) _sendSignal(roomId, peerUid, { type: 'ice', candidate: e.candidate.toJSON(), from: _myCallId });
   };
+
+  // v202608302100 — KEEPALIVE ATIVO (PREVENÇÃO, NÃO SÓ DETECÇÃO): o watchdog
+  // de stats acima só percebe a conexão morta DEPOIS que ela já morreu. Mas
+  // boa parte das quedas de rota em call longa é o roteador/NAT do wifi
+  // derrubando o mapeamento UDP por ficar tempo demais sem tráfego nenhum
+  // naquela direção específica — algo comum quando o vídeo tá desligado e só
+  // o áudio manda pacotes esparsos, ou quando ninguém fala por um tempo.
+  // Um DataChannel próprio, mandando um ping pequeno a cada 15s, mantém
+  // aquele "buraco" no NAT sempre aberto e ocupado — isso evita boa parte
+  // das quedas silenciosas ANTES de precisarem de qualquer recuperação.
+  try {
+    var _keepaliveDc = pc.createDataChannel('keepalive', { ordered: false, maxRetransmits: 0 });
+    pc._keepaliveTimer = null;
+    _keepaliveDc.onopen = function() {
+      pc._keepaliveTimer = setInterval(function() {
+        if (_keepaliveDc.readyState === 'open') { try { _keepaliveDc.send('ping'); } catch(e){} }
+      }, 15000);
+    };
+    _keepaliveDc.onclose = function() {
+      if (pc._keepaliveTimer) { clearInterval(pc._keepaliveTimer); pc._keepaliveTimer = null; }
+    };
+  } catch(e) { console.warn('[WebRTC] keepalive DataChannel não pôde ser criado (não é crítico):', e); }
 
   pc.ontrack = (e) => {
     // Reproduz áudio/vídeo remoto
@@ -22549,7 +22636,20 @@ function _createPeerConn(roomId, peerUid) {
   // antes de desistir de vez e fechar.
   pc._reconnectAttempts = 0;
   pc._reconnectTimer = null;
-  var MAX_RECONNECT_ATTEMPTS = 3;
+  // v202608301900 — CALL LONGA ESTÁVEL: 3 tentativas com espera fixa de 3s
+  // desistia rápido demais em quedas de rede mais longas (ex.: troca de
+  // wifi pra 4G que demora 10-15s pra estabilizar, ou instabilidade
+  // momentânea em call de horas). Agora: mais tentativas, com espera
+  // CRESCENTE entre elas (3s, 5s, 8s, 12s, 18s, 25s) — dá tempo real da
+  // rede se recompor antes de declarar a conexão morta de vez.
+  var MAX_RECONNECT_ATTEMPTS = 6;
+  var _RECONNECT_DELAYS = [3000, 5000, 8000, 12000, 18000, 25000];
+  // v202608302130 — JITTER: quando vários peers da MESMA call caem juntos
+  // (queda de rede geral), todos calculam o mesmo delay de reconexão e
+  // disparam restartIce() no MESMO milissegundo — uma pequena variação
+  // aleatória (±20%) em cada delay evita esse sincronismo, distribuindo as
+  // tentativas ao longo do tempo e aliviando picos de sinalização.
+  function _withJitter(ms) { return Math.round(ms * (0.8 + Math.random() * 0.4)); }
 
   function _nomeParticipante() {
     return (window._callMembersCache && window._callMembersCache[peerUid] && window._callMembersCache[peerUid].username) || 'participante';
@@ -22560,11 +22660,114 @@ function _createPeerConn(roomId, peerUid) {
   }
 
   function _giveUp(motivo) {
+    // v202608302130 — antes de desistir de vez, se ainda não tentamos via
+    // TURN-relay forçado, tenta uma última vez recriando a conexão inteira
+    // nesse modo (ver comentário grande em _createPeerConn). Isso resolve
+    // boa parte dos casos de "nunca conecta com essa pessoa específica" que
+    // restartIce() sozinho nunca resolveria, porque o problema não é uma
+    // rota que caiu — é uma rota que nunca vai existir sem passar pelo relay.
+    if (!pc._forceRelay) {
+      showToast('🔄 Tentando modo de rede alternativo com ' + _nomeParticipante() + '...', 'warn');
+      _stopStatsWatchdog();
+      if (pc._keepaliveTimer) { clearInterval(pc._keepaliveTimer); pc._keepaliveTimer = null; }
+      try { pc.close(); } catch(e){}
+      delete _peers[peerUid];
+      delete window._safeRestartIceByPeer[peerUid];
+      _removeRemoteStream(peerUid);
+      var _newPc = _createPeerConn(roomId, peerUid, /* forceRelay */ true);
+      // Só o lado de UID "menor" inicia oferta (mesma regra de sempre, ver
+      // onValue(membersRef)) — o outro lado vai receber a oferta normalmente
+      // quando ela chegar, então só criamos manualmente se formos o iniciador.
+      if (_myCallId && String(_myCallId) < String(peerUid) && typeof _createOffer === 'function') {
+        _createOffer(roomId, peerUid);
+      }
+      return;
+    }
     showToast('✕ Falha ao conectar com ' + _nomeParticipante() + ' (' + motivo + ')', 'err');
+    _stopStatsWatchdog();
+    if (pc._keepaliveTimer) { clearInterval(pc._keepaliveTimer); pc._keepaliveTimer = null; }
     try { pc.close(); } catch(e){}
     delete _peers[peerUid];
     _removeRemoteStream(peerUid);
   }
+
+  // v202608301930 — GUARDA CONTRA restartIce() EM CASCATA: sem isso, se
+  // 'onconnectionstatechange' e o watchdog de stats (abaixo) suspeitarem do
+  // mesmo problema quase ao mesmo tempo, os dois podiam chamar
+  // restartIce() em paralelo — múltiplos restarts simultâneos na MESMA
+  // conexão colidem entre si (o segundo restart invalida o ICE gathering
+  // do primeiro no meio do caminho) e paradoxalmente pioram a chance de
+  // reconectar. Agora só um restart "em voo" por vez; qualquer pedido novo
+  // enquanto isso é ignorado (o timeout/watchdog seguinte já reavalia o
+  // estado real antes de tentar de novo).
+  pc._restartInFlight = false;
+  function _safeRestartIce(origem) {
+    if (pc._restartInFlight) {
+      console.log('[WebRTC] restartIce ignorado (já tem um em andamento) — origem:', origem);
+      return;
+    }
+    pc._restartInFlight = true;
+    try { pc.restartIce(); } catch(e) { console.warn('[WebRTC] restartIce falhou:', e); }
+    // ICE gathering de um restart tende a resolver em poucos segundos;
+    // libera a trava depois de um tempo generoso pra não travar reconexões
+    // futuras caso este restart específico nunca resolva nada.
+    setTimeout(function(){ pc._restartInFlight = false; }, 6000);
+  }
+  window._safeRestartIceByPeer = window._safeRestartIceByPeer || {};
+  window._safeRestartIceByPeer[peerUid] = _safeRestartIce;
+
+  // v202608301930 — WATCHDOG DE "CONEXÃO ZUMBI": o pior tipo de bug de call
+  // longa é quando connectionState fica 'connected' pra sempre mas nenhum
+  // byte novo chega de verdade (rota ICE morreu em silêncio, ex.: NAT do
+  // roteador derrubou o mapeamento UDP depois de X minutos ocioso — comum
+  // em wifi doméstico/celular). Como NENHUM evento do RTCPeerConnection
+  // dispara nesse caso (o estado nunca muda), o app achava que tava tudo
+  // bem e a pessoa ficava muda/sem imagem até alguém recarregar. Agora,
+  // a cada 10s, comparamos bytesReceived total via getStats(): se ficar
+  // parado por 3 checagens seguidas (~30s) com a conexão dita 'connected',
+  // tratamos como travada de verdade e forçamos restartIce().
+  pc._statsWatchdogTimer = null;
+  pc._lastBytesReceived = -1;
+  pc._staleStatsCount = 0;
+  function _stopStatsWatchdog() {
+    if (pc._statsWatchdogTimer) { clearInterval(pc._statsWatchdogTimer); pc._statsWatchdogTimer = null; }
+  }
+  // v202608302030 — MAIS RÍGIDO: intervalo de checagem reduzido de 10s pra
+  // 8s (reage ~24s depois de travar, em vez de ~30s), e a métrica agora
+  // combina bytes + pacotes recebidos (não só bytes) pra evitar falso
+  // alarme durante silêncio real de voz com supressão de silêncio (DTX).
+  pc._statsWatchdogTimer = setInterval(async function() {
+    if (pc.connectionState !== 'connected' || pc.signalingState === 'closed') { pc._staleStatsCount = 0; return; }
+    try {
+      var stats = await pc.getStats();
+      var total = 0, hasInboundMedia = false;
+      stats.forEach(function(r) {
+        if ((r.type === 'inbound-rtp') && (r.kind === 'audio' || r.kind === 'video')) {
+          hasInboundMedia = true;
+          // packetsReceived é mais confiável que bytesReceived pra detectar
+          // "rota morta": em áudio com supressão de silêncio (DTX) o navegador
+          // legitimamente PARA de mandar bytes durante silêncio real — contar só
+          // bytes geraria falso alarme toda vez que ninguém tá falando. Somar
+          // packets (que muitos codecs ainda mandam como keepalive/RTCP mesmo
+          // quieto) junto com bytes reduz bastante esse falso positivo.
+          total += (r.bytesReceived || 0) + (r.packetsReceived || 0) * 1000;
+        }
+      });
+      if (!hasInboundMedia) { pc._staleStatsCount = 0; return; } // ainda não há trilha remota pra medir — não é bug
+      if (total === pc._lastBytesReceived) {
+        pc._staleStatsCount++;
+        if (pc._staleStatsCount >= 3) {
+          console.log('[WebRTC] Conexão zumbi detectada com', peerUid, '(connected, mas nada novo há ~24s) — forçando restartIce.');
+          showToast('🔄 Reconectando com ' + _nomeParticipante() + '... (áudio/vídeo travou)', 'warn');
+          pc._staleStatsCount = 0;
+          _safeRestartIce('watchdog de stats');
+        }
+      } else {
+        pc._staleStatsCount = 0;
+      }
+      pc._lastBytesReceived = total;
+    } catch(e) { /* getStats raramente falha; ignora silenciosamente */ }
+  }, 8000);
 
   pc.onconnectionstatechange = () => {
     window._peerConnHealth = window._peerConnHealth || {};
@@ -22580,7 +22783,10 @@ function _createPeerConn(roomId, peerUid) {
 
     if (pc.connectionState === 'disconnected') {
       _clearReconnectTimer();
-      // Dá 3s pra ver se volta sozinho antes de fazer qualquer coisa.
+      // Espera antes de agir — o tempo de espera cresce a cada tentativa
+      // (ver _RECONNECT_DELAYS), pra dar mais chance da rede se recompor
+      // sozinha em quedas mais longas antes de mexer na conexão.
+      var _delay = _withJitter(_RECONNECT_DELAYS[Math.min(pc._reconnectAttempts, _RECONNECT_DELAYS.length - 1)]);
       pc._reconnectTimer = setTimeout(() => {
         if (pc.connectionState !== 'disconnected') return; // já resolveu ou mudou de estado
         if (pc._reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
@@ -22589,8 +22795,8 @@ function _createPeerConn(roomId, peerUid) {
         }
         pc._reconnectAttempts++;
         showToast('🔄 Reconectando com ' + _nomeParticipante() + '... (' + pc._reconnectAttempts + '/' + MAX_RECONNECT_ATTEMPTS + ')', 'warn');
-        try { pc.restartIce(); } catch(e) { console.warn('[WebRTC] restartIce falhou:', e); }
-      }, 3000);
+        _safeRestartIce('disconnected timeout');
+      }, _delay);
       return;
     }
 
@@ -22604,7 +22810,7 @@ function _createPeerConn(roomId, peerUid) {
       if (pc._reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
         pc._reconnectAttempts++;
         showToast('🔄 Reconectando com ' + _nomeParticipante() + '... (' + pc._reconnectAttempts + '/' + MAX_RECONNECT_ATTEMPTS + ')', 'warn');
-        try { pc.restartIce(); } catch(e) { _giveUp('rede/firewall'); }
+        try { _safeRestartIce('failed'); } catch(e) { _giveUp('rede/firewall'); }
       } else {
         _giveUp('rede/firewall');
       }
@@ -22613,7 +22819,10 @@ function _createPeerConn(roomId, peerUid) {
 
     if (pc.connectionState === 'closed') {
       _clearReconnectTimer();
+      _stopStatsWatchdog();
+      if (pc._keepaliveTimer) { clearInterval(pc._keepaliveTimer); pc._keepaliveTimer = null; }
       delete _peers[peerUid];
+      delete window._safeRestartIceByPeer[peerUid];
       _removeRemoteStream(peerUid);
     }
   };
@@ -23505,6 +23714,27 @@ window._leaveCallRoom = function(roomId) {
   if (typeof _hideCallMembersPermBanner === 'function') _hideCallMembersPermBanner();
   if (typeof _hideCallScreenPermBanner === 'function') _hideCallScreenPermBanner();
 };
+
+// v202608302030 — SAÍDA LIMPA AO FECHAR/RECARREGAR A ABA: até agora, fechar
+// a aba de repente (F5, fechar o Chrome, notebook indo pra suspensão sem
+// aviso) dependia SÓ do onDisconnect() do Firebase pra remover a presença
+// da call — o que funciona, mas o servidor demora um pouco pra confirmar
+// que a conexão morreu de verdade (não é instantâneo), deixando um
+// "fantasma" no grid de call de todo mundo por mais tempo que o
+// necessário. Agora, nos momentos em que o navegador AINDA consegue rodar
+// código (pagehide/beforeunload — mais confiável que 'unload' em navegadores
+// modernos, inclusive mobile), tentamos remover a presença na hora, antes
+// mesmo do onDisconnect precisar agir.
+function _emergencyLeaveAllCallRooms() {
+  try {
+    if (typeof _curCallRoom === 'function' && typeof window._leaveCallRoom === 'function') {
+      window._leaveCallRoom(_curCallRoom());
+    }
+  } catch(e) { /* melhor tentar e falhar do que travar o fechamento da aba */ }
+}
+// (registro real dos listeners de pagehide/beforeunload fica centralizado
+// no bloco _ymmCallResilienceListenersBound, junto dos outros listeners de
+// resiliência de call, pra evitar registro duplicado — ver mais acima.)
 
 // (o hook antigo que ficava aqui duplicava o _joinCallRoom — a própria
 // _startCall() já entra na sala certa agora, então foi removido.)
