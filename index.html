@@ -7172,8 +7172,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     </div>
     <div class="call-more-wrap">
       <div class="call-more-menu" id="screen-share-menu">
-        <div class="call-more-menu-item" onclick="toggleScreenShareMenu();callStartScreenShare(false)"><span class="cmi-ic">🖥</span> Compartilhar sem áudio</div>
-        <div class="call-more-menu-item" onclick="toggleScreenShareMenu();callStartScreenShare(true)"><span class="cmi-ic">🔊</span> Compartilhar com áudio do sistema</div>
+        <div class="call-more-menu-item" onclick="toggleScreenShareMenu();callToggleScreen(false)"><span class="cmi-ic">🖥</span> Compartilhar sem áudio</div>
+        <div class="call-more-menu-item" onclick="toggleScreenShareMenu();callToggleScreen(true)"><span class="cmi-ic">🔊</span> Compartilhar com áudio do sistema</div>
       </div>
     </div>
     <div class="call-more-wrap">
@@ -14877,7 +14877,7 @@ function callToggleCam() {
 // ═══════════════════════════════════════
 //  COMPARTILHAR TELA — Pede permissão real
 // ═══════════════════════════════════════
-function callToggleScreen() {
+function callToggleScreen(withAudio) {
   // Se já está ativo → para
   if (callState.screenState==='active') {
     _stopScreenStream();
@@ -14900,7 +14900,20 @@ function callToggleScreen() {
   // sem nenhum erro. Agora devolve a Promise de verdade, então quem espera
   // por ela (o hook de WebRTC) só continua depois que a captura de tela
   // realmente terminou (com sucesso OU cancelada).
-  return callStartScreenShare(false);
+  // CORRIGIDO 2026-08-30 — CAUSA RAIZ de "compartilhar com áudio do sistema
+  // não aparece pra ninguém": esta função sempre chamava
+  // callStartScreenShare(false) — o parâmetro "withAudio" nunca existia
+  // aqui, era sempre ignorado/forçado como false. O menu "Opções de
+  // compartilhamento" (com/sem áudio) também chamava callStartScreenShare()
+  // DIRETO, pulando esta função inteira — e é justamente esta função (via
+  // o hook _hookScreenShareWebRTC logo abaixo, que a envolve) que avisa o
+  // Firebase e manda as trilhas de verdade pelos peers WebRTC. Resultado:
+  // os dois itens do menu (com e sem áudio) nunca chegavam a avisar
+  // ninguém nem mandar nada pela rede — só a prévia local aparecia. Agora
+  // esta função aceita e repassa "withAudio" de verdade, e os botões do
+  // menu chamam ELA (não mais callStartScreenShare direto), garantindo que
+  // sempre passem pelo hook que manda tudo pros outros participantes.
+  return callStartScreenShare(!!withAudio);
 }
 
 // ── Menu de opções de compartilhamento (com ou sem áudio do sistema) ──
@@ -23509,9 +23522,9 @@ function _notifyMediaTransmission(gmName, mediaType) {
 // e só então soma por cima a parte de rede (WebRTC) e o aviso aos outros participantes.
 (function _hookScreenShareWebRTC() {
   var _origToggleScreen = window.callToggleScreen;
-  window.callToggleScreen = async function() {
+  window.callToggleScreen = async function(withAudio) {
     var wasActive = callState.screenState === 'active';
-    if (typeof _origToggleScreen === 'function') await _origToggleScreen();
+    if (typeof _origToggleScreen === 'function') await _origToggleScreen(withAudio);
 
     if (wasActive) {
       // Acabamos de PARAR de compartilhar
