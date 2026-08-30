@@ -21330,11 +21330,29 @@ function _fetchElixirTurnConfig() {
     .then(function(r){ return r.json(); })
     .then(function(res){
       if (res && res.uris && res.uris.length) {
-        _rtcDynamicIceServers.push({ urls: res.uris, username: res.username, credential: res.password });
-        console.log('[WebRTC] TURN sem-conta (elixir-webrtc) carregado.');
+        // v202608302200 — VAZAMENTO CORRIGIDO: essa credencial é renovada a
+        // cada 2h (ver setInterval mais abaixo) pra quem deixa a call aberta
+        // a sessão inteira, mas o código só fazia push() da nova sem nunca
+        // remover a antiga já EXPIRADA (dura só 3h) — numa call de muitas
+        // horas isso ia acumulando servidores TURN mortos na lista pra
+        // sempre, deixando o ICE gathering de cada nova reconexão mais lento
+        // a cada renovação (o navegador perde tempo testando credenciais que
+        // já sabidamente não funcionam mais). Agora remove a entrada
+        // elixir-webrtc anterior (marcada com _tag) antes de adicionar a nova.
+        _rtcDynamicIceServers = _rtcDynamicIceServers.filter(function(s){ return s._tag !== 'elixir'; });
+        _rtcDynamicIceServers.push({ urls: res.uris, username: res.username, credential: res.password, _tag: 'elixir' });
+        console.log('[WebRTC] TURN sem-conta (elixir-webrtc) carregado/renovado.');
       }
     })
-    .catch(function(e){ console.warn('[WebRTC] Relay sem-conta (elixir-webrtc) não respondeu agora — seguindo com os outros relays:', e); });
+    .catch(function(e){
+      console.warn('[WebRTC] Relay sem-conta (elixir-webrtc) não respondeu agora — seguindo com os outros relays:', e);
+      // v202608302200 — RETRY: antes, se essa busca falhasse (ex.: rede
+      // instável bem na hora que a página carregou), só tentava de novo
+      // 2h depois — deixando a call inteira sem esse relay de fallback por
+      // tempo demais. Agora tenta de novo em 30s (só quando falhou de
+      // verdade; sucesso não agenda retry nenhum).
+      setTimeout(_fetchElixirTurnConfig, 30000);
+    });
   return _elixirTurnPromise;
 }
 // Reforço extra opcional, só entra em ação se você preencher a chave acima.
@@ -22542,6 +22560,19 @@ function _createPeerConn(roomId, peerUid, forceRelay) {
     // Reproduz áudio/vídeo remoto
     console.log('[WebRTC] Recebendo track de:', peerUid, e.streams[0]);
     _attachRemoteStream(peerUid, e.streams[0]);
+    // v202608302200 — SINAL EXTRA DE TRILHA MORTA: 'mute' na trilha remota
+    // (evento nativo do WebRTC, diferente de "a pessoa se mutou por
+    // escolha") dispara quando o navegador para de receber mídia real
+    // dessa trilha especificamente — geralmente por perda de pacotes
+    // grave. Complementa o watchdog de stats (que olha a conexão como um
+    // todo) reagindo mais cedo quando o SINAL nativo já avisou.
+    var _track = e.track;
+    if (_track) {
+      _track.onmute = function() {
+        console.log('[WebRTC] Trilha', _track.kind, 'de', peerUid, 'ficou muda (evento nativo) — verificando conexão.');
+        if (pc.connectionState === 'connected') _safeRestartIce('track mute nativo');
+      };
+    }
   };
 
   // CORRIGIDO: quando o mic/câmera é ligado DEPOIS de já estar na call,
