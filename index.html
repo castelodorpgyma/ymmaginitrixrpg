@@ -17,7 +17,36 @@
      histórico compartilhado; com "ocultar resultados", continuam só
      locais (como antes, igual ao "dado fantasma").
 
-<meta name="version" content="202608292000">
+<!-- CORREÇÕES 2026-08-30 (pedido do usuário, print em mãos):
+     1) "aba de Habilidade toda bugada" (texto sobreposto): .op-cat-list
+        nunca teve overflow-y definido em CSS — com overflow:visible
+        (padrão), o catálogo que passava do max-height inline continuava
+        desenhando por cima do que vinha depois no HTML (formulário de
+        habilidade personalizada). Corrigido com overflow-y:auto. Resolve
+        o mesmo bug nos 3 catálogos do sistema (Habilidades, IlusYmas,
+        Itens).
+     2) "ReferenceError: campId is not defined" na tela de Campanhas:
+        erro de digitação real em renderCoMestreList() — a função usa a
+        variável `id`, mas dois botões (promover/remover ajudante de
+        mestre) referenciavam `campId`, que nunca existiu ali. Corrigido.
+     3) "a roleta tá comida uma parte": regra CSS genérica de TODOS os
+        modais força width:min(560px,94vw) no desktop — a Roleta é o
+        único modal de duas colunas e precisa de 640px pra tudo caber;
+        com overflow:hidden no modal, o que não cabia nos 560px sumia
+        cortado (inclusive o botão GIRAR ROLETA, fora da tela). Corrigido
+        com um seletor por ID (#modal-roleta .modal) que dá a largura
+        certa só pra Roleta, sem afetar os outros modais.
+     4) "adicione mais itens" — limite de opções da roleta subiu de 16
+        pra 24 (com mais cores pra combinar), e cada predefinição
+        (Elementos/Itens/Eventos) ganhou mais 4 opções.
+     5) NOVO SISTEMA: Tabela D60 de Azar & Infortúnios — transcrita das
+        imagens de referência do usuário, com botão próprio na Mesa de
+        Dados. Trata a entrada 60 (Catástrofe de Azar Suprema) rolando +3
+        efeitos simultâneos, e registra no histórico de dados
+        compartilhado do mesmo jeito que a rolagem rápida (respeitando o
+        botão "mostrar/ocultar resultados").
+
+<meta name="version" content="202608301200">
 <meta name="description" content="Ymmaginitrix — Plataforma de gerenciamento de campanhas de RPG">
 <meta name="application-name" content="Ymmaginitrix">
 <meta property="og:title" content="Ymmaginitrix — Gerenciador de Campanhas RPG">
@@ -3160,6 +3189,25 @@ textarea{resize:vertical;min-height:72px;border-radius:var(--r-sm)}
   .roleta-left{flex:none;border-right:none;border-bottom:1px solid rgba(255,255,255,.06)}
   #roleta-canvas{width:220px!important;height:220px!important}
 }
+/* CORRIGIDO 2026-08-30 — CAUSA RAIZ de "a roleta tá comida uma parte" (a
+   roda cortada, faltando pedaço, botão GIRAR ROLETA nem aparecendo): existe
+   uma regra GLOBAL pra QUALQUER .modal do site (linha ~604 deste arquivo)
+   que no desktop força width:min(560px,94vw)!important — pensada pros
+   modais normais (formulários, confirmações etc.), que cabem tranquilos
+   nesse tamanho. A Roleta, porém, é o ÚNICO modal com duas colunas lado a
+   lado (coluna de configurações fixa em 300px + a roda giratória) e por
+   isso pede 640px pra tudo caber — só que a regra genérica ganhava dessa
+   necessidade específica (mesma especificidade CSS, e ambas com
+   !important, então "quem vem depois" no arquivo vencia — e a regra
+   genérica do desktop vem depois da definição original da Roleta). Como o
+   modal também tem overflow:hidden (pra cantos arredondados ficarem
+   bonitos), o que não cabia nos 560px forçados não aparecia como
+   scroll — sumia mesmo, cortado. Esta regra usa um seletor por ID
+   (#modal-roleta .modal), que tem PRIORIDADE MAIOR que a regra genérica
+   por classe (.modal), então a Roleta agora sempre recebe a largura que
+   realmente precisa, em qualquer tamanho de tela — sem afetar nenhum
+   outro modal do sistema. */
+#modal-roleta .modal{ width:min(680px,96vw)!important; max-width:680px!important; }
 /* CORREÇÕES VISUAIS MOBILE */
 @media (max-width: 768px) { #user-bar { top: 8px !important; right: 8px !important; padding: 5px !important; border-radius: 50px !important; background: rgba(0,0,0,0.65) !important; backdrop-filter: blur(10px) !important; -webkit-backdrop-filter: blur(10px) !important; border: 1px solid rgba(255,255,255,0.1) !important; gap: 8px !important; align-items: center !important; display: flex !important; z-index: 10001 !important; max-width: calc(100vw - 16px); box-sizing: border-box; } .ub-av { width: 38px !important; height: 38px !important; flex-shrink: 0 !important; border-radius: 50% !important; overflow: hidden !important; border: 2px solid var(--c-accent) !important; } .ub-av img { width: 100% !important; height: 100% !important; object-fit: cover !important; } .ub-info { display: flex !important; flex-direction: column !important; gap: 1px !important; align-items: flex-start !important; color: white !important; margin-right: 5px; overflow: hidden; } .ub-name { font-size: 0.8rem !important; font-weight: 700 !important; line-height: 1.1 !important; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; max-width: 120px; } .ub-role { font-size: 0.65rem !important; text-transform: uppercase; color: var(--c-accent) !important; opacity: 0.9; font-weight: 600; } .ub-ctrls { display: flex !important; gap: 6px !important; } .ub-ctrls button { padding: 7px 12px !important; font-size: 0.75rem !important; background: rgba(255,255,255,0.1) !important; border: none !important; color: white !important; border-radius: 20px !important; cursor: pointer; font-weight: 700; } .ub-ctrls button:hover { background: var(--c-accent) !important; color: white !important; } }
 
@@ -3920,6 +3968,26 @@ input:valid:not(:placeholder-shown) {
 
 /* ══ FIM POLIMENTOS v9.3 ══════════════════════════════════════ */
 /* ══ END V9.2 CSS ═══════════════════════════════════════════════════════ */
+
+/* CORRIGIDO 2026-08-30 — CAUSA RAIZ de "a aba de Habilidade está toda
+   bugada" (texto de um item aparecendo por cima do formulário de criar
+   habilidade personalizada, custo grudado na descrição do item seguinte,
+   etc): .op-cat-list SEMPRE teve um max-height inline (420px/360px, direto
+   no HTML) mas NUNCA teve overflow definido em CSS nenhum lugar do arquivo
+   — e o padrão do navegador pra overflow é "visible". Isso significa que,
+   sempre que a lista de habilidades/itens/ilusymas era mais alta que esse
+   max-height (o normal, já que o catálogo tem dezenas de entradas), o
+   conteúdo que passava do limite continuava sendo DESENHADO na tela
+   normalmente — só que o PRÓXIMO elemento do HTML (o formulário de criar
+   habilidade personalizada, ou o próximo bloco da página) já era
+   posicionado logo abaixo dos 420px "oficiais" da caixa, sem saber que
+   ainda tinha catálogo sobrando ali embaixo. Resultado: as duas coisas
+   (fim do catálogo + começo do formulário) ficavam desenhadas exatamente
+   em cima uma da outra — exatamente o "texto grudado" do print. Esta
+   classe é usada nos 3 catálogos do sistema (Habilidades Gerais, IlusYmas
+   e Itens) — a correção resolve os três de uma vez.
+*/
+.op-cat-list{ overflow-y:auto; overflow-x:hidden; }
 
 /* ══════════════════════════════════════════════════════════════════
    PASSE DE LEGIBILIDADE PROFISSIONAL — v15
@@ -5639,6 +5707,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
           </div>
           <!-- Roleta -->
           <button class="d-die special" onclick="rollRoleta()" style="width:100%;font-size:.8rem;padding:12px">🎰 &nbsp;ROLETA DO DESTINO</button>
+          <!-- ADICIONADO 2026-08-30 (pedido do usuário) — Tabela D60 de Azar & Infortúnios -->
+          <button class="d-die special" onclick="rollTabelaAzar()" style="width:100%;font-size:.8rem;padding:12px;margin-top:8px;background:linear-gradient(135deg,rgba(140,20,20,.5),rgba(60,4,4,.3));border-color:rgba(210,40,40,.5)">☠ &nbsp;TABELA DE AZAR (D60)</button>
+          <div id="azar-result-box" style="display:none;margin-top:10px;background:rgba(210,40,40,.08);border:1px solid rgba(210,40,40,.3);border-radius:10px;padding:12px 14px"></div>
           <!-- Log -->
           <div class="dice-log-new" id="dice-log">
             <div style="font-family:'Share Tech Mono',monospace;font-size:.58rem;color:rgba(255,255,255,0.72);text-align:center;padding:6px">// histórico //</div>
@@ -7488,7 +7559,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
         <div style="flex:1;display:flex;flex-direction:column;gap:6px;min-height:0">
           <div class="roleta-opts-header">
             <span>// OPÇÕES (<span id="roleta-opt-count">0</span>)</span>
-            <span style="color:rgba(200,205,225,0.72);font-size:.45rem">máx. 16</span>
+            <span style="color:rgba(200,205,225,0.72);font-size:.45rem">máx. 24</span>
           </div>
           <div class="roleta-opt-list" id="roleta-opt-list"></div>
           <div class="roleta-add-row">
@@ -10127,8 +10198,8 @@ function renderCoMestreList() {
       + (!u.id
           ? '<span style="font-family:\'Share Tech Mono\',monospace;font-size:.5rem;color:rgba(255,180,50,.7)" title="Esta ficha ainda não tem conta vinculada (ownerId) — peça pro jogador reabrir a ficha uma vez logado">sem conta vinculada</span>'
           : (isCo
-              ? '<button class="btn btn-small btn-danger" style="padding:2px 8px;font-size:.6rem" onclick="demoteCoMestre(\'' + campId + '\',\'' + u.id + '\')">Remover ajudante</button>'
-              : '<button class="btn btn-small btn-primary" style="padding:2px 8px;font-size:.6rem" onclick="promoteCoMestre(\'' + campId + '\',\'' + u.id + '\')">Promover a ajudante</button>'))
+              ? '<button class="btn btn-small btn-danger" style="padding:2px 8px;font-size:.6rem" onclick="demoteCoMestre(\'' + id + '\',\'' + u.id + '\')">Remover ajudante</button>'
+              : '<button class="btn btn-small btn-primary" style="padding:2px 8px;font-size:.6rem" onclick="promoteCoMestre(\'' + id + '\',\'' + u.id + '\')">Promover a ajudante</button>'))
       + '</div>';
   }).join('');
 }
@@ -11361,6 +11432,130 @@ function rollMulti(n, sides) {
   _diceSessionUpdate(total, sides*n, n+'d'+sides);
   return total;
 }
+// ══════════════════════════════════════════════════════════════════
+// ADICIONADO 2026-08-30 (pedido do usuário) — TABELA D60 DE AZAR &
+// INFORTÚNIOS. Transcrita das imagens de referência enviadas pelo próprio
+// usuário (tabela homebrew dele). Uso sugerido, igual descrito nas
+// próprias imagens: ao tirar 1 natural no d20 (falha crítica), ou pra
+// personagens "azarados/amaldiçoados" no início de um combate ou cena
+// social importante, role nesta tabela pra um contratempo dinâmico.
+// ══════════════════════════════════════════════════════════════════
+var TABELA_D60_AZAR = [
+  {n:1,  efeito:'Cadarço Solto',          desc:'Você tropeça na própria capa/bainha/cadarço e cai no chão (ficando Caído).'},
+  {n:2,  efeito:'Ataque de Vespa',        desc:'Um inseto espalhafatosamente barulhento entra na sua armadura ou túnica.'},
+  {n:3,  efeito:'Coceira Inoportuna',     desc:'Uma coceira incontrolável no meio das costas dá desvantagem na próxima jogada.'},
+  {n:4,  efeito:'Cãibra Repentina',       desc:'Você sofre uma cãibra súbita na perna; seu deslocamento cai pela metade por 1 rodada.'},
+  {n:5,  efeito:'Sujeira no Olho',        desc:'Um cisco voador atinge em cheio seu olho dominante. Fica cego por 1 rodada.'},
+  {n:6,  efeito:'Dente Trincado',         desc:'Ao morder algo ou esbarrar a boca, você trinca um dente. Perde 1 PV e a paciência.'},
+  {n:7,  efeito:'Mão Espremedeira',       desc:'Suas mãos ficam suadas ou meladas; você deixa cair o item que estiver segurando.'},
+  {n:8,  efeito:'Bolsa Furada',           desc:'Um item menor da sua bolsa rompe o tecido/couro e cai no chão sem você perceber.'},
+  {n:9,  efeito:'Puxão de Mau Jeito',     desc:'Você dá um jeito no pescoço ao se mover rápido demais. -2 de CA na próxima rodada.'},
+  {n:10, efeito:'Espirro Trovão',         desc:'Você solta um espirro estrondoso. Qualquer teste de Furtividade na área falha automaticamente.'},
+  {n:11, efeito:'Olhar do Infortúnio',    desc:'Um gato preto ou coruja cruza seu caminho e rosna. Seu próximo d20 é considerado um 1 natural.'},
+  {n:12, efeito:'Alvo Humano',            desc:'Uma pomba ou criatura voadora acerta um de seus excrementos na sua cabeça.'},
+  {n:13, efeito:'Rasgão Embaraçoso',      desc:'Sua calça ou túnica rasga na região traseira. Penalidade de -2 em testes Sociais.'},
+  {n:14, efeito:'Malandragem Animal',     desc:'Um cão vadio ou criatura pequena corre, rouba uma ração da sua cintura e foge.'},
+  {n:15, efeito:'Voz Falhada',            desc:'Ao tentar falar sério ou intimidar, sua voz falha feio e desafina.'},
+  {n:16, efeito:'Chuva de Azar',          desc:'Uma nuvem isolada surge acima de você e despeja uma tempestade pessoal por 1 minuto.'},
+  {n:17, efeito:'Sola Furada',            desc:'A sola da sua bota se desprende. Mover-se por terreno difícil causa 1d4 de dano de impacto.'},
+  {n:18, efeito:'Comida Estragada',       desc:'A última refeição não caiu bem. Você fica Enjoado/Envenenado levemente por 1 hora.'},
+  {n:19, efeito:'Reflexo Enganoso',       desc:'Você confunde a sombra de uma árvore com um inimigo e gasta seu ataque em nada.'},
+  {n:20, efeito:'Mau Olhado',             desc:'Um camponês idoso aponta para você e pragueja. Sua próxima rolagem de dano dará o menor valor.'},
+  {n:21, efeito:'Atração Magnética',      desc:'Armas ou moedas de metal do grupo voam até você por um leve distúrbio mágico azarado.'},
+  {n:22, efeito:'Combustão Ligeira',      desc:'Uma faísca ateia fogo na ponta do seu chapéu ou capa (requer 1 ação para apagar).'},
+  {n:23, efeito:'Língua Presa',           desc:'Ao tentar conjurar uma magia ou negociar, você troca as sílabas e fala baboseira.'},
+  {n:24, efeito:'Pé Frio',                desc:'Você pisa em uma poça profunda que parecia rasa. Seus pés ficam ensopados e frios.'},
+  {n:25, efeito:'Gato Amaldiçoado',       desc:'Todos os animais neutros na área começam a rosnar e desconfiar de você sem motivo.'},
+  {n:26, efeito:'Aperto Pegajoso',        desc:'A maçaneta, baú ou porta onde você toca está coberta por algo incrivelmente pegajoso.'},
+  {n:27, efeito:'Troca de Bainha',        desc:'Suas armas se engancham nos cintos e você leva uma ação extra para sacá-las.'},
+  {n:28, efeito:'Desastre Culinário',     desc:'Toda comida que você tentar preparar nas próximas 24h fica insuportavelmente salgada.'},
+  {n:29, efeito:'Ataque de Soluço',       desc:'Você inala uma fuligem estranha e fica tendo ataques incontroláveis de soluço por 10 minutos.'},
+  {n:30, efeito:'Magneto de Confusão',    desc:'Se houver um projétil errante na batalha, ele se desvia para acertar VOCÊ.'},
+  {n:31, efeito:'Perda de Trocados',      desc:'Você tenta pagar algo e percebe que metade das suas moedas vazaram pelo caminho.'},
+  {n:32, efeito:'Pancada na Cabeça',      desc:'Ao passar por uma porta ou galho, você esquece de abaixar e bate a testa (1 de dano).'},
+  {n:33, efeito:'Nó Cego',                desc:'Suas mochilas se dão nós impossíveis. Leva 5 minutos extras para pegar qualquer item.'},
+  {n:34, efeito:'Inversão de Sorte',      desc:'O próximo inimigo que te atacar ganha vantagem no ataque por conta do seu tropeço.'},
+  {n:35, efeito:'Orelha Quente',          desc:'Um boato falso e extremamente vexatório sobre você acabou de chegar na cidade.'},
+  {n:36, efeito:'Espelho Quebrado',       desc:'Qualquer superfície reflexiva perto de você trinca misteriosamente quando você se olha.'},
+  {n:37, efeito:'Vento Traiçoeiro',       desc:'Uma rajada de vento súbita sopra seus mapas, papéis ou chapéu para longe.'},
+  {n:38, efeito:'Pisar na Bola',          desc:'Você pisa em uma pedra rolante e desliza 3 metros na direção indesejada.'},
+  {n:39, efeito:'Equipamento Torto',      desc:'Seu equipamento fica assentado de forma torta. -1 em Testes de Destreza.'},
+  {n:40, efeito:'Nó na Língua Mágic',     desc:'Você tenta falar uma palavra mágica e engasga com a própria saliva (perde o turno).'},
+  {n:41, efeito:'Cinto Rompido',          desc:'Seu cinto rasga no meio do combate. Você precisa usar uma mão para segurar as calças ou armadura.'},
+  {n:42, efeito:'Borrão de Tinta',        desc:'Sua aljava, diário de magias ou mapa cai na lama, borrando informações ou danificando páginas.'},
+  {n:43, efeito:'Cheiro Atractivo',       desc:'Você pisa em algo podre. Criaturas com odores apurados ganham vantagem para rastrear você.'},
+  {n:44, efeito:'Vira-Lata Apaixonado',   desc:'Um cão errante decide que você é a pessoa favorita dele e te segue latindo sem parar.'},
+  {n:45, efeito:'Barulho de Chocalho',    desc:'Suas moedas e apetrechos começam a fazer um barulho de chocalho irritante que denuncia sua presença.'},
+  {n:46, efeito:'Alergia Súbita',         desc:'Você começa a espirrar incontrolavelmente ao se aproximar de poeira, flores ou monstros peludos.'},
+  {n:47, efeito:'Anel Enroscado',         desc:'Um anel ou braçadeira aperta excessivamente seu dedo/pulso, causando um incômodo dorido (-1 em Atletas).'},
+  {n:48, efeito:'Sombra Rebelde',         desc:'Sua sombra se move com 1 segundo de atraso, deixando qualquer pessoa que esteja te observando inquieta.'},
+  {n:49, efeito:'Capa Presa',             desc:'Sua capa ou casaco engancha na porta ou galho exatamente quando você tenta correr.'},
+  {n:50, efeito:'Troca de Frasco',        desc:'Você pega o frasco errado no cinto: em vez de uma poção útil, bebe água morna ou vinagre.'},
+  {n:51, efeito:'Sapato Trocado',         desc:'Na pressa, você colocou os sapatos/botas nos pés trocados e agora caminhar é desconfortável.'},
+  {n:52, efeito:'Efeito Eco',             desc:'Tudo o que você sussurra ecoa inexplicavelmente alto pelo ambiente por 1d4 rodadas.'},
+  {n:53, efeito:'Fivela Enferrujada',     desc:'Sua armadura ou escudo dá um estalo de ferrugem e trava parcialmente (-1 no próximo teste de Agilidade).'},
+  {n:54, efeito:'Pedra no Sapato',        desc:'Uma pedrinha pontiaguda entra na sua bota. Seu deslocamento reduz em 1,5m até você parar para tirar.'},
+  {n:55, efeito:'Riso Involuntário',      desc:'Uma crise de riso nervoso totalmente fora de hora surge durante uma situação tensa ou dramática.'},
+  {n:56, efeito:'Página Colada',          desc:'Ao abrir seu livro de magias ou grimório, duas páginas grudam e você gasta uma ação extra procurando a certa.'},
+  {n:57, efeito:'Tontura Súbita',         desc:'Ao virar a cabeça rápido demais, você sente uma labirintite momentânea e fica tonto por 1 rodada.'},
+  {n:58, efeito:'Suor nos Olhos',         desc:'Uma gota de suor salgado escorre direto para o seu olho durante um momento decisivo.'},
+  {n:59, efeito:'Catarro Enroscado',      desc:'Você tenta fazer um discurso imponente, mas limpa a garganta de forma patética e engasga.'},
+  {n:60, efeito:'Catástrofe de Azar Suprema', desc:'Reação em cadeia! Role 3 vezes nesta tabela e aplique os três efeitos simultaneamente!', chain:true}
+];
+
+// Rola 1 entrada da tabela (uso interno — tratamento especial do 60 fica em rollTabelaAzar)
+function _rollUmAzar() {
+  var idx = Math.floor(Math.random() * 60); // 0..59
+  return TABELA_D60_AZAR[idx];
+}
+
+// Botão principal — "🎲‍☠ TABELA DE AZAR (D60)". Trata a entrada 60
+// (Catástrofe de Azar Suprema) rolando mais 3 vezes e mostrando os 3
+// efeitos juntos, exatamente como a tabela descreve. Evita cascata
+// infinita: se um dos 3 sub-resultados também for o 60, mostra ele
+// normalmente (sem rolar de novo) — senão a "reação em cadeia" poderia
+// nunca terminar por pura má sorte.
+function rollTabelaAzar() {
+  var principal = _rollUmAzar();
+  var extras = [];
+  if (principal.chain) {
+    for (var i = 0; i < 3; i++) extras.push(_rollUmAzar());
+  }
+  _renderAzarResult(principal, extras);
+  _diceSessionUpdate(principal.n, 60, 'Azar');
+
+  // Registra no histórico de dados (mesma convenção da rolagem rápida:
+  // só entra no histórico COMPARTILHADO se "mostrar resultados" estiver
+  // ativo — ver addDiceLog).
+  var resumo = '🎲‍☠ D60 AZAR: #' + principal.n + ' ' + principal.efeito
+    + (extras.length ? ' (+ ' + extras.map(function(e){return '#'+e.n+' '+e.efeito;}).join(', ') + ')' : '');
+  var time = new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+  var rollEntry = { expr: resumo, total: principal.n, isCrit:false, isFail:true,
+    sender: currentUser ? currentUser.username : 'Mestre',
+    avatar: currentUser ? currentUser.avatar : null, time: time };
+  if (typeof diceOverlayVisible !== 'undefined' && diceOverlayVisible && typeof pushRoll === 'function') {
+    pushRoll(rollEntry);
+  }
+}
+
+function _renderAzarResult(principal, extras) {
+  var box = document.getElementById('azar-result-box');
+  if (!box) return;
+  function linha(e) {
+    return '<div style="margin-bottom:8px">'
+      + '<div style="font-family:\'Bebas Neue\',sans-serif;font-size:1rem;letter-spacing:.04em;color:#ff6a6a">#'+e.n+' — '+esc(e.efeito)+'</div>'
+      + '<div style="font-family:\'Rajdhani\',sans-serif;font-size:.85rem;color:rgba(230,232,245,.86);margin-top:2px">'+esc(e.desc)+'</div>'
+      + '</div>';
+  }
+  var html = linha(principal);
+  if (extras.length) {
+    html += '<div style="font-family:\'Share Tech Mono\',monospace;font-size:.55rem;letter-spacing:.12em;color:rgba(255,120,120,0.85);margin:6px 0 4px">// REAÇÃO EM CADEIA — 3 EFEITOS SIMULTÂNEOS //</div>';
+    extras.forEach(function(e){ html += linha(e); });
+  }
+  box.innerHTML = html;
+  box.style.display = 'block';
+}
+
 function rollRoleta() {
   var options = ['1d4','1d6','1d8','1d10','1d12','1d20'];
   var chosen = options[Math.floor(Math.random()*options.length)];
@@ -12005,15 +12200,23 @@ var roletaState = {
     '#d62828','#c01020','#8b0000','#a01818',
     '#cc2200','#ff4444','#b01010','#e02020',
     '#980808','#dd3333','#882020','#cc1818',
-    '#ff2222','#aa0808','#ee3333','#bb1818'
+    '#ff2222','#aa0808','#ee3333','#bb1818',
+    // ADICIONADO 2026-08-30 — mais cores pra acompanhar o aumento do limite
+    // de opções (16 → 24), reduzindo repetição de cor entre fatias vizinhas
+    // em roletas cheias.
+    '#f03838','#9c1414','#e85050','#7a0d0d',
+    '#c73030','#ff6060','#a52a2a','#801010'
   ]
 };
 
 var ROLETA_PRESETS = {
   players: null, // preenchido dinamicamente
-  elementos: ['🔥 Fogo','💧 Água','🌱 Terra','💨 Vento','⚡ Raio','❄ Gelo','🌑 Sombra','☀ Luz'],
-  itens: ['⚗ Poção','🗡 Espada','🛡 Escudo','💎 Gema','📜 Pergaminho','🗝 Chave','💣 Bomba','🔮 Orbe'],
-  eventos: ['⚔ Batalha','🧌 Monstro Raro','💰 Tesouro','🌪 Armadilha','🎭 Evento Misterioso','🏰 Dungeon','🧙 NPC','☠ Perigo Mortal']
+  // ADICIONADO 2026-08-30 (pedido do usuário: "adicione mais itens") — cada
+  // predefinição ganhou mais opções (de 8 pra 12), aproveitando o novo
+  // limite de 24 opções por roleta.
+  elementos: ['🔥 Fogo','💧 Água','🌱 Terra','💨 Vento','⚡ Raio','❄ Gelo','🌑 Sombra','☀ Luz','🌋 Magma','🌪 Tempestade','☠ Veneno','🌌 Vácuo'],
+  itens: ['⚗ Poção','🗡 Espada','🛡 Escudo','💎 Gema','📜 Pergaminho','🗝 Chave','💣 Bomba','🔮 Orbe','🏹 Arco','🩸 Sangue Ritual','⚱ Relíquia','🧪 Elixir'],
+  eventos: ['⚔ Batalha','🧌 Monstro Raro','💰 Tesouro','🌪 Armadilha','🎭 Evento Misterioso','🏰 Dungeon','🧙 NPC','☠ Perigo Mortal','🌋 Erupção','👹 Chefe','🎁 Recompensa','🩹 Emboscada']
 };
 
 function openRoletaModal() {
@@ -12057,9 +12260,9 @@ function setRoletaTarget(btn) {
 function loadRoletaPreset(name) {
   if (name === 'clear') { roletaState.opts = []; renderRoletaOpts(); drawRoleta(); return; }
   if (name === 'players' && ROLETA_PRESETS.players && ROLETA_PRESETS.players.length) {
-    roletaState.opts = ROLETA_PRESETS.players.slice(0, 16);
+    roletaState.opts = ROLETA_PRESETS.players.slice(0, 24);
   } else if (ROLETA_PRESETS[name]) {
-    roletaState.opts = ROLETA_PRESETS[name].slice(0, 16);
+    roletaState.opts = ROLETA_PRESETS[name].slice(0, 24);
   }
   renderRoletaOpts();
   drawRoleta();
@@ -12069,7 +12272,9 @@ function addRoletaOpt() {
   var inp = document.getElementById('roleta-new-opt');
   var val = (inp.value || '').trim();
   if (!val) return;
-  if (roletaState.opts.length >= 16) { showToast('⚠ Máximo de 16 opções', 'warn'); return; }
+  // ADICIONADO 2026-08-30 (pedido do usuário: "adicione mais itens") — limite
+  // subiu de 16 pra 24 opções por roleta.
+  if (roletaState.opts.length >= 24) { showToast('⚠ Máximo de 24 opções', 'warn'); return; }
   roletaState.opts.push(val);
   inp.value = '';
   renderRoletaOpts();
