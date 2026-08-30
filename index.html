@@ -16163,18 +16163,41 @@ function renderCallParticipants() {
   var area = document.getElementById('call-participants-area');
   if (!area) return;
 
-  // Salva stream da câmera local ANTES de reconstruir (evita perder srcObject)
-  var savedCamStream = callState.camStream || null;
-
-  // Mostrar usuário local
+  // CORRIGIDO 2026-08-30 (CASO SHERLOCK — "meu ícone/câmera bugam e somem
+  // sozinhos") — CAUSA RAIZ: esta função reconstruía (innerHTML) o card do
+  // participante LOCAL do zero toda vez que era chamada — e ela é chamada
+  // com muita frequência (qualquer outro jogador entrando/saindo da call,
+  // qualquer atualização de presença do Firebase). Isso destrói e recria o
+  // <video> da sua própria câmera a cada rebuild. Existia um reanexo
+  // (srcObject de novo) logo depois, mas como callToggleCam() é assíncrono
+  // (espera a permissão do getUserMedia resolver), dava pra um desses
+  // rebuilds acontecer bem no meio do processo de ligar a câmera — o
+  // rebuild vencia a corrida, o vídeo sumia (card voltava a mostrar só o
+  // avatar estático, "o ícone deixa de existir"), mas a track de vídeo
+  // continuava viva de verdade (ninguém deu stop() nela), então o indicador
+  // de câmera/microfone do navegador continuava aceso como se estivesse
+  // tudo ligado. A mesma corrida explicava o "buga quando eu transmito":
+  // qualquer rebuild vindo de outro participante entrando podia bater
+  // exatamente na janela entre pedir a câmera e reanexar o vídeo.
+  // Agora: o card local só é criado UMA VEZ (o próprio elemento DOM nunca
+  // é destruído de novo enquanto a call continuar ativa) — o rebuild total
+  // só acontece se o card local ainda não existir. Só os cards dos OUTROS
+  // participantes são reconstruídos a cada mudança de presença, o que já
+  // resolve o problema sem tirar a atualização ao vivo de quem entra/sai.
   var user = currentUser || {username: 'Você', role: 'player', avatar: null};
-  area.innerHTML = buildParticipantCard(user, true, window._myCallId || 'local', false);
-  _freezeAnimatedAvatars(area);
-
-  // Reanexa câmera imediatamente após rebuild
-  if (savedCamStream && callState.camState === 'active') {
-    var localVid = document.getElementById('call-part-local-vid');
-    if (localVid) { localVid.srcObject = savedCamStream; localVid.style.display = 'block'; localVid.play().catch(function(){}); }
+  var localCardExists = !!document.getElementById('call-part-local');
+  if (!localCardExists) {
+    area.innerHTML = buildParticipantCard(user, true, window._myCallId || 'local', false)
+      + '<div id="call-remote-cards"></div>';
+    _freezeAnimatedAvatars(area);
+    // Reanexa câmera imediatamente após (re)criar o card local
+    if (callState.camStream && callState.camState === 'active') {
+      var localVid = document.getElementById('call-part-local-vid');
+      if (localVid) { localVid.srcObject = callState.camStream; localVid.style.display = 'block'; localVid.play().catch(function(){}); }
+    }
+  } else if (!document.getElementById('call-remote-cards')) {
+    // Card local de uma versão antiga sem o container de remotos — adiciona sem tocar no local
+    area.insertAdjacentHTML('beforeend', '<div id="call-remote-cards"></div>');
   }
 
   // CORRIGIDO: esta função chamava onValue(..., {onlyOnce:true}) TODA VEZ que
@@ -16191,12 +16214,12 @@ function renderCallParticipants() {
   if (callState.active) {
     var isMestreLocal = currentUser && (currentUser.role === 'mestre' || currentUser.role === 'ambos');
     var canModerate = isMestreLocal || (callState.callPermissions.indexOf(currentUser && currentUser.id) !== -1);
-    var html = buildParticipantCard(user, true, window._myCallId || 'local', false);
+    var remoteHtml = '';
     var membersCache = window._callMembersCache || {};
     Object.keys(membersCache).forEach(function(uid) {
       var memberData = membersCache[uid];
       if (uid !== window._myCallId) {
-        html += buildParticipantCard({
+        remoteHtml += buildParticipantCard({
           id: uid,
           username: memberData.username || 'Usuário',
           role: memberData.role || 'player',
@@ -16206,15 +16229,17 @@ function renderCallParticipants() {
         }, false, uid, canModerate);
       }
     });
-    area.innerHTML = html;
-    _freezeAnimatedAvatars(area);
+    var remoteContainer = document.getElementById('call-remote-cards');
+    if (remoteContainer) { remoteContainer.innerHTML = remoteHtml; _freezeAnimatedAvatars(remoteContainer); }
     if (window.lucide) lucide.createIcons();
     var _cnt = document.getElementById('call-participant-count');
     if (_cnt) _cnt.textContent = '👥 ' + (1 + Object.keys(membersCache).filter(function(k){ return k !== window._myCallId; }).length);
-    // Reanexa câmera novamente após rebuild remoto
+    // Reanexa câmera local (garantia extra — não deveria mais ser necessário
+    // já que o card local não é mais recriado aqui, mas cobre o caso raro
+    // dele ter sido perdido por outro motivo)
     if (callState.camState === 'active' && callState.camStream) {
       var vid = document.getElementById('call-part-local-vid');
-      if (vid) { vid.srcObject = callState.camStream; vid.style.display = 'block'; vid.play().catch(function(){}); }
+      if (vid && vid.srcObject !== callState.camStream) { vid.srcObject = callState.camStream; vid.style.display = 'block'; vid.play().catch(function(){}); }
     }
     // Reanexa qualquer vídeo remoto de câmera já recebido antes deste rebuild
     if (typeof window._reattachKnownRemoteVideos === 'function') window._reattachKnownRemoteVideos();
