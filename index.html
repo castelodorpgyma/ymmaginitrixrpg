@@ -22686,6 +22686,19 @@ function _createPeerConn(roomId, peerUid, forceRelay) {
     return (window._callMembersCache && window._callMembersCache[peerUid] && window._callMembersCache[peerUid].username) || 'participante';
   }
 
+  // v202608302230 — ANTI-SPAM DE TOAST: em cenas de rede bem instável, o
+  // watchdog de stats e o onconnectionstatechange podem ambos tentar avisar
+  // "reconectando..." quase ao mesmo tempo, empilhando toasts repetidos que
+  // acabam mais confundindo do que ajudando. Agora um toast de reconexão pra
+  // esse peer específico só é mostrado se o anterior já tiver pelo menos 4s.
+  pc._lastReconnectToastAt = 0;
+  function _toastReconectando(msg) {
+    var now = Date.now();
+    if (now - pc._lastReconnectToastAt < 4000) return;
+    pc._lastReconnectToastAt = now;
+    showToast(msg, 'warn');
+  }
+
   function _clearReconnectTimer() {
     if (pc._reconnectTimer) { clearTimeout(pc._reconnectTimer); pc._reconnectTimer = null; }
   }
@@ -22789,7 +22802,7 @@ function _createPeerConn(roomId, peerUid, forceRelay) {
         pc._staleStatsCount++;
         if (pc._staleStatsCount >= 3) {
           console.log('[WebRTC] Conexão zumbi detectada com', peerUid, '(connected, mas nada novo há ~24s) — forçando restartIce.');
-          showToast('🔄 Reconectando com ' + _nomeParticipante() + '... (áudio/vídeo travou)', 'warn');
+          _toastReconectando('🔄 Reconectando com ' + _nomeParticipante() + '... (áudio/vídeo travou)');
           pc._staleStatsCount = 0;
           _safeRestartIce('watchdog de stats');
         }
@@ -22825,7 +22838,7 @@ function _createPeerConn(roomId, peerUid, forceRelay) {
           return;
         }
         pc._reconnectAttempts++;
-        showToast('🔄 Reconectando com ' + _nomeParticipante() + '... (' + pc._reconnectAttempts + '/' + MAX_RECONNECT_ATTEMPTS + ')', 'warn');
+        _toastReconectando('🔄 Reconectando com ' + _nomeParticipante() + '... (' + pc._reconnectAttempts + '/' + MAX_RECONNECT_ATTEMPTS + ')');
         _safeRestartIce('disconnected timeout');
       }, _delay);
       return;
@@ -22840,7 +22853,7 @@ function _createPeerConn(roomId, peerUid, forceRelay) {
       _clearReconnectTimer();
       if (pc._reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
         pc._reconnectAttempts++;
-        showToast('🔄 Reconectando com ' + _nomeParticipante() + '... (' + pc._reconnectAttempts + '/' + MAX_RECONNECT_ATTEMPTS + ')', 'warn');
+        _toastReconectando('🔄 Reconectando com ' + _nomeParticipante() + '... (' + pc._reconnectAttempts + '/' + MAX_RECONNECT_ATTEMPTS + ')');
         try { _safeRestartIce('failed'); } catch(e) { _giveUp('rede/firewall'); }
       } else {
         _giveUp('rede/firewall');
@@ -22852,6 +22865,12 @@ function _createPeerConn(roomId, peerUid, forceRelay) {
       _clearReconnectTimer();
       _stopStatsWatchdog();
       if (pc._keepaliveTimer) { clearInterval(pc._keepaliveTimer); pc._keepaliveTimer = null; }
+      // v202608302230 — VAZAMENTO CORRIGIDO: window._peerConnHealth nunca
+      // removia a entrada de um peer que já tinha saído de vez — numa
+      // campanha longa com muita gente entrando/saindo da call ao longo de
+      // semanas, esse objeto só crescia, acumulando lixo de gente que nem
+      // está mais na sessão. Agora limpa junto do resto no fechamento real.
+      if (window._peerConnHealth) delete window._peerConnHealth[peerUid];
       delete _peers[peerUid];
       delete window._safeRestartIceByPeer[peerUid];
       _removeRemoteStream(peerUid);
