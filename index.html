@@ -7,7 +7,17 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>Ymmaginitrix — Gerenciador de Campanhas</title>
-<meta name="version" content="202608291900">
+<!-- CORREÇÃO 2026-08-29 (pedido do usuário) — "os dados que forem rolados
+     com a opção de mostrar resultados apareça em histórico de dados": os
+     dados rápidos (d4~d25, múltiplos, roleta) na tela "Mesa de Dados" só
+     entravam no histórico LOCAL dessa tela — nunca no histórico
+     COMPARTILHADO da campanha (o que sincroniza pra todo o grupo via
+     Firebase e alimenta o "PAINEL DE ROLAGENS"). Agora, com o botão
+     "mostrar resultados" ativo, essas rolagens também entram nesse
+     histórico compartilhado; com "ocultar resultados", continuam só
+     locais (como antes, igual ao "dado fantasma").
+
+<meta name="version" content="202608292000">
 <meta name="description" content="Ymmaginitrix — Plataforma de gerenciamento de campanhas de RPG">
 <meta name="application-name" content="Ymmaginitrix">
 <meta property="og:title" content="Ymmaginitrix — Gerenciador de Campanhas RPG">
@@ -11401,8 +11411,26 @@ function addDiceLog(label, result, sides) {
     avatar: currentUser ? currentUser.avatar : null,
     time: time
   };
-  showDiceOverlay(rollEntry);
-  showCallDiceBadge(rollEntry);
+  // ADICIONADO 2026-08-29 — pedido do usuário: "os dados que forem rolados
+  // com a opção de mostrar resultados apareça em histórico de dados". Antes,
+  // os dados rápidos (d4~d25, múltiplos, roleta — os botões desta tela) só
+  // entravam no histórico LOCAL desta tela (#dice-log, "// histórico //"
+  // logo abaixo dos botões) — nunca no histórico COMPARTILHADO da campanha
+  // (liveSession.rolls, sincronizado por Firebase, é o que alimenta o
+  // "PAINEL DE ROLAGENS" e o feed que o resto do grupo vê). pushRoll() já
+  // existe e faz exatamente isso (grava no histórico compartilhado + mostra
+  // o overlay flutuante + o badge na call) — só nunca era chamado aqui.
+  // Agora: respeita o mesmo botão "mostrar/ocultar resultados"
+  // (diceOverlayVisible) que já existia — ligado, a rolagem some pra
+  // histórico compartilhado (visível ao grupo); desligado ("ocultar
+  // resultados"), continua só local, do mesmo jeito que já era antes (sem
+  // aparecer pros outros, igual ao "dado fantasma").
+  if (typeof diceOverlayVisible !== 'undefined' && diceOverlayVisible && typeof pushRoll === 'function') {
+    pushRoll(rollEntry);
+  } else {
+    showDiceOverlay(rollEntry);
+    showCallDiceBadge(rollEntry);
+  }
 }
 
 function rollCombat() {
