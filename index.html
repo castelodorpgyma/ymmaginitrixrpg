@@ -23224,6 +23224,7 @@ window._rtcAddMediaTrack = function(stream) {
         if (alreadyExists) return;
         var matchKind = track.kind;
         if (_isScreenStream && track.kind === 'video') matchKind = 'screenvideo';
+        else if (_isScreenStream && track.kind === 'audio') matchKind = 'screenaudio';
         else if (track.kind === 'audio') {
           if (_isMicStream) matchKind = 'micaudio';
           else if (_isAmbientStream) matchKind = 'ambientaudio';
