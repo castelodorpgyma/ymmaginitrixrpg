@@ -1992,6 +1992,114 @@ textarea{resize:vertical;min-height:72px;border-radius:var(--r-sm)}
 }
 #chat-overlay.open{display:flex}
 #chat-overlay #chat-box-overlay{position:relative;height:100%}
+#ai-fab{
+  position:fixed;bottom:144px;left:16px;z-index:5000;
+  width:52px;height:52px;border-radius:50%;border:none;cursor:pointer;
+  background:linear-gradient(135deg,rgba(30,30,50,.92),rgba(10,10,22,.9));
+  border:2px solid rgba(120,140,255,.45);
+  color:#fff;font-size:1.3rem;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 8px 28px rgba(20,20,40,.6),0 0 0 4px rgba(120,140,255,.1);
+  transition:all .12s;
+}
+#ai-fab:hover{transform:scale(1.1) translateY(-2px);box-shadow:0 12px 36px rgba(20,20,40,.75),0 0 0 6px rgba(120,140,255,.16)}
+#ai-fab:active{transform:scale(.95)}
+#ai-overlay{
+  position:fixed;bottom:0;left:0;z-index:4999;
+  width:min(380px,100vw);height:min(520px,80dvh);
+  min-width:300px;min-height:340px;max-width:96vw;max-height:92dvh;
+  display:none;flex-direction:column;
+  border-radius:0 16px 0 0;
+  box-shadow:0 -8px 40px rgba(0,0,0,.8);
+  overflow:hidden;
+}
+#ai-overlay.open{display:flex}
+.ai-box{
+  position:relative;display:flex;flex-direction:column;height:100%;
+  background:linear-gradient(180deg,rgba(12,12,22,.97),rgba(7,7,15,.98));
+  border:1px solid rgba(120,140,255,.22);
+}
+.ai-header{
+  display:flex;align-items:center;gap:8px;padding:10px 12px;
+  border-bottom:1px solid rgba(255,255,255,.08);flex-shrink:0;
+}
+.ai-header-icon{font-size:1.1rem}
+.ai-header-name{font-family:'Rajdhani',sans-serif;font-weight:700;letter-spacing:.04em;font-size:.92rem;flex:1}
+.ai-header-badge{
+  font-family:'Share Tech Mono',monospace;font-size:.5rem;letter-spacing:.06em;
+  color:rgba(150,170,255,.9);border:1px solid rgba(120,140,255,.35);
+  border-radius:20px;padding:2px 7px;
+}
+.ai-hdr-btn{
+  background:none;border:none;color:rgba(255,255,255,.55);cursor:pointer;
+  font-size:.9rem;padding:4px 6px;border-radius:6px;transition:all .12s;
+}
+.ai-hdr-btn:hover{color:#fff;background:rgba(255,255,255,.08)}
+.ai-feed{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px}
+.ai-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;height:100%;gap:8px;padding:20px}
+.ai-empty-icon{font-size:2rem;opacity:.4}
+.ai-empty-txt{font-size:.76rem;color:rgba(255,255,255,.5);line-height:1.5;max-width:280px}
+.ai-msg{max-width:88%;padding:8px 12px;border-radius:12px;font-size:.85rem;line-height:1.45;white-space:pre-wrap;word-break:break-word}
+.ai-msg.user{align-self:flex-end;background:linear-gradient(135deg,rgba(180,12,12,.5),rgba(120,5,5,.4));border:1px solid rgba(210,40,40,.3);border-bottom-right-radius:3px}
+.ai-msg.assistant{align-self:flex-start;background:rgba(255,255,255,.05);border:1px solid rgba(120,140,255,.2);border-bottom-left-radius:3px}
+.ai-msg.error{align-self:center;background:rgba(214,40,40,.12);border:1px solid rgba(214,40,40,.4);color:rgba(255,200,200,.9);font-size:.76rem;text-align:center}
+.ai-typing{padding:0 14px 6px;font-family:'Share Tech Mono',monospace;font-size:.62rem;color:rgba(150,170,255,.7);flex-shrink:0}
+.ai-dots span{animation:aiblink 1.2s infinite;opacity:0}
+.ai-dots span:nth-child(1){animation-delay:0s}.ai-dots span:nth-child(2){animation-delay:.2s}.ai-dots span:nth-child(3){animation-delay:.4s}
+@keyframes aiblink{0%,100%{opacity:0}50%{opacity:1}}
+.ai-input-row{display:flex;gap:8px;align-items:flex-end;padding:10px;border-top:1px solid rgba(255,255,255,.08);flex-shrink:0}
+.ai-text-inp{
+  flex:1;resize:none;max-height:120px;background:rgba(255,255,255,.05);
+  border:1px solid rgba(255,255,255,.1);border-radius:10px;color:var(--c-text);
+  font-family:'Rajdhani',sans-serif;font-size:.86rem;padding:9px 12px;outline:none;
+}
+.ai-text-inp:focus{border-color:rgba(120,140,255,.5)}
+.ai-send-btn{
+  width:38px;height:38px;flex-shrink:0;border-radius:50%;border:none;cursor:pointer;
+  background:linear-gradient(135deg,rgba(120,140,255,.85),rgba(70,80,200,.85));
+  color:#fff;font-size:1rem;display:flex;align-items:center;justify-content:center;
+}
+.ai-send-btn:disabled{opacity:.4;cursor:not-allowed}
+@media (max-width:600px){
+  #ai-fab{bottom:136px;left:12px;width:46px;height:46px;font-size:1.1rem}
+  #ai-overlay{width:100vw;height:100dvh;max-width:100vw;max-height:100dvh;border-radius:0}
+}
+/* ── painel de histórico de conversas com a IA ── */
+.ai-hist-panel{
+  position:absolute;inset:0;top:41px;z-index:20;
+  background:linear-gradient(180deg,rgba(10,10,20,.99),rgba(6,6,13,.99));
+  display:none;flex-direction:column;
+}
+.ai-hist-panel.open{display:flex}
+.ai-hist-newbtn{
+  display:flex;align-items:center;justify-content:center;gap:6px;margin:10px;
+  padding:9px;border-radius:10px;border:1px dashed rgba(120,140,255,.4);
+  background:rgba(120,140,255,.08);color:rgba(220,225,255,.9);cursor:pointer;
+  font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.82rem;letter-spacing:.02em;
+  transition:all .12s;flex-shrink:0;
+}
+.ai-hist-newbtn:hover{background:rgba(120,140,255,.16);border-color:rgba(120,140,255,.7)}
+.ai-hist-list{flex:1;overflow-y:auto;padding:0 8px 10px}
+.ai-hist-cat{
+  font-family:'Share Tech Mono',monospace;font-size:.62rem;letter-spacing:.08em;
+  color:rgba(150,170,255,.75);text-transform:uppercase;margin:12px 8px 5px;
+}
+.ai-hist-cat:first-child{margin-top:2px}
+.ai-hist-item{
+  display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:9px;
+  cursor:pointer;transition:all .12s;margin-bottom:3px;border:1px solid transparent;
+}
+.ai-hist-item:hover{background:rgba(255,255,255,.06)}
+.ai-hist-item.active{background:rgba(120,140,255,.14);border-color:rgba(120,140,255,.35)}
+.ai-hist-item-txt{flex:1;min-width:0}
+.ai-hist-item-title{font-size:.82rem;color:rgba(255,255,255,.92);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ai-hist-item-meta{font-size:.66rem;color:rgba(255,255,255,.42);margin-top:1px}
+.ai-hist-item-del{
+  background:none;border:none;color:rgba(255,255,255,.35);cursor:pointer;
+  font-size:.8rem;padding:4px 5px;border-radius:6px;flex-shrink:0;
+}
+.ai-hist-item-del:hover{color:#ff8a8a;background:rgba(214,40,40,.15)}
+.ai-hist-empty{padding:30px 20px;text-align:center;font-size:.78rem;color:rgba(255,255,255,.4);line-height:1.5}
 .chat-ov-resize-handle{
   position:absolute;top:0;left:0;width:20px;height:20px;z-index:30;
   cursor:nwse-resize;-webkit-tap-highlight-color:transparent;
@@ -6686,6 +6794,64 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
         <button class="chat-send-btn" onclick="sendChatOv()">➤</button>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- ══ FAB: ASSISTENTE IA (chat privado por jogador/mestre) ══ -->
+<button id="ai-fab" onclick="toggleAiOverlay()" title="Assistente IA">
+  🤖
+</button>
+<div id="ai-overlay">
+  <div class="ai-box" id="ai-box">
+    <div class="ai-header">
+      <div class="ai-header-icon">🤖</div>
+      <span class="ai-header-name" id="ai-header-name">Assistente IA</span>
+      <span class="ai-header-badge">PRIVADO</span>
+      <button class="ai-hdr-btn" title="Nova conversa" onclick="aiNewChat()">➕</button>
+      <button class="ai-hdr-btn" title="Histórico de conversas" onclick="toggleAiHistoryPanel()">📜</button>
+      <button class="ai-hdr-btn" title="Configurações da IA" onclick="openAiSettings()">⚙</button>
+      <button class="ai-hdr-btn" title="Excluir esta conversa" onclick="aiClearHistory()">🗑</button>
+      <button class="ai-hdr-btn" title="Fechar" onclick="toggleAiOverlay(false)">✕</button>
+    </div>
+    <div class="ai-hist-panel" id="ai-hist-panel">
+      <button class="ai-hist-newbtn" onclick="aiNewChat()">➕ Nova conversa</button>
+      <div class="ai-hist-list" id="ai-hist-list"></div>
+    </div>
+    <div class="ai-feed" id="ai-feed">
+      <div class="ai-empty" id="ai-empty">
+        <div class="ai-empty-icon">🤖</div>
+        <div class="ai-empty-txt">Pergunte qualquer coisa — sobre o sistema Ymmaginitrix, sua ficha, regras de RPG em geral, ou qualquer curiosidade do mundo real. Essa conversa é só sua: ninguém mais da campanha vê.</div>
+      </div>
+    </div>
+    <div class="ai-typing" id="ai-typing" style="display:none">digitando<span class="ai-dots"><span>.</span><span>.</span><span>.</span></span></div>
+    <div class="ai-input-row">
+      <textarea class="ai-text-inp" id="ai-inp" rows="1" placeholder="Pergunte algo à IA..." onkeydown="aiChatKeydown(event)" oninput="aiAutoGrow(this)"></textarea>
+      <button class="ai-send-btn" id="ai-send-btn" onclick="sendAiChat()">➤</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONFIG DA IA (chave de API própria de cada jogador) -->
+<div class="modal-overlay" id="modal-ai-settings" onclick="if(event.target===this)closeModal('modal-ai-settings')">
+  <div class="modal" style="max-width:480px">
+    <button class="modal-close" onclick="closeModal('modal-ai-settings')">✕</button>
+    <div class="modal-title"><i data-lucide="bot" style="width:18px;height:18px;vertical-align:-3px;margin-right:6px"></i>Configurar Assistente IA</div>
+    <p style="font-size:.8rem;color:rgba(255,255,255,.6);line-height:1.5;margin:0 0 14px">
+      Esse chat com IA é 100% <b>local do seu navegador</b>: sua chave de API e o histórico ficam salvos só no seu aparelho, nunca passam pelo Firebase nem são vistos por mais ninguém da campanha (nem pelo mestre). Cada jogador/mestre precisa da própria chave.
+    </p>
+    <div class="form-group"><label class="lbl">provedor</label>
+      <select id="ai-cfg-provider" onchange="_aiUpdateModelOptions()">
+        <option value="anthropic">Anthropic (Claude)</option>
+        <option value="openai">OpenAI (ChatGPT)</option>
+      </select>
+    </div>
+    <div class="form-group"><label class="lbl">modelo</label><select id="ai-cfg-model"></select></div>
+    <div class="form-group"><label class="lbl">sua chave de api</label><input id="ai-cfg-key" type="password" placeholder="sk-ant-... ou sk-..."></div>
+    <p style="font-size:.72rem;color:rgba(255,255,255,.45);margin:2px 0 0">
+      Pegue sua chave em <span style="color:var(--c-accent)">console.anthropic.com</span> (Anthropic) ou <span style="color:var(--c-accent)">platform.openai.com</span> (OpenAI). Cria uma conta, gera uma "API Key" e cola aqui.
+    </p>
+    <div class="form-group" style="margin-top:8px"><label class="lbl">instruções extra (opcional)</label><textarea id="ai-cfg-sys" rows="3" placeholder="Ex: sempre responda em tom bem-humorado; foque em regras de combate do meu sistema..."></textarea></div>
+    <button class="btn btn-primary" style="width:100%;margin-top:14px" onclick="saveAiSettings()">Salvar</button>
   </div>
 </div>
 
@@ -14726,6 +14892,7 @@ function endCall() {
   if (_ytPlayer && typeof _ytPlayer.stopVideo === 'function') { try{ _ytPlayer.stopVideo(); }catch(e){} }
   else { var ytIframe=document.getElementById('call-yt-iframe'); if(ytIframe && ytIframe.tagName==='IFRAME') ytIframe.src=''; }
   _musicActiveSource=null;
+  if (typeof _ytStopStateWatcher === 'function') _ytStopStateWatcher();
   if (typeof _sbStopListening === 'function') _sbStopListening();
   var ob=document.getElementById('call-open-btn');
   if(ob) ob.innerHTML='<span class="call-dot"></span>&nbsp;ENTRAR NA CALL';
@@ -15798,6 +15965,7 @@ window._applyRemoteMusicState = function(v) {
       try { _ytPlayer.stopVideo(); } catch(e){}
       _musicActiveSource = null;
     }
+    _ytStopStateWatcher();
     if (typeof _ytHideUnmuteBtn === 'function') _ytHideUnmuteBtn();
     // Se era áudio de arquivo local de outra pessoa chegando por WebRTC,
     // limpa o elemento dedicado (ver _attachRemoteStream) pra não ficar
@@ -15839,8 +16007,25 @@ window._applyRemoteMusicState = function(v) {
         setTimeout(applySeekPlay, 1200);
         _ytWatchdog(v.videoId, 'https://www.youtube.com/watch?v=' + v.videoId);
       }
+      // Passa a vigiar este player também no lado de quem está recebendo —
+      // se essa pessoa arrastar a barrinha, ela vira a nova fonte oficial
+      // e todo mundo (inclusive quem tocou primeiro) realinha com ela.
+      setTimeout(_ytStartStateWatcher, 800);
     } finally {
-      setTimeout(function () { window._applyingRemoteMusic = false; }, 150);
+      // CORRIGIDO: o seekTo/playVideo real só acontece depois de um
+      // setTimeout de 700ms/1200ms (applySeekPlay acima, pra dar tempo do
+      // player recém-criado ficar pronto). A trava de reentrância precisa
+      // continuar de pé até DEPOIS disso — senão ela caía 150ms depois de
+      // "true" e o vigia (_ytStartStateWatcher) via o pulo de posição
+      // aplicado remotamente como se fosse um seek MEU e reenviava pra
+      // sala, virando um eco (cada participante "corrigindo" o outro).
+      setTimeout(function () {
+        window._applyingRemoteMusic = false;
+        // Também reseta a referência do vigia pro tempo/estado que acabamos
+        // de aplicar, senão o próximo tick calcularia "deriva" contra o
+        // valor de ANTES da sincronização e dispararia um broadcast falso.
+        _ytLastWatchState = null;
+      }, 1600);
     }
   }
   if (lbl) {
@@ -15944,6 +16129,10 @@ function _ytCreatePlayer(id) {
           if (e.data === YT.PlayerState.ENDED && _musicLoopEnabled) {
             try { e.target.seekTo(0); e.target.playVideo(); } catch(err){}
           }
+          // Vigia o player pra pegar mudanças feitas DIRETO na barrinha do
+          // YouTube (arrastar pra uma parte específica, play/pause pelo
+          // próprio player) — ver _ytStartStateWatcher logo abaixo.
+          _ytStartStateWatcher();
         },
         onError: function(){ showToast('⚠ Não foi possível carregar esse vídeo do YouTube','warn'); }
       }
@@ -16052,6 +16241,119 @@ function callLoadYoutube() {
   // só está recebendo o vídeo sincronizado — ver window._applyRemoteMusicState).
   _ytWatchdog(id, url);
 }
+
+// ══════════════════════════════════════════════════════════════════
+// VIGIA DE SEEK/PLAY/PAUSE FEITO DIRETO NA BARRINHA DO YOUTUBE
+// ------------------------------------------------------------------
+// ANTES: só os botões DESTE painel (▶ ⏸ ⏹) chamavam _broadcastMusicState.
+// Se a pessoa arrastasse a barrinha de progresso do PRÓPRIO player do
+// YouTube (ou clicasse no play/pause nativo dele) pra pular pra uma parte
+// específica da música, isso só mudava o vídeo NO APARELHO DELA — todo
+// mundo continuava ouvindo/vendo a posição antiga, "bugado", cada um numa
+// parte diferente. Agora ficamos de olho no player (currentTime e estado)
+// a cada ~1.2s e, se detectarmos um pulo de posição (seek) ou uma troca de
+// play/pause que não veio do nosso próprio código, rebroadcastamos a nova
+// posição pra sala inteira puxar pro mesmo ponto. Funciona tanto pra quem
+// escolheu o vídeo quanto pra quem só estava espelhando (ver _musicActiveSource
+// === 'youtube-remote'): a primeira pessoa que mexer na barrinha vira a
+// nova "fonte oficial" daquele momento em diante.
+// ══════════════════════════════════════════════════════════════════
+var _ytWatchInterval = null;
+var _ytLastWatchState = null; // {playing, time, videoId, lastCheck}
+var _ytLastResyncBroadcastAt = 0; // último "heartbeat" de realinhamento forçado
+var _ytWatcherOwnerToken = 0; // ver comentário em _ytStartStateWatcher
+// Limiar de deriva (em segundos) a partir do qual consideramos que foi um
+// SEEK de verdade (arrastou a barrinha) e não só a variação normal de
+// arredondamento entre chamadas de getCurrentTime(). Baixo o suficiente pra
+// pegar qualquer pulo perceptível, alto o suficiente pra nunca disparar sozinho.
+var _YT_SEEK_DRIFT_THRESHOLD = 0.9;
+// A cada quantos ms reforçamos o estado mesmo sem detectar nada de novo —
+// isso corrige silenciosamente qualquer participante que tenha perdido um
+// update (reconexão de rede, aba que ficou em segundo plano, Firebase que
+// engasgou) sem precisar que ninguém mexa em nada.
+var _YT_RESYNC_HEARTBEAT_MS = 4000;
+function _ytStartStateWatcher() {
+  // Reinicia sempre do zero (em vez de só "return" se já tiver um rodando):
+  // isso garante que, se o player foi recriado (troca de vídeo, watchdog de
+  // fallback, etc.) ou o estado ficou órfão por qualquer motivo, o vigia
+  // não fica preso vigiando um player/estado antigo.
+  _ytStopStateWatcher();
+  var myToken = ++_ytWatcherOwnerToken;
+  _ytWatchInterval = setInterval(function () {
+    if (myToken !== _ytWatcherOwnerToken) return; // um vigia mais novo já assumiu — este morre
+    try {
+      // Não interfere enquanto estamos aplicando um estado que chegou de outra pessoa
+      // (senão ecoaríamos de volta o que acabamos de receber como se fosse nosso).
+      if (window._applyingRemoteMusic) return;
+      if (!(_musicActiveSource === 'youtube' || _musicActiveSource === 'youtube-remote')) { _ytStopStateWatcher(); return; }
+      if (!_ytPlayer || typeof _ytPlayer.getPlayerState !== 'function' || typeof _ytPlayer.getCurrentTime !== 'function') return;
+      var state, curTime, vid;
+      try {
+        state = _ytPlayer.getPlayerState();
+        curTime = _ytPlayer.getCurrentTime();
+        var vd = (typeof _ytPlayer.getVideoData === 'function') ? _ytPlayer.getVideoData() : null;
+        vid = vd && vd.video_id;
+      } catch (e) { return; } // player ainda inicializando / iframe destruído nesse instante — tenta de novo no próximo tick
+      if (typeof curTime !== 'number' || isNaN(curTime) || !vid) return;
+      // -1 (unstarted) e 3 (buffering) são estados TRANSITÓRIOS de um seek em
+      // andamento — nunca tratamos eles como "estado final" pra não
+      // broadcastar uma posição que ainda está em trânsito.
+      if (state !== 1 && state !== 2) {
+        // ainda assim atualiza a referência de tempo pra não acumular "drift falso"
+        // quando o estado finalmente assentar em PLAYING/PAUSED.
+        _ytLastWatchState = { playing: (state === 1), time: curTime, videoId: vid, lastCheck: Date.now() };
+        return;
+      }
+      var isPlaying = (state === 1); // YT.PlayerState.PLAYING
+      var now = Date.now();
+      if (!_ytLastWatchState || _ytLastWatchState.videoId !== vid) {
+        _ytLastWatchState = { playing: isPlaying, time: curTime, videoId: vid, lastCheck: now };
+        _ytLastResyncBroadcastAt = now;
+        return; // primeira leitura desse vídeo — só guarda a referência, não broadcasta ainda
+      }
+      var expected = _ytLastWatchState.playing
+        ? _ytLastWatchState.time + (now - _ytLastWatchState.lastCheck) / 1000
+        : _ytLastWatchState.time;
+      var drift = Math.abs(curTime - expected);
+      var stateChanged = isPlaying !== _ytLastWatchState.playing;
+      var dueForHeartbeat = isPlaying && (now - _ytLastResyncBroadcastAt >= _YT_RESYNC_HEARTBEAT_MS);
+      if (stateChanged || drift > _YT_SEEK_DRIFT_THRESHOLD || dueForHeartbeat) {
+        _musicActiveSource = 'youtube'; // agora eu sou a fonte oficial dessa posição
+        var nameEl = document.getElementById('call-audio-name');
+        var patch = {
+          type: 'youtube', videoId: vid, playing: isPlaying,
+          name: (nameEl && nameEl.value) || _musicTrackName || ''
+        };
+        if (isPlaying) { patch.startedAt = now - curTime * 1000; patch.posAtPause = 0; }
+        else { patch.posAtPause = curTime; }
+        _broadcastMusicState(patch);
+        _ytLastResyncBroadcastAt = now;
+        if (drift > _YT_SEEK_DRIFT_THRESHOLD) console.log('[Música] Seek detectado na barrinha do YouTube (deriva de '+drift.toFixed(2)+'s) — realinhando a sala.');
+      }
+      _ytLastWatchState = { playing: isPlaying, time: curTime, videoId: vid, lastCheck: now };
+    } catch (outerErr) {
+      // Nunca deixa o watcher morrer silenciosamente por causa de um erro
+      // pontual (ex.: iframe recriado no meio da leitura) — só ignora este
+      // tick e tenta de novo no próximo, sem quebrar a sincronização daqui pra frente.
+      console.warn('[Música] Vigia YT — tick com erro, ignorando:', outerErr);
+    }
+  }, 800);
+}
+function _ytStopStateWatcher() {
+  _ytWatcherOwnerToken++; // invalida qualquer intervalo antigo que ainda esteja "vivo" em voo
+  if (_ytWatchInterval) { clearInterval(_ytWatchInterval); _ytWatchInterval = null; }
+  _ytLastWatchState = null;
+  _ytLastResyncBroadcastAt = 0;
+}
+// Se a aba ficar em segundo plano e voltar (timers de setInterval são
+// pausados/atrasados pelo navegador nesse caso), força uma leitura e um
+// possível realinhamento assim que a aba volta a ficar visível — sem isso,
+// dava pra ficar minutos com o timer "atrasado" até o próximo tick natural.
+document.addEventListener('visibilitychange', function () {
+  if (document.visibilityState === 'visible' && _ytWatchInterval) {
+    _ytLastResyncBroadcastAt = 0; // força um heartbeat na próxima checagem
+  }
+});
 
 function extractYoutubeId(url) {
   var regexps=[/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|v\/|shorts\/))([A-Za-z0-9_-]{11})/,/^([A-Za-z0-9_-]{11})$/];
@@ -16200,6 +16502,7 @@ function callAudioControl(action) {
     _broadcastMusicStop();
     _musicActiveSource = null;
     _ytHideUnmuteBtn();
+    _ytStopStateWatcher();
   }
   else if(action==='loop'){
     _musicLoopEnabled=!_musicLoopEnabled;
@@ -29206,6 +29509,414 @@ function opSalvarItem(pid){
   } else {
     init();
   }
+})();
+</script>
+
+<!-- ══ ASSISTENTE IA — chat privado por jogador/mestre (100% local do navegador) ══ -->
+<script>
+(function(){
+  var MODELS = {
+    anthropic: [
+      ['claude-sonnet-4-6','Claude Sonnet (equilibrado, recomendado)'],
+      ['claude-opus-4-1','Claude Opus (mais forte, mais caro)'],
+      ['claude-haiku-4-5','Claude Haiku (mais rápido/barato)'],
+      ['custom','Outro (digitar manualmente)']
+    ],
+    openai: [
+      ['gpt-4o','GPT-4o (equilibrado, recomendado)'],
+      ['gpt-4o-mini','GPT-4o mini (mais rápido/barato)'],
+      ['custom','Outro (digitar manualmente)']
+    ]
+  };
+
+  function _aiCfg(){
+    try { return JSON.parse(localStorage.getItem('ymm_ai_cfg')||'{}'); } catch(e){ return {}; }
+  }
+  function _aiSaveCfg(cfg){ localStorage.setItem('ymm_ai_cfg', JSON.stringify(cfg)); }
+
+  window._aiUpdateModelOptions = function(customVal){
+    var provider = document.getElementById('ai-cfg-provider').value;
+    var sel = document.getElementById('ai-cfg-model');
+    sel.innerHTML = '';
+    (MODELS[provider]||[]).forEach(function(m){
+      var o = document.createElement('option'); o.value = m[0]; o.textContent = m[1]; sel.appendChild(o);
+    });
+    if (customVal && !(MODELS[provider]||[]).some(function(m){return m[0]===customVal;})) {
+      var o = document.createElement('option'); o.value = customVal; o.textContent = customVal + ' (salvo)'; sel.insertBefore(o, sel.firstChild);
+    }
+  };
+
+  window.openAiSettings = function(){
+    var cfg = _aiCfg();
+    document.getElementById('ai-cfg-provider').value = cfg.provider || 'anthropic';
+    window._aiUpdateModelOptions(cfg.model);
+    document.getElementById('ai-cfg-model').value = cfg.model || (MODELS[cfg.provider||'anthropic'][0][0]);
+    document.getElementById('ai-cfg-key').value = cfg.key || '';
+    document.getElementById('ai-cfg-sys').value = cfg.sys || '';
+    openModal('modal-ai-settings');
+  };
+
+  window.saveAiSettings = function(){
+    var provider = document.getElementById('ai-cfg-provider').value;
+    var model = document.getElementById('ai-cfg-model').value;
+    if (model === 'custom') {
+      model = prompt('Digite o nome exato do modelo (veja a documentação do provedor):', '') || '';
+      if (!model) { showToast('Modelo não definido.', 'error'); return; }
+    }
+    var key = document.getElementById('ai-cfg-key').value.trim();
+    var sys = document.getElementById('ai-cfg-sys').value.trim();
+    if (!key) { showToast('Cole sua chave de API antes de salvar.', 'error'); return; }
+    _aiSaveCfg({ provider: provider, model: model, key: key, sys: sys });
+    closeModal('modal-ai-settings');
+    showToast('Assistente IA configurado ✅', 'success');
+  };
+
+  // ── armazenamento: várias conversas (threads) por usuário+campanha ──
+  // cada conversa: { id, title, category, messages:[{role,content}], createdAt, updatedAt }
+  function _aiConvsKey(){
+    var uid = (typeof currentUser !== 'undefined' && currentUser && (currentUser.id || currentUser.username || currentUser.uid)) || 'anon';
+    var camp = (typeof window._activeCampanhaId !== 'undefined' && window._activeCampanhaId) || 'geral';
+    return 'ymm_ai_convs_' + uid + '_' + camp;
+  }
+  function _aiActiveKey(){ return _aiConvsKey() + '_active'; }
+  function _aiOldHistKey(){
+    var uid = (typeof currentUser !== 'undefined' && currentUser && (currentUser.id || currentUser.username || currentUser.uid)) || 'anon';
+    var camp = (typeof window._activeCampanhaId !== 'undefined' && window._activeCampanhaId) || 'geral';
+    return 'ymm_ai_hist_' + uid + '_' + camp;
+  }
+
+  function _aiUid(){ return 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+
+  function _aiLoadConvs(){
+    var raw;
+    try { raw = JSON.parse(localStorage.getItem(_aiConvsKey())||'null'); } catch(e){ raw = null; }
+    if (raw && Array.isArray(raw)) return raw;
+    // migração: se existir o histórico antigo (thread única), vira a primeira conversa
+    var migrated = [];
+    try {
+      var old = JSON.parse(localStorage.getItem(_aiOldHistKey())||'[]');
+      if (old && old.length) {
+        var conv = {
+          id: _aiUid(), messages: old,
+          createdAt: Date.now(), updatedAt: Date.now(),
+          title: _aiDeriveTitle(old), category: _aiCategorize(old)
+        };
+        migrated = [conv];
+        localStorage.removeItem(_aiOldHistKey());
+      }
+    } catch(e){}
+    _aiSaveConvs(migrated);
+    return migrated;
+  }
+  function _aiSaveConvs(convs){
+    // guarda só as últimas 30 mensagens por conversa e as últimas 60 conversas, pra não crescer sem limite
+    var trimmed = convs.slice(-60).map(function(c){
+      return Object.assign({}, c, { messages: (c.messages||[]).slice(-30) });
+    });
+    localStorage.setItem(_aiConvsKey(), JSON.stringify(trimmed));
+  }
+
+  function _aiGetActiveId(){ return localStorage.getItem(_aiActiveKey()) || ''; }
+  function _aiSetActiveId(id){ localStorage.setItem(_aiActiveKey(), id); }
+
+  function _aiGetActiveConv(){
+    var convs = _aiLoadConvs();
+    var id = _aiGetActiveId();
+    var conv = convs.find(function(c){ return c.id === id; });
+    if (!conv) {
+      if (convs.length) {
+        conv = convs[convs.length - 1];
+      } else {
+        conv = { id: _aiUid(), title: 'Nova conversa', category: 'Geral', messages: [], createdAt: Date.now(), updatedAt: Date.now() };
+        convs.push(conv);
+        _aiSaveConvs(convs);
+      }
+      _aiSetActiveId(conv.id);
+    }
+    return conv;
+  }
+
+  function _aiUpsertConv(conv){
+    var convs = _aiLoadConvs();
+    var idx = convs.findIndex(function(c){ return c.id === conv.id; });
+    if (idx >= 0) convs[idx] = conv; else convs.push(conv);
+    _aiSaveConvs(convs);
+  }
+
+  // ── categorização automática do conteúdo da conversa (palavras-chave em pt-BR) ──
+  var AI_CATEGORIES = {
+    'Regras & Sistema': ['regra','sistema','dado','rolagem','rolar','dano','combate','pericia','perícia','atributo','mecânica','mecanica','ficha','teste','dificuldade','turno','iniciativa','magia','habilidade','ilusyma','d20','d60','xp','nível','nivel'],
+    'Personagem & Narrativa': ['personagem','backstory','história do','historia do','npc','enredo','trama','nome do','classe','raça','raca','origem','motivação','motivacao','diálogo','dialogo','cena','campanha','narrativa','plot','vilão','vilao'],
+    'Mundo Real': ['clima','ciência','ciencia','história real','historia real','matemática','matematica','geografia','notícia','noticia','receita','tradução','traducao','código','codigo','programação','programacao','filme','livro','música','musica','país','pais','curiosidade'],
+  };
+  function _aiCategorize(messages){
+    var text = (messages||[]).filter(function(m){ return m.role === 'user'; })
+      .map(function(m){ return m.content; }).join(' ').toLowerCase();
+    if (!text.trim()) return 'Geral';
+    var scores = {}; var best = null; var bestScore = 0;
+    Object.keys(AI_CATEGORIES).forEach(function(cat){
+      var score = 0;
+      AI_CATEGORIES[cat].forEach(function(kw){
+        if (text.indexOf(kw) !== -1) score++;
+      });
+      scores[cat] = score;
+      if (score > bestScore) { bestScore = score; best = cat; }
+    });
+    return best || 'Geral';
+  }
+
+  function _aiDeriveTitle(messages){
+    var firstUser = (messages||[]).find(function(m){ return m.role === 'user'; });
+    if (!firstUser) return 'Nova conversa';
+    var t = firstUser.content.trim().replace(/\s+/g,' ');
+    return t.length > 42 ? t.slice(0,42) + '…' : t;
+  }
+
+  function _aiFmtDate(ts){
+    try {
+      var d = new Date(ts);
+      var hoje = new Date();
+      var msDia = 86400000;
+      var sameDay = d.toDateString() === hoje.toDateString();
+      if (sameDay) return d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+      return d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
+    } catch(e){ return ''; }
+  }
+
+  function _aiRenderHistory(){
+    var feed = document.getElementById('ai-feed');
+    var conv = _aiGetActiveConv();
+    var hist = conv.messages || [];
+    var empty = document.getElementById('ai-empty');
+    var hn = document.getElementById('ai-header-name');
+    if (hn) hn.textContent = conv.title && hist.length ? conv.title : 'Assistente IA';
+    feed.querySelectorAll('.ai-msg').forEach(function(el){ el.remove(); });
+    if (hist.length) { if (empty) empty.style.display = 'none'; }
+    else { if (empty) empty.style.display = 'flex'; return; }
+    hist.forEach(function(m){ _aiAppendMsgEl(m.role, m.content); });
+    feed.scrollTop = feed.scrollHeight;
+  }
+
+  function _aiAppendMsgEl(role, text){
+    var feed = document.getElementById('ai-feed');
+    var el = document.createElement('div');
+    el.className = 'ai-msg ' + (role === 'user' ? 'user' : role === 'error' ? 'error' : 'assistant');
+    el.textContent = text;
+    feed.appendChild(el);
+    return el;
+  }
+
+  window.toggleAiOverlay = function(force){
+    var ov = document.getElementById('ai-overlay');
+    var open = typeof force === 'boolean' ? force : !ov.classList.contains('open');
+    ov.classList.toggle('open', open);
+    if (open) {
+      _aiRenderHistory();
+      setTimeout(function(){ var i = document.getElementById('ai-inp'); if (i) i.focus(); }, 60);
+    } else {
+      toggleAiHistoryPanel(false);
+    }
+  };
+
+  // ── painel de histórico: listar, trocar, apagar e iniciar conversas ──
+  window.toggleAiHistoryPanel = function(force){
+    var panel = document.getElementById('ai-hist-panel');
+    if (!panel) return;
+    var open = typeof force === 'boolean' ? force : !panel.classList.contains('open');
+    panel.classList.toggle('open', open);
+    if (open) _aiRenderHistoryPanel();
+  };
+
+  function _aiRenderHistoryPanel(){
+    var list = document.getElementById('ai-hist-list');
+    if (!list) return;
+    var convs = _aiLoadConvs().slice().sort(function(a,b){ return (b.updatedAt||0) - (a.updatedAt||0); });
+    var activeId = _aiGetActiveId();
+    list.innerHTML = '';
+    if (!convs.length) {
+      list.innerHTML = '<div class="ai-hist-empty">Nenhuma conversa ainda.<br>Toque em "Nova conversa" pra começar.</div>';
+      return;
+    }
+    // agrupa por categoria, mantendo a ordem de mais recente primeiro dentro de cada grupo
+    var groups = {};
+    var order = [];
+    convs.forEach(function(c){
+      var cat = c.category || 'Geral';
+      if (!groups[cat]) { groups[cat] = []; order.push(cat); }
+      groups[cat].push(c);
+    });
+    order.forEach(function(cat){
+      var catEl = document.createElement('div');
+      catEl.className = 'ai-hist-cat';
+      catEl.textContent = cat + ' (' + groups[cat].length + ')';
+      list.appendChild(catEl);
+      groups[cat].forEach(function(c){
+        var item = document.createElement('div');
+        item.className = 'ai-hist-item' + (c.id === activeId ? ' active' : '');
+        var txt = document.createElement('div');
+        txt.className = 'ai-hist-item-txt';
+        var title = document.createElement('div');
+        title.className = 'ai-hist-item-title';
+        title.textContent = c.title || 'Nova conversa';
+        var meta = document.createElement('div');
+        meta.className = 'ai-hist-item-meta';
+        var n = (c.messages||[]).filter(function(m){return m.role==='user';}).length;
+        meta.textContent = _aiFmtDate(c.updatedAt) + ' · ' + n + (n===1?' mensagem':' mensagens');
+        txt.appendChild(title); txt.appendChild(meta);
+        var del = document.createElement('button');
+        del.className = 'ai-hist-item-del';
+        del.title = 'Excluir conversa';
+        del.textContent = '🗑';
+        del.onclick = function(ev){ ev.stopPropagation(); aiDeleteConv(c.id); };
+        item.appendChild(txt); item.appendChild(del);
+        item.onclick = function(){ aiSelectConv(c.id); };
+        list.appendChild(item);
+      });
+    });
+  }
+
+  window.aiSelectConv = function(id){
+    _aiSetActiveId(id);
+    toggleAiHistoryPanel(false);
+    _aiRenderHistory();
+  };
+
+  window.aiNewChat = function(){
+    var convs = _aiLoadConvs();
+    var conv = { id: _aiUid(), title: 'Nova conversa', category: 'Geral', messages: [], createdAt: Date.now(), updatedAt: Date.now() };
+    convs.push(conv);
+    _aiSaveConvs(convs);
+    _aiSetActiveId(conv.id);
+    toggleAiHistoryPanel(false);
+    _aiRenderHistory();
+    setTimeout(function(){ var i = document.getElementById('ai-inp'); if (i) i.focus(); }, 60);
+  };
+
+  function _aiDeleteConvNoConfirm(id){
+    var convs = _aiLoadConvs().filter(function(c){ return c.id !== id; });
+    _aiSaveConvs(convs);
+    if (_aiGetActiveId() === id) {
+      if (convs.length) {
+        _aiSetActiveId(convs[convs.length-1].id);
+      } else {
+        localStorage.removeItem(_aiActiveKey());
+        _aiGetActiveConv(); // recria uma conversa vazia
+      }
+      _aiRenderHistory();
+    }
+    _aiRenderHistoryPanel();
+  }
+
+  window.aiDeleteConv = function(id){
+    if (!confirm('Excluir essa conversa? Isso não afeta ninguém além de você.')) return;
+    _aiDeleteConvNoConfirm(id);
+  };
+
+  window.aiClearHistory = function(){
+    if (!confirm('Excluir esta conversa com a IA? Isso não afeta ninguém além de você.')) return;
+    _aiDeleteConvNoConfirm(_aiGetActiveId());
+  };
+
+  window.aiAutoGrow = function(el){
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+  };
+
+  window.aiChatKeydown = function(e){
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendAiChat(); }
+  };
+
+  function _aiBuildSystemPrompt(sysExtra){
+    var campName = '';
+    try {
+      var el = document.querySelector('.campanha-detail-nome, #camp-detail-nome');
+      if (el) campName = el.textContent.trim();
+    } catch(e){}
+    var base = 'Você é o assistente de IA privado embutido no Ymmaginitrix — Gerenciador de Campanhas, uma plataforma de RPG de mesa online. ' +
+      'Você está conversando em particular com um jogador ou mestre, sem que ninguém mais da campanha veja essa conversa. ' +
+      'Ajude com QUALQUER assunto que a pessoa perguntar: dúvidas sobre regras de RPG em geral, ideias de personagem/narrativa, ' +
+      'e também curiosidades e informações do mundo real (ciência, história, cultura, o que for), do jeito que ela precisar pra não ter que sair do site. ' +
+      'Sobre o sistema autoral "Ymmaginitrix — Mystery Adventure": se a pessoa perguntar algo específico das regras dele que você não tem certeza, ' +
+      'seja honesto que não tem essa regra memorizada e sugira perguntar ao mestre da campanha, em vez de inventar uma regra. ' +
+      'Seja direto, conciso e use markdown leve quando ajudar a clareza.' +
+      (campName ? (' Campanha atual: ' + campName + '.') : '');
+    return sysExtra ? (base + '\n\nInstruções adicionais do usuário: ' + sysExtra) : base;
+  }
+
+  async function _aiCallAnthropic(cfg, hist){
+    var r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': cfg.key,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: cfg.model,
+        max_tokens: 1024,
+        system: _aiBuildSystemPrompt(cfg.sys),
+        messages: hist.map(function(m){ return { role: m.role, content: m.content }; })
+      })
+    });
+    var data = await r.json();
+    if (!r.ok) throw new Error((data && data.error && data.error.message) || ('Erro HTTP ' + r.status));
+    var textParts = (data.content || []).filter(function(b){ return b.type === 'text'; }).map(function(b){ return b.text; });
+    return textParts.join('\n').trim() || '(resposta vazia)';
+  }
+
+  async function _aiCallOpenAI(cfg, hist){
+    var messages = [{ role: 'system', content: _aiBuildSystemPrompt(cfg.sys) }]
+      .concat(hist.map(function(m){ return { role: m.role, content: m.content }; }));
+    var r = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'Authorization': 'Bearer ' + cfg.key },
+      body: JSON.stringify({ model: cfg.model, messages: messages })
+    });
+    var data = await r.json();
+    if (!r.ok) throw new Error((data && data.error && data.error.message) || ('Erro HTTP ' + r.status));
+    return (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content || '(resposta vazia)').trim();
+  }
+
+  window.sendAiChat = async function(){
+    var inp = document.getElementById('ai-inp');
+    var text = inp.value.trim();
+    if (!text) return;
+    var cfg = _aiCfg();
+    if (!cfg.key) { showToast('Configure sua chave de API primeiro (⚙).', 'error'); openAiSettings(); return; }
+
+    var empty = document.getElementById('ai-empty'); if (empty) empty.style.display = 'none';
+    var feed = document.getElementById('ai-feed');
+    _aiAppendMsgEl('user', text);
+    feed.scrollTop = feed.scrollHeight;
+
+    var conv = _aiGetActiveConv();
+    conv.messages.push({ role: 'user', content: text });
+    conv.updatedAt = Date.now();
+    if (!conv.title || conv.title === 'Nova conversa') conv.title = _aiDeriveTitle(conv.messages);
+    conv.category = _aiCategorize(conv.messages);
+    _aiUpsertConv(conv);
+    var hn = document.getElementById('ai-header-name'); if (hn) hn.textContent = conv.title;
+    inp.value = ''; aiAutoGrow(inp);
+
+    var sendBtn = document.getElementById('ai-send-btn'); sendBtn.disabled = true;
+    document.getElementById('ai-typing').style.display = 'block';
+    try {
+      var reply = cfg.provider === 'openai' ? await _aiCallOpenAI(cfg, conv.messages) : await _aiCallAnthropic(cfg, conv.messages);
+      _aiAppendMsgEl('assistant', reply);
+      conv = _aiLoadConvs().find(function(c){ return c.id === conv.id; }) || conv;
+      conv.messages.push({ role: 'assistant', content: reply });
+      conv.updatedAt = Date.now();
+      conv.category = _aiCategorize(conv.messages);
+      _aiUpsertConv(conv);
+    } catch (err) {
+      _aiAppendMsgEl('error', '⚠ ' + (err && err.message ? err.message : 'Falha ao falar com a IA. Confira sua chave/modelo nas configs (⚙).'));
+    } finally {
+      sendBtn.disabled = false;
+      document.getElementById('ai-typing').style.display = 'none';
+      feed.scrollTop = feed.scrollHeight;
+    }
+  };
 })();
 </script>
 </body>
