@@ -29511,9 +29511,9 @@ function opSalvarItem(pid){
 (function(){
   var MODELS = {
     anthropic: [
-      ['claude-sonnet-4-6','Claude Sonnet (equilibrado, recomendado)'],
-      ['claude-opus-4-1','Claude Opus (mais forte, mais caro)'],
-      ['claude-haiku-4-5','Claude Haiku (mais rápido/barato)'],
+      ['claude-sonnet-5','Claude Sonnet (equilibrado, recomendado)'],
+      ['claude-opus-5','Claude Opus (mais forte, mais caro)'],
+      ['claude-haiku-4-5-20251001','Claude Haiku (mais rápido/barato)'],
       ['custom','Outro (digitar manualmente)']
     ],
     openai: [
@@ -29522,9 +29522,9 @@ function opSalvarItem(pid){
       ['custom','Outro (digitar manualmente)']
     ],
     gemini: [
-      ['gemini-2.5-flash','Gemini 2.5 Flash (equilibrado, recomendado)'],
-      ['gemini-2.5-pro','Gemini 2.5 Pro (mais forte, mais caro)'],
-      ['gemini-2.5-flash-lite','Gemini 2.5 Flash-Lite (mais rápido/barato)'],
+      ['gemini-3.7-flash','Gemini 3.7 Flash (equilibrado, recomendado)'],
+      ['gemini-3.1-pro','Gemini 3.1 Pro (mais forte, mais caro)'],
+      ['gemini-3.1-flash-lite','Gemini 3.1 Flash-Lite (mais rápido/barato)'],
       ['custom','Outro (digitar manualmente)']
     ]
   };
@@ -29706,9 +29706,17 @@ function opSalvarItem(pid){
     return el;
   }
 
-  window.toggleAiOverlay = function(force){
+  window.toggleAiOverlay = function(force, _tries){
     var ov = document.getElementById('ai-overlay');
     var open = typeof force === 'boolean' ? force : !ov.classList.contains('open');
+    _tries = _tries || 0;
+    if (open && !window._activeCampanhaId && _tries < 10) {
+      // campanha ainda pode não ter terminado de carregar: espera um instante e
+      // tenta de novo (só por até ~1.5s), pra não gravar a conversa como "geral"
+      // por engano quando na verdade existe uma campanha aberta carregando
+      setTimeout(function(){ toggleAiOverlay(force, _tries + 1); }, 150);
+      return;
+    }
     ov.classList.toggle('open', open);
     if (open) {
       _aiRenderHistory();
@@ -29797,7 +29805,8 @@ function opSalvarItem(pid){
     _aiSaveConvs(convs);
     if (_aiGetActiveId() === id) {
       if (convs.length) {
-        _aiSetActiveId(convs[convs.length-1].id);
+        var mostRecent = convs.slice().sort(function(a,b){ return (b.updatedAt||0) - (a.updatedAt||0); })[0];
+        _aiSetActiveId(mostRecent.id);
       } else {
         localStorage.removeItem(_aiActiveKey());
         _aiGetActiveConv(); // recria uma conversa vazia
