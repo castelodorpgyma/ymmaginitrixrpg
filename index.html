@@ -7389,14 +7389,27 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     <!-- Sensibilidade do microfone -->
     <div class="call-setting-row">
       <div style="flex:1">
-        <div class="call-setting-lbl">Sensibilidade do Mic</div>
-        <div class="call-setting-sub">Ajuste o ganho de entrada do seu microfone</div>
+        <div class="call-setting-lbl">Volume do Seu Microfone</div>
+        <div class="call-setting-sub">Ajusta o quão alto os OUTROS ouvem sua voz (pode passar de 100% pra "gritar" mesmo falando baixo)</div>
       </div>
     </div>
     <div class="call-vol-row" style="padding:0 0 8px">
       <span class="call-vol-lbl">🎙</span>
       <input type="range" class="call-range green" id="call-mic-sens" min="0" max="400" value="100" oninput="callSetMicSens(this)">
       <span class="call-range-val" id="call-mic-sens-val">100%</span>
+    </div>
+    <!-- Teste de microfone (loopback local + medidor de nível, como no Discord) -->
+    <div class="call-setting-row">
+      <div style="flex:1">
+        <div class="call-setting-lbl">Testar Microfone</div>
+        <div class="call-setting-sub">Ouça sua própria voz (com o boost acima já aplicado) e veja o nível em tempo real</div>
+      </div>
+      <button class="call-open-btn" id="call-mic-test-btn" style="width:auto;padding:8px 14px;font-size:.62rem" onclick="callToggleMicTest()">🎧 TESTAR</button>
+    </div>
+    <div id="call-mic-test-meter-wrap" style="display:none;padding:0 0 8px">
+      <div style="height:8px;border-radius:5px;background:rgba(255,255,255,.08);overflow:hidden;position:relative">
+        <div id="call-mic-test-meter-bar" style="height:100%;width:0%;background:linear-gradient(90deg,#57f287,#fee75c 70%,#ed4245 92%);transition:width .05s linear"></div>
+      </div>
     </div>
     <!-- Threshold de fala -->
     <div class="call-setting-row">
@@ -7413,8 +7426,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     <!-- Volume de saída (seu) -->
     <div class="call-setting-row">
       <div style="flex:1">
-        <div class="call-setting-lbl">Volume de Saída</div>
-        <div class="call-setting-sub">Volume que os outros ouvem você</div>
+        <div class="call-setting-lbl">Volume dos Outros Participantes</div>
+        <div class="call-setting-sub">Volume que VOCÊ ouve dos outros (não muda o que eles ouvem de você — pra isso use "Volume do Seu Microfone" acima)</div>
       </div>
     </div>
     <div class="call-vol-row" style="padding:0">
@@ -13725,6 +13738,7 @@ var callState = {
   camOn: false,
   screenOn: false,
   micStream: null,
+  _rawMicStream: null, // v202608302330 — stream ORIGINAL do getUserMedia, sem processamento; usado só internamente pelo pipeline de áudio e pela detecção de dispositivo caído. callState.micStream passa a ser o stream JÁ PROCESSADO (com o ganho de "Sensibilidade do Mic" de verdade aplicado) que é o que realmente sai pela WebRTC — ver _setupAudioPipeline.
   camStream: null,
   screenStream: null,
   audioCtx: null,
@@ -13999,7 +14013,17 @@ function _syncScreenBtn(state) {
 // ── Para streams ──
 function _stopMicStream() {
   if (callState.micStream) { callState.micStream.getTracks().forEach(function(t){t.stop();}); callState.micStream = null; }
-  if (callState.audioCtx) { try{callState.audioCtx.close();}catch(e){} callState.audioCtx=null; callState.analyser=null; callState.gainNode=null; }
+  // v202608302330 — CORREÇÃO NECESSÁRIA por causa do fix de boost de mic:
+  // callState.micStream agora costuma ser o stream PROCESSADO (saída do
+  // MediaStreamDestination), não a captura real do microfone. Parar só as
+  // trilhas dele NÃO desliga o hardware de verdade — a captura real
+  // (_rawMicStream, vindo direto do getUserMedia) continuaria rodando por
+  // baixo dos panos, mantendo o indicador de "microfone em uso" do
+  // navegador/SO aceso pra sempre e o dispositivo ocupado. Agora para as
+  // duas também.
+  if (callState._rawMicStream) { try { callState._rawMicStream.getTracks().forEach(function(t){t.stop();}); } catch(e){} callState._rawMicStream = null; }
+  _stopMicTest();
+  if (callState.audioCtx) { try{callState.audioCtx.close();}catch(e){} callState.audioCtx=null; callState.analyser=null; callState.gainNode=null; callState._micDest=null; }
   clearInterval(callState.speakInterval); callState.speakInterval = null;
   var lc = document.getElementById('call-part-local'); if(lc) lc.classList.remove('is-speaking');
 }
@@ -14478,6 +14502,7 @@ function closeCallOverlay() {
   ['music','settings','perm'].forEach(function(p){
     var el = document.getElementById('call-panel-'+p); if(el) el.classList.remove('open');
   });
+  if (typeof _stopMicTest === 'function') _stopMicTest(); // ver comentário em toggleCallPanel
   if (typeof _syncCallVoiceStatus === 'function') _syncCallVoiceStatus();
 }
 
@@ -14715,6 +14740,18 @@ function _doRequestMic() {
       // Popula os selects agora que os labels de dispositivo já estão disponíveis
       _populateDeviceSelectors(false);
       showToast('🎙 Microfone ativado!','ok');
+      // v202608302400 — AUTODIAGNÓSTICO DO BOOST DE MIC: confere, alguns
+      // segundos depois de ligar o mic (tempo de sobra pro pipeline de
+      // áudio e o replaceTrack terminarem), se o que está REALMENTE
+      // saindo pelos peers já conectados é a trilha PROCESSADA (com o
+      // ganho de "Volume do Seu Microfone" de verdade aplicado) e não a
+      // trilha crua. Isso existe porque esse é justamente o tipo de bug
+      // que é silencioso — tudo parece funcionar (o mic liga, a call
+      // continua, ninguém vê erro nenhum) mas o boost simplesmente não
+      // tem efeito nenhum pra quem ouve. Se detectar a trilha errada em
+      // algum peer, corrige sozinho com replaceTrack, sem precisar
+      // reconectar a call inteira.
+      setTimeout(function(){ _verificarBoostDeMicAplicado(); }, 2500);
       // CORRIGIDO — CAUSA RAIZ de "depois de um tempo o mic buga e ninguém
       // me ouve": quando a trilha de áudio termina sozinha (fone bluetooth
       // desconectando, SO suspendendo o dispositivo, troca de fone, aba em
@@ -15097,27 +15134,89 @@ function callStartScreenShare(withAudio) {
 // ═══════════════════════════════════════
 //  PIPELINE DE ÁUDIO — Análise de voz
 // ═══════════════════════════════════════
-function _setupAudioPipeline(stream) {
+// v202608302330 — CAUSA RAIZ de "aumentar a Sensibilidade do Mic não faz
+// diferença nenhuma pra quem ouve": este gainNode SEMPRE existiu, e o
+// slider sempre alterava gain.gain.value de verdade — só que o gain só
+// era conectado ao "analyser" (usado unicamente pro indicador visual local
+// de "tá falando"), nunca a um destino de áudio de verdade. A trilha
+// REALMENTE enviada pra WebRTC (pc.addTrack) sempre foi a trilha CRUA do
+// getUserMedia, direto, sem passar pelo gain em nenhum momento — ou seja,
+// mexer nesse slider só mudava o que alimentava o detector visual, nunca
+// o volume que o outro lado realmente recebia. Agora: um
+// MediaStreamDestination recebe o áudio DEPOIS do gain, e o stream desse
+// destino (já com o ganho aplicado de verdade) é o que passa a ser
+// `callState.micStream` — ou seja, o que todo o resto do código (que já
+// usa `callState.micStream` pra mandar a trilha aos peers) manda agora é
+// o áudio JÁ AMPLIFICADO. O stream original do getUserMedia fica guardado
+// à parte em `callState._rawMicStream`, só pra alimentar o próprio pipeline
+// e pra continuar detectando queda de dispositivo (ver _doRequestMic).
+function _setupAudioPipeline(rawStream) {
   try {
     var AudioCtx=window.AudioContext||window.webkitAudioContext;
-    if(!AudioCtx) return;
+    if(!AudioCtx) { callState.micStream = rawStream; return; } // sem Web Audio: sem boost, mas não quebra nada
     if(callState.audioCtx){try{callState.audioCtx.close();}catch(e){}}
     var ctx=new AudioCtx(); callState.audioCtx=ctx;
+    callState._rawMicStream = rawStream;
 
     function _init(){
       try{
-        var source=ctx.createMediaStreamSource(stream);
+        var source=ctx.createMediaStreamSource(rawStream);
         var gain=ctx.createGain(); gain.gain.value=callState.micSens; callState.gainNode=gain;
         var analyser=ctx.createAnalyser(); analyser.fftSize=512; analyser.smoothingTimeConstant=0.7; callState.analyser=analyser;
-        source.connect(gain); gain.connect(analyser);
+        var dest=ctx.createMediaStreamDestination(); callState._micDest=dest;
+        source.connect(gain);
+        gain.connect(analyser);   // alimenta o detector visual de "tá falando" (como já era)
+        gain.connect(dest);       // NOVO: alimenta a trilha de verdade que sai pela WebRTC, já amplificada
+        // A trilha processada substitui a crua como "a" callState.micStream —
+        // é ela que _createOffer/_handleSignal/_rtcAddMediaTrack pegam pra
+        // mandar aos peers. Mantém o mesmo readyState/enabled de partida.
+        callState.micStream = dest.stream;
         _startSpeakingDetector();
-      }catch(e){console.warn('[Call] AudioPipeline init error:',e);}
+        // Se o mic já estava sendo enviado a algum peer com a trilha CRUA
+        // (ex.: pipeline demorou um pouco mais que a entrada na call),
+        // substitui a trilha em voo por replaceTrack — sem precisar
+        // renegociar a conexão inteira.
+        if (typeof _peers === 'object') {
+          var newTrack = dest.stream.getAudioTracks()[0];
+          Object.values(_peers).forEach(function(pc){
+            try {
+              pc.getSenders().forEach(function(s){
+                if (s.track && s._kind === 'micaudio' && s.track.id !== newTrack.id) {
+                  s.replaceTrack(newTrack).catch(function(e){ console.warn('[Call] replaceTrack (boost do mic) falhou:', e); });
+                }
+              });
+            } catch(e){}
+          });
+        }
+      }catch(e){
+        console.warn('[Call] AudioPipeline init error (seguindo sem boost de mic):', e);
+        callState.micStream = rawStream; // fallback seguro: pelo menos manda o mic sem processamento
+      }
     }
     if(ctx.state==='suspended') ctx.resume().then(_init).catch(_init);
     else _init();
-  }catch(e){console.warn('[Call] AudioPipeline error:',e);}
+  }catch(e){console.warn('[Call] AudioPipeline error:',e); callState.micStream = rawStream;}
 }
 
+function _verificarBoostDeMicAplicado() {
+  try {
+    if (!callState.active || !callState.micStream || typeof _peers !== 'object') return;
+    var trilhaCerta = callState.micStream.getAudioTracks()[0];
+    if (!trilhaCerta) return;
+    var corrigidos = 0;
+    Object.keys(_peers).forEach(function(uid){
+      var pc = _peers[uid];
+      if (!pc || pc.signalingState === 'closed') return;
+      pc.getSenders().forEach(function(s){
+        if (s.track && s._kind === 'micaudio' && s.track.id !== trilhaCerta.id && s.track.readyState === 'live') {
+          console.warn('[Call] Autodiagnóstico: peer', uid, 'ainda recebendo a trilha de mic ERRADA (sem boost) — corrigindo com replaceTrack.');
+          s.replaceTrack(trilhaCerta).then(function(){ corrigidos++; }).catch(function(e){ console.warn('[Call] Autocorreção de boost falhou pra', uid, ':', e); });
+        }
+      });
+    });
+    if (corrigidos > 0) console.log('[Call] Autodiagnóstico: ' + corrigidos + ' peer(s) corrigido(s) — agora todos recebem o mic com o boost aplicado.');
+  } catch(e) { console.warn('[Call] Autodiagnóstico de boost de mic falhou (não crítico):', e); }
+}
 function _startSpeakingDetector() {
   clearInterval(callState.speakInterval);
   callState.speakInterval=setInterval(function(){
@@ -15231,6 +15330,83 @@ function callSetMicSens(el) {
   el.style.setProperty('--p',val/4+'%');
   if(callState.gainNode) callState.gainNode.gain.value=callState.micSens;
 }
+
+// ═══════════════════════════════════════
+//  TESTE DE MICROFONE — como no Discord
+//  Toca de volta o SEU PRÓPRIO mic (já com o boost do "Volume do Seu
+//  Microfone" aplicado, direto do mesmo gainNode que sai pra WebRTC) pelos
+//  seus alto-falantes, e mostra um medidor de nível animado em tempo real
+//  — dá pra ver e ouvir exatamente o que os outros participantes recebem
+//  de você, sem precisar perguntar pra ninguém "meu áudio tá bom?".
+// ═══════════════════════════════════════
+var _micTestState = { active: false, destNode: null, audioEl: null, rafId: null };
+function callToggleMicTest() {
+  if (_micTestState.active) { _stopMicTest(); return; }
+  if (!callState.gainNode || !callState.audioCtx) {
+    showToast('🎙 Ligue o microfone primeiro pra poder testar', 'warn');
+    return;
+  }
+  try {
+    var ctx = callState.audioCtx;
+    // Nó de destino separado só pro teste — não interfere no que já vai pra
+    // WebRTC (callState._micDest continua intocado, os outros participantes
+    // não ouvem nada diferente enquanto você testa).
+    var dest = ctx.createMediaStreamDestination();
+    callState.gainNode.connect(dest);
+    _micTestState.destNode = dest;
+
+    var audioEl = new Audio();
+    audioEl.srcObject = dest.stream;
+    audioEl.autoplay = true;
+    // Sem isso, em muitos navegadores o próprio elemento de teste ficaria
+    // mudo mesmo com tudo certo — mesma causa raiz do áudio remoto normal.
+    audioEl.play().catch(function(e){ console.warn('[Call] Teste de mic: autoplay bloqueado, ver toast:', e); });
+    _micTestState.audioEl = audioEl;
+
+    var btn = document.getElementById('call-mic-test-btn');
+    if (btn) { btn.textContent = '⏹ PARAR TESTE'; btn.style.background = 'rgba(237,66,69,0.18)'; btn.style.borderColor = '#ed4245'; btn.style.color = '#ed4245'; }
+    var meterWrap = document.getElementById('call-mic-test-meter-wrap');
+    if (meterWrap) meterWrap.style.display = 'block';
+
+    _micTestState.active = true;
+    showToast('🎧 Testando microfone — fale algo! Você vai se ouvir com um pequeno delay natural.', 'ok');
+
+    var meterBar = document.getElementById('call-mic-test-meter-bar');
+    var analyser = callState.analyser;
+    function _tickMeter() {
+      if (!_micTestState.active) return;
+      if (analyser && meterBar) {
+        var buf = new Uint8Array(analyser.frequencyBinCount);
+        analyser.getByteFrequencyData(buf);
+        var sum = 0; for (var i=0;i<buf.length;i++) sum += buf[i];
+        var level = Math.min(100, Math.round((sum / buf.length) / 1.5)); // escala visual amigável
+        meterBar.style.width = level + '%';
+      }
+      _micTestState.rafId = requestAnimationFrame(_tickMeter);
+    }
+    _tickMeter();
+  } catch(e) {
+    console.warn('[Call] Falha ao iniciar teste de microfone:', e);
+    showToast('✕ Não foi possível iniciar o teste de microfone', 'err');
+    _stopMicTest();
+  }
+}
+function _stopMicTest() {
+  _micTestState.active = false;
+  if (_micTestState.rafId) { cancelAnimationFrame(_micTestState.rafId); _micTestState.rafId = null; }
+  if (_micTestState.audioEl) { try { _micTestState.audioEl.pause(); _micTestState.audioEl.srcObject = null; } catch(e){} _micTestState.audioEl = null; }
+  if (_micTestState.destNode && callState.gainNode) { try { callState.gainNode.disconnect(_micTestState.destNode); } catch(e){} _micTestState.destNode = null; }
+  var btn = document.getElementById('call-mic-test-btn');
+  if (btn) { btn.textContent = '🎧 TESTAR'; btn.style.background = ''; btn.style.borderColor = ''; btn.style.color = ''; }
+  var meterWrap = document.getElementById('call-mic-test-meter-wrap');
+  if (meterWrap) meterWrap.style.display = 'none';
+  var meterBar = document.getElementById('call-mic-test-meter-bar');
+  if (meterBar) meterBar.style.width = '0%';
+}
+// Se o mic cair ou a call terminar enquanto o teste está rodando, encerra
+// o teste junto — evita um AudioContext "preso" tocando pra sempre.
+window.addEventListener('beforeunload', _stopMicTest);
+
 function callSetThreshold(el) {
   callState.speakThreshold=parseInt(el.value);
   var ve=document.getElementById('call-speak-threshold-val'); if(ve) ve.textContent=el.value;
@@ -15377,6 +15553,7 @@ function minimizeCallToFloat() {
   ['music','settings','perm'].forEach(function(p){
     var el = document.getElementById('call-panel-'+p); if(el) el.classList.remove('open');
   });
+  if (typeof _stopMicTest === 'function') _stopMicTest(); // ver comentário em toggleCallPanel
   closeCallSideChat(); // não cabe chat lateral na janelinha flutuante
   cov.classList.add('floating');
   cov.classList.add('open'); // permanece visível, só que agora pequena
@@ -15986,6 +16163,15 @@ function toggleCallPanel(name) {
     if(p===name) el.classList.toggle('open'); else el.classList.remove('open');
   });
   if (name === 'settings') { _callRefreshAvatarPreview(); _callRefreshCharPreview(); _populateDeviceSelectors(false); }
+  // v202608302400 — ESTRUTURA MAIS RÍGIDA: se o painel de config fechar (ou
+  // outro painel abrir por cima) enquanto o teste de microfone está
+  // rodando, sem isso o teste continuava tocando escondido pra sempre —
+  // ninguém vê o botão "PARAR TESTE" porque o painel nem está mais aberto.
+  // Agora, sempre que o painel de settings deixa de estar visível, o teste
+  // é encerrado automaticamente.
+  var settingsPanelEl = document.getElementById('call-panel-settings');
+  var settingsAberto = settingsPanelEl && settingsPanelEl.classList.contains('open');
+  if (!settingsAberto && typeof _micTestState !== 'undefined' && _micTestState.active) _stopMicTest();
 }
 
 // ── Ícone customizado (imagem/GIF) do participante na call ──
@@ -22107,6 +22293,7 @@ window._joinCallRoom = async function(roomId) {
       if (callState.screenStream) window._rtcAddMediaTrack(callState.screenStream);
       if (window._ambientAudioStream) window._rtcAddMediaTrack(window._ambientAudioStream);
     } catch(e) { console.warn('[WebRTC] Auto-cura periódica falhou:', e); }
+    if (typeof _verificarBoostDeMicAplicado === 'function') _verificarBoostDeMicAplicado();
 
     // v202608302300 — ÚLTIMO RECURSO: REJOIN COMPLETO DA SALA. Tudo que foi
     // construído até aqui (restartIce, relay fallback, keepalive) conserta
