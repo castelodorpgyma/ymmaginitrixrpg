@@ -13888,6 +13888,58 @@ function showCallDiagnostico() {
     linhas.push('👉 Diagnóstico: sua vinculação está OK. Se ainda assim não estiver vendo/ouvindo alguém, peça pra essa pessoa abrir esse mesmo diagnóstico e compare a "Sala de call" dos dois — precisam ser idênticas.');
   }
 
+  // v202608302430 — ESTRUTURA MAIS RÍGIDA: seção extra que confere de
+  // verdade (não só supõe) o estado de cada parte do pipeline de áudio e
+  // de rede da call, uma por uma, com veredito explícito ✅/⚠/❌ pra cada
+  // item — em vez de só "parece que tá tudo bem porque não tem erro na
+  // tela". Isso dá visibilidade real de qual peça específica falhou,
+  // sem precisar adivinhar.
+  linhas.push('');
+  linhas.push('── SAÚDE DO ÁUDIO E DA CONEXÃO ──');
+  if (typeof callState === 'undefined' || !callState.active) {
+    linhas.push('📞 Call ativa: ❌ Não — abra uma call pra rodar os testes abaixo.');
+  } else {
+    linhas.push('📞 Call ativa: ✅ Sim');
+    // Mic ligado + pipeline de boost realmente montado
+    if (!callState.micStream) {
+      linhas.push('🎙 Microfone: ⚠ Desligado ou ainda não autorizado.');
+    } else {
+      var micLive = callState.micStream.getAudioTracks().some(function(t){ return t.readyState==='live'; });
+      linhas.push('🎙 Microfone: ' + (micLive ? '✅ Capturando áudio' : '❌ Trilha morta (readyState não é "live") — tente clicar no mic de novo.'));
+      var pipelineOk = !!(callState.audioCtx && callState.gainNode && callState._micDest);
+      linhas.push('🔊 Boost de volume do mic: ' + (pipelineOk ? ('✅ Pipeline montado (ganho atual: ' + Math.round(callState.micSens*100) + '%)') : '⚠ Pipeline de boost não montado — mic está sendo enviado sem processamento (ainda funciona, só sem o ganho extra).'));
+      // Confere se os peers de fato recebem a trilha processada, não a crua
+      if (pipelineOk && typeof _peers === 'object') {
+        var trilhaCerta = callState.micStream.getAudioTracks()[0];
+        var totalPeers = Object.keys(_peers).length;
+        var errados = 0;
+        Object.keys(_peers).forEach(function(uid){
+          var pc = _peers[uid]; if (!pc) return;
+          pc.getSenders().forEach(function(s){
+            if (s.track && s._kind === 'micaudio' && trilhaCerta && s.track.id !== trilhaCerta.id) errados++;
+          });
+        });
+        if (totalPeers === 0) linhas.push('📤 Trilha enviada aos outros: — (ninguém mais na call ainda)');
+        else linhas.push('📤 Trilha enviada aos outros: ' + (errados === 0 ? '✅ Todos recebendo a versão com boost' : ('❌ ' + errados + ' peer(s) ainda recebendo a trilha SEM boost — rode _verificarBoostDeMicAplicado() no console pra forçar a correção')));
+      }
+    }
+    // Estado de cada conexão peer a peer
+    if (typeof _peers === 'object') {
+      var uidsPeers = Object.keys(_peers);
+      if (!uidsPeers.length) {
+        linhas.push('👥 Outros participantes conectados: ⚠ Nenhum (você está sozinho na sala agora)');
+      } else {
+        uidsPeers.forEach(function(uid){
+          var pc = _peers[uid]; if (!pc) return;
+          var nome = (window._callMembersCache && window._callMembersCache[uid] && window._callMembersCache[uid].username) || uid;
+          var marca = pc.connectionState === 'connected' ? '✅' : (pc.connectionState === 'connecting' || pc.connectionState === 'new' ? '⏳' : '❌');
+          linhas.push('👥 ' + nome + ': ' + marca + ' ' + pc.connectionState + (pc._forceRelay ? ' (via relay TURN)' : ''));
+        });
+      }
+    }
+    linhas.push('📶 Internet do navegador: ' + (navigator.onLine ? '✅ Online' : '❌ OFFLINE — nada vai reconectar até a internet voltar'));
+  }
+
   var html = '<div style="font-family:\'Share Tech Mono\',monospace;font-size:.68rem;line-height:1.9;white-space:pre-wrap;color:var(--c-text)">' + esc(linhas.join('\n')) + '</div>';
   var modal = document.createElement('div');
   modal.className = 'modal open';
