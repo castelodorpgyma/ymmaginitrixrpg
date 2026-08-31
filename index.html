@@ -5817,10 +5817,22 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
           <!-- Roleta -->
           <button class="d-die special" onclick="rollRoleta()" style="width:100%;font-size:.8rem;padding:12px">🎰 &nbsp;ROLETA DO DESTINO</button>
           <!-- ADICIONADO 2026-08-30 (pedido do usuário) — Tabela D50 de Sorte -->
-          <button class="d-die special" onclick="rollTabelaSorte()" style="width:100%;font-size:.8rem;padding:12px;margin-top:8px;background:linear-gradient(135deg,rgba(20,120,60,.5),rgba(6,50,26,.3));border-color:rgba(60,200,110,.5)">🍀 &nbsp;ROLETA DA SORTE (D50)</button>
+          <!-- ADICIONADO 2026-08-31 (pedido do usuário) — seletor de modo:
+               Padrão (1d20, tabela original) ou Expandida (1d50, com as
+               entradas extras). Ver toggleSorteModo() / toggleAzarModo(). -->
+          <div class="ymm-modo-toggle" id="sorte-modo-toggle" style="display:flex;gap:6px;margin-top:2px;margin-bottom:2px">
+            <button type="button" class="ymm-modo-btn" data-modo="padrao" onclick="toggleSorteModo('padrao')" style="flex:1;font-size:.62rem;padding:6px 4px;border-radius:6px;border:1px solid rgba(60,200,110,.35);background:transparent;color:rgba(230,232,245,.75);cursor:pointer">Padrão (1d20)</button>
+            <button type="button" class="ymm-modo-btn" data-modo="expandida" onclick="toggleSorteModo('expandida')" style="flex:1;font-size:.62rem;padding:6px 4px;border-radius:6px;border:1px solid rgba(60,200,110,.35);background:transparent;color:rgba(230,232,245,.75);cursor:pointer">Expandida (1d50)</button>
+          </div>
+          <button class="d-die special" id="btn-sorte-roll" onclick="rollTabelaSorte()" style="width:100%;font-size:.8rem;padding:12px;margin-top:4px;background:linear-gradient(135deg,rgba(20,120,60,.5),rgba(6,50,26,.3));border-color:rgba(60,200,110,.5)">🍀 &nbsp;ROLETA DA SORTE (D50)</button>
           <div id="sorte-result-box" style="display:none;margin-top:10px;background:rgba(40,200,100,.08);border:1px solid rgba(60,200,110,.3);border-radius:10px;padding:12px 14px"></div>
           <!-- ADICIONADO 2026-08-30 (pedido do usuário) — Tabela D60 de Azar & Infortúnios -->
-          <button class="d-die special" onclick="rollTabelaAzar()" style="width:100%;font-size:.8rem;padding:12px;margin-top:8px;background:linear-gradient(135deg,rgba(140,20,20,.5),rgba(60,4,4,.3));border-color:rgba(210,40,40,.5)">☠ &nbsp;TABELA DE AZAR (D110)</button>
+          <!-- ADICIONADO 2026-08-31 (pedido do usuário) — mesmo seletor de modo pro Azar -->
+          <div class="ymm-modo-toggle" id="azar-modo-toggle" style="display:flex;gap:6px;margin-top:8px;margin-bottom:2px">
+            <button type="button" class="ymm-modo-btn" data-modo="padrao" onclick="toggleAzarModo('padrao')" style="flex:1;font-size:.62rem;padding:6px 4px;border-radius:6px;border:1px solid rgba(210,40,40,.35);background:transparent;color:rgba(230,232,245,.75);cursor:pointer">Padrão (1d60)</button>
+            <button type="button" class="ymm-modo-btn" data-modo="expandida" onclick="toggleAzarModo('expandida')" style="flex:1;font-size:.62rem;padding:6px 4px;border-radius:6px;border:1px solid rgba(210,40,40,.35);background:transparent;color:rgba(230,232,245,.75);cursor:pointer">Expandida (1d110)</button>
+          </div>
+          <button class="d-die special" id="btn-azar-roll" onclick="rollTabelaAzar()" style="width:100%;font-size:.8rem;padding:12px;margin-top:4px;background:linear-gradient(135deg,rgba(140,20,20,.5),rgba(60,4,4,.3));border-color:rgba(210,40,40,.5)">☠ &nbsp;TABELA DE AZAR (D110)</button>
           <div id="azar-result-box" style="display:none;margin-top:10px;background:rgba(210,40,40,.08);border:1px solid rgba(210,40,40,.3);border-radius:10px;padding:12px 14px"></div>
           <!-- ADICIONADO 2026-08-30 (pedido do usuário: "botão que faça eu
                conseguir ver tudo que pode acontecer") — abre modal com as
@@ -6445,14 +6457,27 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
           <button class="dq-btn" onclick="rollLiveRoleta()">🎰 Roleta</button>
           <!-- ADICIONADO 2026-08-30 (pedido do usuário) — Tabela D50 de Sorte
                também disponível na aba de Sessão. -->
-          <button class="dq-btn" onclick="rollTabelaSorte()" style="background:rgba(20,120,60,.35);border-color:rgba(60,200,110,.4)">🍀 Sorte D50</button>
+          <button class="dq-btn" id="btn-sorte-roll-sessao" onclick="rollTabelaSorte()" style="background:rgba(20,120,60,.35);border-color:rgba(60,200,110,.4)">🍀 Sorte D50</button>
           <!-- ADICIONADO 2026-08-30 (pedido do usuário) — Tabela D60 de Azar
                também precisa ficar visível/acessível na aba de Sessão, não
                só na Mesa de Dados. -->
-          <button class="dq-btn" onclick="rollTabelaAzar()" style="background:rgba(140,20,20,.35);border-color:rgba(210,40,40,.4)">☠ Azar D110</button>
+          <button class="dq-btn" id="btn-azar-roll-sessao" onclick="rollTabelaAzar()" style="background:rgba(140,20,20,.35);border-color:rgba(210,40,40,.4)">☠ Azar D110</button>
           <!-- ADICIONADO 2026-08-30 (pedido do usuário: "ver tudo que pode
                acontecer") -->
           <button class="dq-btn" onclick="openTabelaDestino()" style="background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.18)">👁 Ver tudo</button>
+        </div>
+        <!-- ADICIONADO 2026-08-31 (pedido do usuário) — seletor de modo
+             Padrão/Expandida pra Sorte e Azar, também na tela de Sessão
+             (mesmo estado global de toggleSorteModo()/toggleAzarModo()). -->
+        <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:8px">
+          <div class="ymm-modo-toggle" id="sorte-modo-toggle-sessao" style="display:flex;gap:6px;flex:1;min-width:220px">
+            <button type="button" class="ymm-modo-btn" data-modo="padrao" onclick="toggleSorteModo('padrao')" style="flex:1;font-size:.6rem;padding:6px 4px;border-radius:6px;border:1px solid rgba(60,200,110,.35);background:transparent;color:rgba(230,232,245,.75);cursor:pointer">🍀 Padrão (1d20)</button>
+            <button type="button" class="ymm-modo-btn" data-modo="expandida" onclick="toggleSorteModo('expandida')" style="flex:1;font-size:.6rem;padding:6px 4px;border-radius:6px;border:1px solid rgba(60,200,110,.35);background:transparent;color:rgba(230,232,245,.75);cursor:pointer">🍀 Expandida (1d50)</button>
+          </div>
+          <div class="ymm-modo-toggle" id="azar-modo-toggle-sessao" style="display:flex;gap:6px;flex:1;min-width:220px">
+            <button type="button" class="ymm-modo-btn" data-modo="padrao" onclick="toggleAzarModo('padrao')" style="flex:1;font-size:.6rem;padding:6px 4px;border-radius:6px;border:1px solid rgba(210,40,40,.35);background:transparent;color:rgba(230,232,245,.75);cursor:pointer">☠ Padrão (1d60)</button>
+            <button type="button" class="ymm-modo-btn" data-modo="expandida" onclick="toggleAzarModo('expandida')" style="flex:1;font-size:.6rem;padding:6px 4px;border-radius:6px;border:1px solid rgba(210,40,40,.35);background:transparent;color:rgba(230,232,245,.75);cursor:pointer">☠ Expandida (1d110)</button>
+          </div>
         </div>
         <!-- Resultado da Tabela de Sorte (mesmo padrão da Tabela de Azar). -->
         <div id="sorte-result-box-sessao" style="display:none;margin-top:10px;padding:10px 12px;background:rgba(20,120,60,.12);border:1px solid rgba(60,200,110,.3);border-radius:8px"></div>
@@ -11676,6 +11701,78 @@ function rollMulti(n, sides) {
 // mecanismo de `chain:true` já é genérico (rollTabelaAzar não depende de
 // nenhum número fixo), então basta marcar a entrada.
 // ══════════════════════════════════════════════════════════════════
+// ADICIONADO 2026-08-31 (pedido do usuário) — modo de rolagem: "padrao"
+// usa só as entradas originais (1d60 pro Azar, 1d20 pra Sorte); "expandida"
+// usa a tabela toda (1d110 / 1d50) com as entradas extras que o usuário
+// pediu antes. Persiste em localStorage pra lembrar a escolha entre sessões.
+function _azarModo(){ return localStorage.getItem('ymm_azar_modo') || 'expandida'; }
+function _sorteModo(){ return localStorage.getItem('ymm_sorte_modo') || 'expandida'; }
+function _azarMaxN(){ return _azarModo() === 'padrao' ? 60 : 110; }
+function _sorteMaxN(){ return _sorteModo() === 'padrao' ? 20 : 50; }
+
+function _atualizarUiModoAzar(){
+  var modo = _azarModo();
+  var max = _azarMaxN();
+  ['azar-modo-toggle','azar-modo-toggle-sessao'].forEach(function(toggleId){
+    var toggle = document.getElementById(toggleId);
+    if (!toggle) return;
+    toggle.querySelectorAll('.ymm-modo-btn').forEach(function(btn){
+      var ativo = btn.getAttribute('data-modo') === modo;
+      btn.style.background = ativo ? 'rgba(210,40,40,.55)' : 'transparent';
+      btn.style.color = ativo ? '#fff' : 'rgba(230,232,245,.75)';
+      btn.style.fontWeight = ativo ? '700' : '400';
+    });
+  });
+  var b1 = document.getElementById('btn-azar-roll');
+  if (b1) b1.innerHTML = '☠ &nbsp;TABELA DE AZAR (D' + max + ')';
+  var b2 = document.getElementById('btn-azar-roll-sessao');
+  if (b2) b2.textContent = '☠ Azar D' + max;
+}
+
+function _atualizarUiModoSorte(){
+  var modo = _sorteModo();
+  var max = _sorteMaxN();
+  ['sorte-modo-toggle','sorte-modo-toggle-sessao'].forEach(function(toggleId){
+    var toggle = document.getElementById(toggleId);
+    if (!toggle) return;
+    toggle.querySelectorAll('.ymm-modo-btn').forEach(function(btn){
+      var ativo = btn.getAttribute('data-modo') === modo;
+      btn.style.background = ativo ? 'rgba(60,200,110,.55)' : 'transparent';
+      btn.style.color = ativo ? '#fff' : 'rgba(230,232,245,.75)';
+      btn.style.fontWeight = ativo ? '700' : '400';
+    });
+  });
+  var b1 = document.getElementById('btn-sorte-roll');
+  if (b1) b1.innerHTML = '🍀 &nbsp;ROLETA DA SORTE (D' + max + ')';
+  var b2 = document.getElementById('btn-sorte-roll-sessao');
+  if (b2) b2.textContent = '🍀 Sorte D' + max;
+}
+
+window.toggleAzarModo = function(modo){
+  localStorage.setItem('ymm_azar_modo', modo === 'padrao' ? 'padrao' : 'expandida');
+  _atualizarUiModoAzar();
+  if (typeof showToast === 'function') {
+    showToast(modo === 'padrao' ? 'Azar: modo Padrão (1d60) ☠' : 'Azar: modo Expandida (1d110) ☠', 'info');
+  }
+};
+
+window.toggleSorteModo = function(modo){
+  localStorage.setItem('ymm_sorte_modo', modo === 'padrao' ? 'padrao' : 'expandida');
+  _atualizarUiModoSorte();
+  if (typeof showToast === 'function') {
+    showToast(modo === 'padrao' ? 'Sorte: modo Padrão (1d20) 🍀' : 'Sorte: modo Expandida (1d50) 🍀', 'info');
+  }
+};
+
+// Aplica o estado salvo assim que a página carrega, pra os botões já
+// nascerem mostrando o modo certo (padrão continua sendo "expandida",
+// igual já era antes desta mudança — nada muda pra quem nunca mexeu nisso).
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', function(){ _atualizarUiModoAzar(); _atualizarUiModoSorte(); });
+} else {
+  _atualizarUiModoAzar(); _atualizarUiModoSorte();
+}
+
 var TABELA_D110_AZAR = [
   {n:1,  efeito:'Cadarço Solto',          desc:'Você tropeça na própria capa/bainha/cadarço e cai no chão (ficando Caído).'},
   {n:2,  efeito:'Ataque de Vespa',        desc:'Um inseto espalhafatosamente barulhento entra na sua armadura ou túnica.'},
@@ -11790,8 +11887,12 @@ var TABELA_D110_AZAR = [
 ];
 
 // Rola 1 entrada da tabela (uso interno — tratamento especial do 60 fica em rollTabelaAzar)
+// ATUALIZADO 2026-08-31 (pedido do usuário) — respeita o modo escolhido:
+// "padrao" sorteia só entre as entradas 1–60 (tabela original, 1d60);
+// "expandida" sorteia entre as 110 entradas (1d110, com as extras).
 function _rollUmAzar() {
-  var idx = Math.floor(Math.random() * 110); // 0..109 (1d110)
+  var max = _azarMaxN(); // 60 ou 110
+  var idx = Math.floor(Math.random() * max); // 0..max-1
   return TABELA_D110_AZAR[idx];
 }
 
@@ -11807,13 +11908,14 @@ function rollTabelaAzar() {
   if (principal.chain) {
     for (var i = 0; i < 3; i++) extras.push(_rollUmAzar());
   }
+  var azarMax = _azarMaxN();
   _renderAzarResult(principal, extras);
-  _diceSessionUpdate(principal.n, 60, 'Azar');
+  _diceSessionUpdate(principal.n, azarMax, 'Azar');
 
   // Registra no histórico de dados (mesma convenção da rolagem rápida:
   // só entra no histórico COMPARTILHADO se "mostrar resultados" estiver
   // ativo — ver addDiceLog).
-  var resumo = '🎲‍☠ D60 AZAR: #' + principal.n + ' ' + principal.efeito
+  var resumo = '🎲‍☠ D' + azarMax + ' AZAR: #' + principal.n + ' ' + principal.efeito
     + (extras.length ? ' (+ ' + extras.map(function(e){return '#'+e.n+' '+e.efeito;}).join(', ') + ')' : '');
   var time = new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
   var rollEntry = { expr: resumo, total: principal.n, isCrit:false, isFail:true,
@@ -11922,8 +12024,12 @@ var TABELA_D50_SORTE = [
 ];
 
 // Rola 1 entrada da tabela de Sorte (uso interno)
+// ATUALIZADO 2026-08-31 (pedido do usuário) — respeita o modo escolhido:
+// "padrao" sorteia só entre as entradas 1–20 (tabela original, 1d20);
+// "expandida" sorteia entre as 50 entradas (1d50, com as extras).
 function _rollUmaSorte() {
-  var idx = Math.floor(Math.random() * 50); // 0..49 (1d50)
+  var max = _sorteMaxN(); // 20 ou 50
+  var idx = Math.floor(Math.random() * max); // 0..max-1
   return TABELA_D50_SORTE[idx];
 }
 
@@ -11936,10 +12042,11 @@ function rollTabelaSorte() {
   if (principal.chain) {
     for (var i = 0; i < 3; i++) extras.push(_rollUmaSorte());
   }
+  var sorteMax = _sorteMaxN();
   _renderSorteResult(principal, extras);
-  _diceSessionUpdate(principal.n, 50, 'Sorte');
+  _diceSessionUpdate(principal.n, sorteMax, 'Sorte');
 
-  var resumo = '🍀 D50 SORTE: #' + principal.n + ' ' + principal.efeito
+  var resumo = '🍀 D' + sorteMax + ' SORTE: #' + principal.n + ' ' + principal.efeito
     + (extras.length ? ' (+ ' + extras.map(function(e){return '#'+e.n+' '+e.efeito;}).join(', ') + ')' : '');
   var time = new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
   var rollEntry = { expr: resumo, total: principal.n, isCrit:true, isFail:false,
