@@ -4230,7 +4230,18 @@ input:valid:not(:placeholder-shown) {
 #call-remote-cards{ display:contents; }
 
 .call-participant{
-  flex:0 0 auto; width:260px; max-width:100%; aspect-ratio:1/1; justify-content:center;
+  /* CORRIGIDO 2026-08-31 (pedido do usuário: "buga o layout sempre quando
+     tem 5 pessoas na call / não aparece a 5ª pessoa") — CAUSA RAIZ: o card
+     tinha largura FIXA de 260px. Com 4 pessoas ele enchia a linha
+     exatamente; a 5ª pessoa não tinha mais espaço na mesma linha e ia pra
+     uma segunda linha — que ficava fora da área visível sem deixar claro
+     que dava pra rolar (mesmo overflow-y:auto do container original), então
+     parecia que a pessoa simplesmente "sumia". Agora o card tem largura
+     FLEXÍVEL (entre 170px e 260px): ele encolhe sozinho pra caber mais
+     gente na mesma linha (5, 6, 7...) antes de quebrar linha, e só quando
+     não cabe mais nem no tamanho mínimo é que forma uma segunda linha de
+     verdade (aí sim com rolagem, pra casos com muita gente na call). */
+  flex:1 1 190px; width:auto; min-width:170px; max-width:260px; aspect-ratio:1/1; justify-content:center;
   border-radius:16px !important; padding:0 !important; overflow:hidden;
   border-width:3px;
 }
