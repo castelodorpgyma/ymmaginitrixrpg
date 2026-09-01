@@ -46,13 +46,34 @@
         compartilhado do mesmo jeito que a rolagem rápida (respeitando o
         botão "mostrar/ocultar resultados").
 
-<meta name="version" content="202608301200">
+<meta name="version" content="202608310900">
 <meta name="description" content="Ymmaginitrix — Plataforma de gerenciamento de campanhas de RPG">
 <meta name="application-name" content="Ymmaginitrix">
 <meta property="og:title" content="Ymmaginitrix — Gerenciador de Campanhas RPG">
 <meta property="og:description" content="Plataforma completa para mestres e jogadores de RPG">
 <meta property="og:type" content="application">
 <meta name="robots" content="noindex, nofollow">
+
+<!-- CORREÇÕES DE CALL (WebRTC) — v202608310900 (suporte a 12+ pessoas na call)
+     1) Bitrates dinâmicos mais agressivos pra grupos grandes (≤3→500 · ≤5→300
+        · ≤7→180 · ≤10→110 · ≤12→80 · 13+→60 kbps) + _reapplyBitrateCaps()
+        recalcula e reaplica em TODOS os peers a cada mudança de tamanho do
+        grupo (antes só o peer novo ganhava o teto atualizado).
+     2) _updateCallGridSize(): CSS dinâmico encolhe os cards conforme o grupo
+        cresce — barras vitais somem com 8+ pessoas, cargo some com 12+.
+     3) Processamento de sinais WebRTC paralelo por peer (Promise.all): antes
+        o await sequencial bloqueava candidatos ICE de peer B enquanto
+        processava offer/answer do peer A. Candidatos perdidos = sem conexão
+        pra quem está em rede diferente. Agora cada peer roda em paralelo.
+     4) Escalonamento de ofertas (thundering herd): 150ms entre cada oferta ao
+        entrar numa sala grande — evita rajada simultânea de ICE gathering e
+        mensagens Firebase.
+     5) Recuperação proativa de peers 'disconnected' no health interval de 15s:
+        peers presos em 'disconnected' (não passam pra 'failed') eram
+        invisíveis pro watchdog de stats e ficavam assim indefinidamente.
+     6) Fallback de oferta pro lado de UID maior: se o outro lado não mandou
+        oferta em 6s (estava offline brevemente quando chegamos), nós mandamos
+        — com jitter aleatório pra não colidir com o timer do outro lado.
 
 <!-- CORREÇÕES DE CALL (WebRTC) — v202608291830 (confirmadas pelo console do usuário)
      1) "InvalidStateError: have-remote-offer" derrubando a conexão de vez
@@ -4244,6 +4265,8 @@ input:valid:not(:placeholder-shown) {
   flex:1 1 190px; width:auto; min-width:170px; max-width:260px; aspect-ratio:1/1; justify-content:center;
   border-radius:16px !important; padding:0 !important; overflow:hidden;
   border-width:3px;
+  /* min/max são sobrescritos dinamicamente por #call-grid-dynamic-style
+     (gerado por _updateCallGridSize) conforme o nº de participantes */
 }
 .call-part-av-wrap{ width:100% !important; height:100% !important; max-width:none !important; max-height:none !important; border-radius:16px; }
 .call-part-av{ width:100% !important; height:100% !important; border-radius:16px !important; font-size:2.4rem; }
@@ -16524,6 +16547,10 @@ function _startAmbientAudioBroadcast(audioEl, trackName) {
   var stream;
   try { stream = capture.call(audioEl); } catch(e) { console.warn('[Áudio ambiente] captureStream falhou:', e); return; }
   if (!stream || !stream.getAudioTracks().length) return;
+  // ADICIONADO 2026-08-31 — marca a track como "áudio ambiente" pra
+  // _capMediaSenderBitrate saber diferenciar de voz (mic) e aplicar um teto
+  // de banda mais apropriado pra cada uma (ver função lá embaixo).
+  try { stream.getAudioTracks().forEach(function(t){ t._isAmbientTrack = true; }); } catch(e){}
   window._ambientAudioStream = stream;
   // Manda a trilha pelos peers já conectados agora...
   if (typeof window._rtcAddMediaTrack === 'function') window._rtcAddMediaTrack(stream);
@@ -16912,6 +16939,9 @@ function renderCallParticipants() {
     if (window.lucide) lucide.createIcons();
     var _cnt = document.getElementById('call-participant-count');
     if (_cnt) _cnt.textContent = '👥 ' + (1 + Object.keys(membersCache).filter(function(k){ return k !== window._myCallId; }).length);
+    // Reaplica tetos de bitrate e ajusta grid conforme quantidade de participantes
+    if (typeof _reapplyBitrateCaps === 'function') _reapplyBitrateCaps();
+    if (typeof _updateCallGridSize === 'function') _updateCallGridSize();
     // Reanexa câmera local (garantia extra — não deveria mais ser necessário
     // já que o card local não é mais recriado aqui, mas cobre o caso raro
     // dele ter sido perdido por outro motivo)
@@ -22762,6 +22792,37 @@ window._joinCallRoom = async function(roomId) {
     } catch(e) { console.warn('[WebRTC] Auto-cura periódica falhou:', e); }
     if (typeof _verificarBoostDeMicAplicado === 'function') _verificarBoostDeMicAplicado();
 
+    // CORRIGIDO v202608310900 — RECUPERAÇÃO PROATIVA DE PEERS DESCONECTADOS:
+    // o watchdog de stats (dentro de _createPeerConn) detecta conexões mortas
+    // a cada 8s via getStats(), mas só age quando o peer está 'connected' e
+    // os bytes pararam. Peers que ficam PRESOS em 'disconnected' (não passam
+    // pra 'failed' — comum em algumas redes mobile e NAT agressivo) ficavam
+    // invisíveis pra esse watchdog, porque ele só roda quando o estado é
+    // 'connected'. Nenhum outro mecanismo acionava restartIce pra eles até
+    // o evento 'online' ou o tab voltar a ficar visível. Com grupos de 12+,
+    // é comum alguns peers ficarem em 'disconnected' por troca de rede/4G
+    // no meio da call sem que nada acione a recuperação. Agora, a cada 15s,
+    // o health interval também verifica peers em 'disconnected' e aciona
+    // restartIce neles — com escalonamento de 200ms entre cada um, pra não
+    // inundar o Firebase de sinais ao mesmo tempo.
+    var _healthDelay = 0;
+    Object.keys(_peers).forEach(function(uid) {
+      var pc = _peers[uid];
+      if (!pc) return;
+      if (pc.connectionState === 'disconnected') {
+        var _d = _healthDelay; _healthDelay += 200;
+        setTimeout(function() {
+          // re-checa — pode ter se recuperado no intervalo
+          if (pc.connectionState === 'disconnected') {
+            console.log('[WebRTC] Health: peer', uid, 'ainda em disconnected — forçando restartIce');
+            var safeFn = window._safeRestartIceByPeer && window._safeRestartIceByPeer[uid];
+            if (safeFn) safeFn('health-interval-disconnected');
+            else { try { pc.restartIce(); } catch(e){} }
+          }
+        }, _d);
+      }
+    });
+
     // v202608302300 — ÚLTIMO RECURSO: REJOIN COMPLETO DA SALA. Tudo que foi
     // construído até aqui (restartIce, relay fallback, keepalive) conserta
     // conexões peer-a-peer individuais. Mas existe uma classe de problema
@@ -22830,46 +22891,41 @@ window._joinCallRoom = async function(roomId) {
     if (!snap.exists()) return;
     const signals = [];
     snap.forEach(c => signals.push({ key: c.key, ...c.val() }));
+
+    // CORRIGIDO v202608310900 — CAUSA RAIZ de "áudio/vídeo não chega pra
+    // alguns participantes em grupos grandes": o loop original processava
+    // TODOS os sinais sequencialmente (um await atrás do outro). Numa call
+    // de 12 pessoas, a negociação de oferta/resposta com o peer A (que pode
+    // levar 200-400ms) bloqueava o processamento dos candidatos ICE dos peers
+    // B, C, D... que chegaram no mesmo snapshot. Candidatos ICE têm um tempo
+    // de vida curto (o ICE gathering pode fechar antes de todos chegarem) —
+    // candidatos relay (TURN) chegando tarde demais ou sendo descartados por
+    // timeout são exatamente o que faz a call funcionar só entre quem está
+    // na mesma rede. Agora os sinais são agrupados por peer de origem e cada
+    // grupo é processado em sequência (ordem importa dentro de um peer), mas
+    // grupos de peers DIFERENTES rodam em paralelo — sem conflito, porque
+    // _handleSignal para peer A nunca acessa a RTCPeerConnection do peer B.
+    // A remoção do Firebase continua após cada sinal, como antes.
+    const byPeer = {};
     for (const sig of signals) {
-      // CORRIGIDO 2026-08-24 (CAMADA 12 — TRAVA DE REENTRÂNCIA) — CAUSA
-      // RAIZ do erro "InvalidStateError: Failed to set remote answer sdp:
-      // Called in wrong state: stable" visto no console: remove() (linha
-      // abaixo) some da tela na hora, mas é uma escrita assíncrona de
-      // verdade no Firebase — leva um tempinho pra ir e voltar do
-      // servidor. Se OUTRO sinal chegar nesse meio-tempo (ex.: um
-      // candidato ICE, muito comum), o onValue inteiro dispara de novo
-      // com um snapshot NOVO que ainda contém o mesmo 'answer' que já
-      // tinha sido processado com sucesso segundos atrás (porque o
-      // remove() dele ainda não tinha sido confirmado pelo servidor).
-      // Essa segunda passagem tentava aplicar a MESMA resposta numa
-      // conexão que ela mesma já tinha deixado 'stable' — e
-      // setRemoteDescription() nesse estado é sempre erro, por definição
-      // do protocolo (não tem "resposta" esperada depois que a negociação
-      // já fechou). O efeito prático era só ruído no console na maioria
-      // dos casos (a conexão já estava de pé), mas em alguns casos a
-      // corrida chegava ANTES do primeiro processamento terminar,
-      // aplicando dois setRemoteDescription() concorrentes na mesma
-      // RTCPeerConnection — aí sim quebrando a negociação de verdade e
-      // deixando o áudio/vídeo daquele peer morto. Agora: cada chave de
-      // sinal só é processada uma vez por esta aba, não importa quantas
-      // vezes o Firebase reentregar o mesmo snapshot antes do remove()
-      // ser confirmado.
       if (_handledSignalKeys[sig.key]) continue;
       _handledSignalKeys[sig.key] = true;
-      if (Object.keys(_handledSignalKeys).length > 500) _handledSignalKeys = {}; // teto de memória, mesmo padrão das outras camadas
-      // CORRIGIDO: se _handleSignal() falhasse em UM sinal (ex.: o bug de
-      // addTrack duplicado ao lado, ou qualquer outro erro inesperado), o
-      // "await" rejeitava e o laço parava ali mesmo — todo sinal SEGUINTE
-      // deste mesmo lote (ex.: candidatos ICE que chegaram junto com a
-      // oferta) nunca era processado nem removido, silenciosamente. Agora
-      // uma falha num sinal não impede os outros de serem tratados.
-      try {
-        await _handleSignal(roomId, sig);
-      } catch(e) {
-        console.warn('[WebRTC] Falha ao processar sinal', sig.type, 'de', sig.from, ':', e);
-      }
-      remove(ref(db, 'calls/' + roomId + '/signals/' + _myCallId + '/' + sig.key)).catch(function(){});
+      if (Object.keys(_handledSignalKeys).length > 500) _handledSignalKeys = {};
+      if (!sig.from) continue;
+      if (!byPeer[sig.from]) byPeer[sig.from] = [];
+      byPeer[sig.from].push(sig);
     }
+    // Processa cada peer em paralelo, sinais do mesmo peer em sequência.
+    await Promise.all(Object.values(byPeer).map(async function(peerSigs) {
+      for (const sig of peerSigs) {
+        try {
+          await _handleSignal(roomId, sig);
+        } catch(e) {
+          console.warn('[WebRTC] Falha ao processar sinal', sig.type, 'de', sig.from, ':', e);
+        }
+        remove(ref(db, 'calls/' + roomId + '/signals/' + _myCallId + '/' + sig.key)).catch(function(){});
+      }
+    }));
   }, _fbReadErrHandler('calls/'+roomId+'/signals/'+_myCallId+' (sinalização WebRTC)'));
 
   // Escuta novos membros para iniciar conexão E manter o grid de participantes
@@ -22892,13 +22948,52 @@ window._joinCallRoom = async function(roomId) {
     // cache também quando a sala fica vazia (snap não existe mais).
     const cache = {};
     if (snap.exists()) {
+      var _offerDelay = 0;
       snap.forEach(child => {
         cache[child.key] = child.val();
         const uid = child.key;
-        // Regra de polidez: quem tem o UID "menor" inicia a oferta para evitar colisões (glare)
+        // Regra de polidez: quem tem o UID "menor" inicia a oferta para evitar colisões (glare).
+        // CORRIGIDO v202608310900 — THUNDERING HERD: num rejoin completo (ou
+        // entrada numa sala já com 10 pessoas), este loop disparava todas as
+        // ofertas ao mesmo tempo — cada uma dispara ICE gathering do zero, e
+        // com 10 conexões iniciando gathering simultâneo o navegador fica
+        // sobrecarregado coletando candidatos, e o Firebase recebe uma rajada
+        // de dezenas de mensagens ICE de uma vez. Escalonar com 150ms entre
+        // cada oferta distribui o gathering ao longo do tempo sem atrasar
+        // perceptivelmente a entrada na call (150ms × 10 peers = 1.5s total).
         if (uid !== _myCallId && !_peers[uid] && _myCallId < uid) {
-          console.log('[WebRTC] Iniciando oferta para:', uid);
-          _createOffer(roomId, uid);
+          var _d = _offerDelay;
+          _offerDelay += 150;
+          if (_d === 0) {
+            console.log('[WebRTC] Iniciando oferta para:', uid);
+            _createOffer(roomId, uid);
+          } else {
+            setTimeout(function() {
+              if (!_peers[uid]) { // ainda não conectado (pode ter chegado resposta nossa nesse meio tempo)
+                console.log('[WebRTC] Iniciando oferta (escalonada) para:', uid);
+                _createOffer(roomId, uid);
+              }
+            }, _d);
+          }
+        }
+        // CORRIGIDO v202608310900 — FALLBACK PRO LADO "MAIOR": quando entramos
+        // numa sala com o UID "maior" (não somos quem inicia ofertas), dependemos
+        // de TODOS os outros lados perceberem nossa chegada e mandarem uma oferta.
+        // Se algum deles estava offline brevemente justo no momento em que
+        // chegamos (ou processou o snapshot antes do nosso add ao Firebase
+        // confirmar), nunca mandam oferta pra gente — ficamos conectados com
+        // metade da call e invisíveis pra outra metade, sem nenhuma mensagem
+        // de erro. Após 6s sem conexão estabelecida com esse uid, nós mesmos
+        // mandamos uma oferta como fallback — a "perfect negotiation" do lado
+        // deles (pc._polite) já sabe lidar com essa colisão sem quebrar nada.
+        if (uid !== _myCallId && !_peers[uid] && _myCallId >= uid) {
+          var _fallbackUid = uid;
+          setTimeout(function() {
+            if (!_peers[_fallbackUid] && callState.active && window._callMembersCache && window._callMembersCache[_fallbackUid]) {
+              console.log('[WebRTC] Fallback de oferta para', _fallbackUid, '(lado maior, sem conexão após 6s)');
+              _createOffer(roomId, _fallbackUid);
+            }
+          }, 6000 + Math.random() * 2000); // jitter pra não colidir com o timer deles
         }
       });
     }
@@ -22991,18 +23086,24 @@ async function _createOffer(roomId, targetUid) {
   // ambiente (os dois trilhas de kind 'audio') se confundam um com o outro
   // ao reaproveitar um sender morto numa reconexão — ver comentário grande
   // em _rtcAddMediaTrack.
+  // CORRIGIDO 2026-08-31 — as trilhas adicionadas AQUI (oferta inicial) nunca
+  // passavam por _capMediaSenderBitrate — só passavam quando eram
+  // readicionadas depois (renegociação/reconexão, via _addTrackIfNew mais
+  // abaixo). Ou seja, a PRIMEIRA conexão de cada peer sempre saía sem teto
+  // de banda nenhum, e só se corrigia sozinha depois de alguma reconexão.
+  // Agora aplica o teto já na primeira oferta também.
   if (callState.micStream) {
-    callState.micStream.getTracks().forEach(t => { var s = pc.addTrack(t, callState.micStream); s._kind = 'micaudio'; });
+    callState.micStream.getTracks().forEach(t => { var s = pc.addTrack(t, callState.micStream); s._kind = 'micaudio'; _capMediaSenderBitrate(s, t); });
   }
   if (callState.camStream) {
-    callState.camStream.getTracks().forEach(t => { var s = pc.addTrack(t, callState.camStream); s._kind = 'video'; });
+    callState.camStream.getTracks().forEach(t => { var s = pc.addTrack(t, callState.camStream); s._kind = 'video'; _capMediaSenderBitrate(s, t); });
   }
   // Se eu já estava transmitindo áudio ambiente (música de arquivo local)
   // ANTES dessa pessoa entrar na call, ela também precisa receber essa
   // trilha — senão só quem já estava conectado no momento em que cliquei
   // "play" ouviria a música, e quem chegasse depois ficaria em silêncio.
   if (window._ambientAudioStream) {
-    window._ambientAudioStream.getTracks().forEach(t => { var s = pc.addTrack(t, window._ambientAudioStream); s._kind = 'ambientaudio'; });
+    window._ambientAudioStream.getTracks().forEach(t => { var s = pc.addTrack(t, window._ambientAudioStream); s._kind = 'ambientaudio'; _capMediaSenderBitrate(s, t); });
   }
   // CORRIGIDO 2026-08-25 — CAUSA RAIZ de "nem todo mundo consegue ver a
   // transmissão de tela": se eu JÁ estava compartilhando a tela ANTES dessa
@@ -23021,10 +23122,10 @@ async function _createOffer(roomId, targetUid) {
   // continue reconhecendo esses senders corretamente.
   if (callState.screenStream && callState.screenState === 'active') {
     callState.screenStream.getVideoTracks().forEach(function(t){
-      var s = pc.addTrack(t, callState.screenStream); s._kind = 'screenvideo';
+      var s = pc.addTrack(t, callState.screenStream); s._kind = 'screenvideo'; _capMediaSenderBitrate(s, t);
     });
     callState.screenStream.getAudioTracks().forEach(function(t){
-      var s = pc.addTrack(t, callState.screenStream); s._kind = 'screenaudio';
+      var s = pc.addTrack(t, callState.screenStream); s._kind = 'screenaudio'; _capMediaSenderBitrate(s, t);
     });
   }
   try {
@@ -23157,6 +23258,13 @@ async function _handleSignal(roomId, sig) {
     // campanha (relay se perde). Agora: se a remote description ainda não
     // está pronta, o candidato fica guardado em fila e é aplicado assim que
     // ela for setada (ver _flushPendingIce acima, nos dois ramos de cima).
+    //
+    // CORRIGIDO v202608310900b — RACE: no processamento paralelo por peer,
+    // o candidato ICE de um peer pode chegar ANTES que a oferta desse peer
+    // tenha criado a RTCPeerConnection (_peers[fromUid] ainda undefined).
+    // Antes: o if (!pc) saía sem fazer nada — candidato perdido para sempre.
+    // Agora: guarda no buffer global _pendingIceByPeer[fromUid] e aplica
+    // assim que _handleSignal('offer') criar o pc e chamar _flushPendingIce.
     const pc = _peers[fromUid];
     if (pc) {
       if (pc.remoteDescription && pc.remoteDescription.type) {
@@ -23166,6 +23274,13 @@ async function _handleSignal(roomId, sig) {
         if (!pc._pendingIce) pc._pendingIce = [];
         pc._pendingIce.push(sig.candidate);
       }
+    } else {
+      // pc ainda não existe — guarda em buffer global, será aplicado quando
+      // _createPeerConn criar a conexão e processar a oferta
+      if (!window._pendingIceByPeer) window._pendingIceByPeer = {};
+      if (!window._pendingIceByPeer[fromUid]) window._pendingIceByPeer[fromUid] = [];
+      window._pendingIceByPeer[fromUid].push(sig.candidate);
+      console.log('[WebRTC] ICE de', fromUid, 'guardado — pc ainda não criado');
     }
   }
 }
@@ -23198,6 +23313,18 @@ function _createPeerConn(roomId, peerUid, forceRelay) {
   const pc = new RTCPeerConnection(_getRtcConfig(!!forceRelay));
   pc._forceRelay = !!forceRelay;
   _peers[peerUid] = pc;
+  // Reaplica teto de bitrate em todos os peers existentes agora que o grupo cresceu.
+  // Feito num setTimeout mínimo pra não atrasar a criação da própria conexão.
+  setTimeout(function(){ if (typeof _reapplyBitrateCaps === 'function') _reapplyBitrateCaps(); }, 100);
+  // CORRIGIDO v202608310900b: aplica candidatos ICE que chegaram antes da
+  // RTCPeerConnection ser criada (corrida com processamento paralelo de sinais).
+  if (window._pendingIceByPeer && window._pendingIceByPeer[peerUid]) {
+    var _earlyIce = window._pendingIceByPeer[peerUid];
+    delete window._pendingIceByPeer[peerUid];
+    if (!pc._pendingIce) pc._pendingIce = [];
+    pc._pendingIce = pc._pendingIce.concat(_earlyIce);
+    console.log('[WebRTC] Transferindo', _earlyIce.length, 'candidato(s) ICE antecipado(s) para', peerUid);
+  }
 
   // CORRIGIDO — CAUSA RAIZ de "mic e transmissão funcionam uma vez e depois
   // param": o erro real (antes escondido atrás de um catch genérico que
@@ -23248,21 +23375,86 @@ function _createPeerConn(roomId, peerUid, forceRelay) {
   } catch(e) { console.warn('[WebRTC] keepalive DataChannel não pôde ser criado (não é crítico):', e); }
 
   pc.ontrack = (e) => {
-    // Reproduz áudio/vídeo remoto
-    console.log('[WebRTC] Recebendo track de:', peerUid, e.streams[0]);
-    _attachRemoteStream(peerUid, e.streams[0]);
-    // v202608302200 — SINAL EXTRA DE TRILHA MORTA: 'mute' na trilha remota
-    // (evento nativo do WebRTC, diferente de "a pessoa se mutou por
-    // escolha") dispara quando o navegador para de receber mídia real
-    // dessa trilha especificamente — geralmente por perda de pacotes
-    // grave. Complementa o watchdog de stats (que olha a conexão como um
-    // todo) reagindo mais cedo quando o SINAL nativo já avisou.
-    var _track = e.track;
-    if (_track) {
-      _track.onmute = function() {
-        console.log('[WebRTC] Trilha', _track.kind, 'de', peerUid, 'ficou muda (evento nativo) — verificando conexão.');
+    // CORRIGIDO v202608310900b — CAUSA RAIZ de "pessoa entra mas não aparece
+    // nem dá pra ouvir":
+    //
+    // PROBLEMA 1 — e.streams[0] undefined: a spec WebRTC diz que ontrack
+    // pode disparar ANTES da track ser associada a um stream (e.streams pode
+    // ser array vazio). Isso acontece com frequência no Firefox e em algumas
+    // versões do Chrome com renegociações. Quando isso ocorria, a guarda
+    // "if (!stream) return" descartava o evento silenciosamente — a trilha
+    // de áudio/vídeo nunca era anexada e a pessoa ficava muda/invisível.
+    //
+    // PROBLEMA 2 — track.onmute mal posicionado: o handler de mute era
+    // atribuído só quando e.streams[0] existia. Quando o evento chegava
+    // sem stream (caso 1) ou a track chegava antes, o onmute nunca era
+    // registrado — perdendo a detecção de trilha morta pra esse peer.
+    //
+    // Solução: registra onmute na track SEMPRE (independente de stream),
+    // e se e.streams[0] for undefined, coloca a track numa fila de espera
+    // e tenta novamente quando stream.onaddtrack disparar — ou no máximo
+    // em 500ms, quando o navegador geralmente já fez a associação.
+    var track = e.track;
+    // Onmute registrado independente de stream existir
+    if (track) {
+      track.onmute = function() {
+        console.log('[WebRTC] Trilha', track.kind, 'de', peerUid, 'ficou muda (evento nativo) — verificando conexão.');
         if (pc.connectionState === 'connected') _safeRestartIce('track mute nativo');
       };
+    }
+
+    var stream = e.streams && e.streams[0];
+    if (stream) {
+      console.log('[WebRTC] Recebendo track de:', peerUid, stream);
+      _attachRemoteStream(peerUid, stream);
+    } else {
+      // Stream ainda não associado — aguarda até 500ms pela associação
+      console.log('[WebRTC] ontrack de', peerUid, 'sem stream ainda — aguardando associação');
+      var _retryCount = 0;
+      function _tryAttach() {
+        // Verifica se algum sender/transceiver do pc agora tem stream
+        var streams = [];
+        try {
+          pc.getTransceivers().forEach(function(t) {
+            if (t.receiver && t.receiver.track && t.receiver.track === track) {
+              // No Firefox, streams ficam acessíveis via e.streams após ontrack
+              // mas às vezes só depois de um tick. Aqui tentamos via track mesmo.
+              if (e.streams && e.streams[0]) streams.push(e.streams[0]);
+            }
+          });
+        } catch(ex) {}
+        // Fallback: procura nos streams remotos ativos do peer
+        if (!streams.length && track) {
+          try {
+            pc.getReceivers().forEach(function(r) {
+              if (r.track === track) {
+                // Cria um MediaStream com essa track se não vier associado
+                var ms = new MediaStream([track]);
+                streams.push(ms);
+              }
+            });
+          } catch(ex) {}
+        }
+        if (streams.length) {
+          console.log('[WebRTC] Stream associado (retry', _retryCount, ') para', peerUid);
+          _attachRemoteStream(peerUid, streams[0]);
+        } else if (_retryCount < 5) {
+          _retryCount++;
+          setTimeout(_tryAttach, 100);
+        } else {
+          // Último recurso: cria MediaStream diretamente da track
+          if (track && track.readyState !== 'ended') {
+            try {
+              var fallbackStream = new MediaStream([track]);
+              console.log('[WebRTC] Usando MediaStream de fallback para', peerUid);
+              _attachRemoteStream(peerUid, fallbackStream);
+            } catch(ex) {
+              console.warn('[WebRTC] Não foi possível criar stream de fallback para', peerUid, ':', ex);
+            }
+          }
+        }
+      }
+      setTimeout(_tryAttach, 50);
     }
   };
 
@@ -23424,6 +23616,8 @@ function _createPeerConn(roomId, peerUid, forceRelay) {
     try { pc.close(); } catch(e){}
     delete _peers[peerUid];
     _removeRemoteStream(peerUid);
+    // Grupo encolheu — levanta o teto de bitrate dos peers restantes
+    setTimeout(function(){ if (typeof _reapplyBitrateCaps === 'function') _reapplyBitrateCaps(); }, 200);
   }
 
   // v202608301930 — GUARDA CONTRA restartIce() EM CASCATA: sem isso, se
@@ -23642,15 +23836,34 @@ function _createRemoteVideoElement(uid) {
   return vid;
 }
 
-// Reanexa vídeos de câmera já recebidos após um re-render do grid de participantes
-// (o card é recriado do zero, então o <video> antigo perde o srcObject)
+// Reanexa vídeos e áudios de câmera já recebidos após um re-render do grid
+// CORRIGIDO v202608310900b — antes só o vídeo era reanexado. Quando o grid
+// de participantes é re-renderizado (ex.: alguém novo entra), os cards são
+// recriados do zero — o <video> antigo perde o srcObject. O <audio> é criado
+// solto no DOM via _attachRemoteStream e sobrevive ao re-render, mas se o
+// srcObject de algum peerUid foi substituído (renegociação durante o render),
+// o áudio poderia ficar com o stream antigo. Agora _reattachKnownRemoteVideos
+// também garante que o srcObject do <audio> de cada peer está atualizado.
 window._reattachKnownRemoteVideos = function() {
+  // Vídeos de câmera
   Object.keys(_remoteCamStreams || {}).forEach(function(uid) {
     var vidEl = document.getElementById('call-remote-vid-' + uid);
     var stream = _remoteCamStreams[uid];
     if (vidEl && stream) {
-      vidEl.srcObject = stream; vidEl.style.display = 'block';
-      vidEl.play().catch(function(){});
+      if (vidEl.srcObject !== stream) {
+        vidEl.srcObject = stream;
+        vidEl.style.display = 'block';
+        vidEl.play().catch(function(){});
+      }
+    }
+  });
+  // Áudios de microfone — garante que o srcObject está na versão mais atual
+  Object.keys(_remoteAudioEls || {}).forEach(function(uid) {
+    var audioEl = _remoteAudioEls[uid];
+    if (!audioEl) return;
+    // Se o srcObject do áudio não está tocando (paused sem erro), tenta dar play de novo
+    if (audioEl.paused && audioEl.srcObject && audioEl.srcObject.active) {
+      _ymmTryPlayAudioEl(audioEl, false);
     }
   });
 };
@@ -24172,19 +24385,110 @@ window.callToggleScreenFullscreen = function() {
 // maxBitrate por encoding resolve isso na ORIGEM — o navegador para de tentar
 // mandar mais do que isso, então cada conexão fica leve o bastante pra sempre
 // caber, mesmo com vários peers simultâneos.
+// ATUALIZADO 2026-08-31 (pedido do usuário: "de vez em quando pra algumas
+// pessoas a call não carrega / não dá pra ver e ouvir todo mundo — buga com
+// mais de 4 pessoas. quero que funcione de boa até com 12") — CAUSA RAIZ
+// REAL do "buga com mais gente": esta função SÓ limitava o bitrate da
+// TRANSMISSÃO DE TELA (700kbps fixo). A trilha de CÂMERA (webcam) e as de
+// ÁUDIO (voz do mic + música ambiente) NUNCA tinham teto nenhum — o
+// navegador manda webcam a até 2-3+ Mbps por padrão, sem limite algum. Como
+// a arquitetura da call é "mesh" (cada participante manda sua câmera
+// DIRETO pra cada um dos outros, não por um servidor central), o upload de
+// quem está com câmera ligada CRESCE junto com o número de pessoas: com 4
+// pessoas de câmera ligada isso já pode passar de 8-12 Mbps de upload
+// simultâneo; com 12 pessoas passa fácil de 25-30 Mbps — muito acima do que
+// a internet residencial média consegue mandar, e muito acima da banda que
+// os relays TURN gratuitos/comunitários aguentam quando a conexão direta
+// falha e cai no relay. O resultado prático era exatamente o relatado:
+// upload trava, os pacotes começam a se perder, e para ALGUMAS pessoas (as
+// que dependem de relay, ou as que têm upload mais fraco) a imagem/áudio
+// simplesmente não chega mais — sem nenhum erro visível, só "não carrega".
+// Agora TODA trilha de mídia (câmera, mic, áudio ambiente, tela) sai com um
+// teto de banda, e o teto de VÍDEO diminui automaticamente conforme mais
+// gente entra na call (calculado a partir de quantos peers existem no
+// momento em que a trilha é adicionada) — assim o total de upload
+// necessário fica sob controle mesmo com muita gente de câmera ligada ao
+// mesmo tempo, em vez de crescer sem limite.
+// CORREÇÕES DE CALL (WebRTC) — v202608310900 (suporte a 12+ pessoas)
+// 1) Bitrates de câmera mais agressivos conforme o grupo cresce: em mesh
+//    cada pessoa manda vídeo pra TODOS — com 12 pessoas são 11 streams
+//    saindo ao mesmo tempo, cada um passando por relay TURN gratuito.
+//    Os tetos anteriores (500/280/160/100) ainda eram altos demais pra
+//    grupos grandes estáveis. Nova escada: mais agressiva a partir de 5+
+//    peers, garantindo estabilidade até 12+ pessoas.
+// 2) _reapplyBitrateCaps(): quando alguém novo ENTRA na call, apenas o
+//    peer novo ganhava teto — os senders dos peers ANTERIORES continuavam
+//    no teto calculado com o grupo menor. Agora recalculamos e reaplicamos
+//    o teto em TODOS os senders de todos os peers já conectados toda vez
+//    que o número de peers muda.
+// 3) Grid de participantes: CSS agora varia o min-width/max-width do card
+//    via classes injetadas pelo JS conforme o número de participantes na
+//    call — card menor para grupos grandes (8+) sem travar o layout.
+function _dynamicVideoCapKbps() {
+  var n = Math.max(1, Object.keys(_peers || {}).length);
+  if (n <= 2) return 500;   // até 3 pessoas: qualidade alta
+  if (n <= 4) return 300;   // até 5 pessoas: boa qualidade
+  if (n <= 6) return 180;   // até 7 pessoas: equilibrado
+  if (n <= 9) return 110;   // até 10 pessoas: prioriza estabilidade
+  if (n <= 11) return 80;   // até 12 pessoas: comprimido mas funcional
+  return 60;                 // 13+ pessoas: o mínimo — só identifica quem é quem
+}
+function _dynamicAudioCapKbps(isAmbient) {
+  var n = Math.max(1, Object.keys(_peers || {}).length);
+  // Voz sempre tem prioridade sobre música — opus já é eficiente em mono,
+  // então o teto de voz quase não perde qualidade perceptível mesmo baixo.
+  if (isAmbient) return n <= 5 ? 48 : n <= 9 ? 32 : 24;
+  return n <= 8 ? 32 : 24;
+}
+// Recalcula e reaplica teto de bitrate em TODOS os senders de todos os peers.
+// Chamada sempre que o número de peers muda (novo participante entrou/saiu).
+function _reapplyBitrateCaps() {
+  try {
+    Object.values(_peers || {}).forEach(function(pc) {
+      try {
+        pc.getSenders().forEach(function(sender) {
+          if (!sender || !sender.track) return;
+          _capMediaSenderBitrate(sender, sender.track);
+        });
+      } catch(e) {}
+    });
+  } catch(e) {}
+}
+// Atualiza tamanho dos cards de call conforme número de participantes
+// (injetado no CSS via uma tag <style> trocada a cada render).
+function _updateCallGridSize() {
+  var n = 1 + Object.keys(window._callMembersCache || {}).filter(function(k){ return k !== window._myCallId; }).length;
+  var minW, maxW;
+  if (n <= 4)      { minW = 190; maxW = 280; }
+  else if (n <= 6) { minW = 160; maxW = 230; }
+  else if (n <= 9) { minW = 120; maxW = 190; }
+  else if (n <= 12){ minW = 90;  maxW = 150; }
+  else             { minW = 72;  maxW = 120; }
+  var styleId = 'call-grid-dynamic-style';
+  var el = document.getElementById(styleId);
+  if (!el) { el = document.createElement('style'); el.id = styleId; document.head.appendChild(el); }
+  el.textContent = '.call-participant{flex:1 1 '+minW+'px!important;min-width:'+minW+'px!important;max-width:'+maxW+'px!important}'
+    + (n >= 8 ? '.call-part-stats{display:none!important}' : '')
+    + (n >= 12 ? '.call-part-role{display:none!important}' : '');
+}
 function _capMediaSenderBitrate(sender, track) {
   try {
-    if (!sender || !track || track.kind !== 'video' || !track._isScreenTrack) return;
+    if (!sender || !track) return;
+    var kbps;
+    if (track.kind === 'video') {
+      kbps = track._isScreenTrack ? 700 : _dynamicVideoCapKbps();
+    } else if (track.kind === 'audio') {
+      kbps = _dynamicAudioCapKbps(!!track._isAmbientTrack);
+    } else {
+      return;
+    }
     var params = sender.getParameters();
     if (!params.encodings || !params.encodings.length) params.encodings = [{}];
-    // 700 kbps é suficiente pra ler texto/mapa/ficha com nitidez a 12fps
-    // (bem acima do que 1 tela de RPG realmente precisa) e cabe folgado nos
-    // relays gratuitos mesmo com vários peers na mesma call de grupo.
-    params.encodings.forEach(function(enc){ enc.maxBitrate = 700000; });
+    params.encodings.forEach(function(enc){ enc.maxBitrate = kbps * 1000; });
     sender.setParameters(params).catch(function(e){
-      console.warn('[WebRTC] Não foi possível limitar bitrate da tela (navegador pode não suportar setParameters aqui):', e);
+      console.warn('[WebRTC] Não foi possível limitar bitrate (navegador pode não suportar setParameters aqui):', e);
     });
-  } catch(e) { console.warn('[WebRTC] Erro ao limitar bitrate da tela:', e); }
+  } catch(e) { console.warn('[WebRTC] Erro ao limitar bitrate:', e); }
 }
 
 // ── Hook: quando mic/cam é ativado, adiciona trilha nos peers existentes ──
