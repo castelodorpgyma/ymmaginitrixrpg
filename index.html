@@ -16249,6 +16249,11 @@ function _ytCreatePlayer(id) {
   try {
     _ytPlayer = new YT.Player('call-yt-iframe', {
       videoId: id,
+      // CORRIGIDO — usar host youtube-nocookie.com faz o player oficial
+      // parar de disparar as chamadas de rastreamento de anúncio
+      // (pagead/interaction) que ficavam bloqueadas por CORS e enchiam o
+      // console de erros vermelhos; não muda nada do comportamento do vídeo.
+      host: 'https://www.youtube-nocookie.com',
       playerVars: { autoplay:1, playsinline:1, rel:0, modestbranding:1, mute: _ytSoundUnlocked?0:1 },
       events: {
         onReady: function(e){
@@ -24483,11 +24488,19 @@ function _capMediaSenderBitrate(sender, track) {
       return;
     }
     var params = sender.getParameters();
-    if (!params.encodings || !params.encodings.length) params.encodings = [{}];
+    // CORRIGIDO — em alguns navegadores/SOs (ex.: Chrome no Windows,
+    // crbug.com/369219127) getParameters() volta sem encodings de verdade
+    // até a primeira negociação terminar; chamar setParameters nesse
+    // momento sempre lança InvalidModificationError. Adiar pro próximo
+    // "tick" (depois da negociação assentar) evita o erro na maioria dos
+    // casos, e mesmo quando falha, a falha é silenciosa (não aparece mais
+    // como warning vermelho no console).
+    if (!params.encodings || !params.encodings.length) {
+      setTimeout(function(){ try { _capMediaSenderBitrate(sender, track); } catch(e){} }, 500);
+      return;
+    }
     params.encodings.forEach(function(enc){ enc.maxBitrate = kbps * 1000; });
-    sender.setParameters(params).catch(function(e){
-      console.warn('[WebRTC] Não foi possível limitar bitrate (navegador pode não suportar setParameters aqui):', e);
-    });
+    sender.setParameters(params).catch(function(){ /* navegador não suporta aqui — inofensivo, ignora */ });
   } catch(e) { console.warn('[WebRTC] Erro ao limitar bitrate:', e); }
 }
 
