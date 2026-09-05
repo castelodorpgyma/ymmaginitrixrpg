@@ -19713,6 +19713,9 @@ function _refreshHostPanelBtn() {
 // lista de anfitriões — não interfere em nada do fluxo de perfil/conta).
 onAuthStateChanged(auth, function(fbUser) {
   _siteCurrentUserEmail = fbUser ? (fbUser.email || null) : null;
+  console.log('[HostPanel] E-mail detectado da conta logada:', _siteCurrentUserEmail || '(nenhum — conta local/anônima, sem e-mail de verdade)');
+  console.log('[HostPanel] Lista de anfitriões autorizados agora:', Object.values(_siteAdminsMap || {}));
+  console.log('[HostPanel] Você é anfitrião?', _isCurrentUserHostAdmin());
   _refreshHostPanelBtn();
 });
 
