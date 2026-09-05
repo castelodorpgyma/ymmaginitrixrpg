@@ -5481,7 +5481,91 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 }
 
 
+/* ── Portão de acesso do site (senha do anfitrião) ── */
+#site-gate{
+  position:fixed; inset:0; z-index:999999; /* acima de TUDO, inclusive modais */
+  display:flex; align-items:center; justify-content:center;
+  padding:20px;
+}
+#site-gate.gate-unlocked{ display:none !important; }
+.site-gate-bg{
+  position:absolute; inset:0;
+  background:radial-gradient(circle at 30% 20%,rgba(120,20,20,.25),transparent 55%),
+             radial-gradient(circle at 80% 80%,rgba(20,20,60,.3),transparent 55%),
+             #08080b;
+}
+.site-gate-card{
+  position:relative; z-index:1; width:100%; max-width:360px;
+  background:rgba(18,18,24,.92); border:1px solid rgba(255,255,255,.1);
+  border-radius:14px; padding:28px 24px; text-align:center;
+  box-shadow:0 20px 60px rgba(0,0,0,.6);
+  font-family:'Share Tech Mono',monospace;
+}
+.site-gate-logo{ font-size:1.3rem; font-weight:700; letter-spacing:1px; color:#fff; }
+.site-gate-logo span{ color:#e33; }
+.site-gate-sub{ font-size:.62rem; color:rgba(255,255,255,.45); margin:2px 0 18px; letter-spacing:1px; }
+.site-gate-txt{ font-size:.72rem; color:rgba(255,255,255,.75); margin:0 0 16px; line-height:1.5; }
+.site-gate-irow{
+  display:flex; align-items:center; gap:8px;
+  background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12);
+  border-radius:8px; padding:8px 12px; margin-bottom:10px;
+}
+.site-gate-irow input{
+  flex:1; background:none; border:none; outline:none; color:#fff;
+  font-family:'Share Tech Mono',monospace; font-size:.78rem;
+}
+.site-gate-eye{ background:none; border:none; cursor:pointer; opacity:.6; font-size:.85rem; }
+.site-gate-err{ color:#ff6767; font-size:.65rem; min-height:14px; margin-bottom:8px; }
+.site-gate-btn{
+  width:100%; padding:11px; border:none; border-radius:8px; cursor:pointer;
+  background:linear-gradient(135deg,#a11,#611); color:#fff; font-weight:700;
+  font-family:'Share Tech Mono',monospace; font-size:.78rem; letter-spacing:1px;
+  transition:transform .15s, box-shadow .15s;
+}
+.site-gate-btn:hover{ transform:translateY(-1px); box-shadow:0 6px 18px rgba(170,17,17,.4); }
+.site-gate-btn:disabled{ opacity:.5; cursor:not-allowed; transform:none; box-shadow:none; }
+.site-gate-btn-alt{ background:linear-gradient(135deg,#333,#222); margin-top:4px; }
+.site-gate-hint{ font-size:.58rem; color:rgba(255,255,255,.35); margin-top:14px; }
+.site-gate-adm{ margin-top:16px; border-top:1px dashed rgba(255,255,255,.12); padding-top:12px; }
+.site-gate-adm-toggle{
+  background:none; border:none; color:rgba(255,255,255,.4); font-size:.6rem;
+  cursor:pointer; font-family:'Share Tech Mono',monospace; text-decoration:underline;
+}
+.site-gate-adm-box{ margin-top:10px; text-align:left; }
 </style>
+
+<!-- ════════════════════════════════
+     PORTÃO DE ACESSO DO SITE — v202609021400
+     Fica ACIMA de tudo (inclusive da tela de login) até a pessoa digitar
+     a senha do anfitrião. Sem isso passar, ninguém vê nem o botão de
+     Google, nem "entrar sem conta", nem nada do resto do site — o resto
+     da página existe no DOM mas fica coberto e sem interação.
+     A senha em si NUNCA fica salva em texto puro em lugar nenhum (nem
+     aqui no código, nem no Firebase): só o HASH (SHA-256) dela. Ver
+     comentário grande no módulo JS mais abaixo, procure por
+     "PORTÃO DE ACESSO", pra entender como funciona e as limitações reais
+     de segurança disso (é um site 100% client-side, sem servidor próprio
+     — isso barra visitantes casuais e bots simples, não um invasor
+     técnico decidido, que sempre consegue ler o HTML/JS da página).
+════════════════════════════════ -->
+<div id="site-gate">
+  <div class="site-gate-bg"></div>
+  <div class="site-gate-card">
+    <div class="site-gate-logo">YMMAGIN<span>ITRIX</span></div>
+    <div class="site-gate-sub">// acesso restrito //</div>
+    <p class="site-gate-txt" id="site-gate-txt">Digite a senha do anfitrião para entrar.</p>
+    <div class="site-gate-irow">
+      <span class="site-gate-icon">🔒</span>
+      <input id="site-gate-pass" type="password" placeholder="senha do anfitrião"
+        autocomplete="off" onkeydown="if(event.key==='Enter')_siteGateTry()">
+      <button type="button" class="site-gate-eye" onclick="toggleEye('site-gate-pass',this)" tabindex="-1">👁</button>
+    </div>
+    <div class="site-gate-err" id="site-gate-err"></div>
+    <button type="button" class="site-gate-btn" id="site-gate-btn" onclick="_siteGateTry()">🔑 ENTRAR</button>
+
+    <p class="site-gate-hint">// só quem tem essa senha consegue ver a tela de login //</p>
+  </div>
+</div>
 
 <!-- ════════════════════════════════
      AUTH SCREEN — REDESIGN v2
@@ -5649,7 +5733,41 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   </div>
   <button class="ub-role-switch-btn" onclick="toggleRoleSwitcher()" title="Trocar papel" id="ub-role-switch-btn">🔄</button>
   <button class="ub-logout-btn" onclick="openThemeModal()" title="Temas / Configurações visuais" style="color:rgba(180,140,255,0.72)">🎨</button>
+  <button class="ub-logout-btn" id="ub-hostpanel-btn" onclick="openHostPanel()" title="Painel do Anfitrião" style="display:none;color:rgba(255,90,90,0.85)">🏠 ANFITRIÃO</button>
   <button class="ub-logout-btn" onclick="doLogout()" title="Sair da conta">⏻ SAIR</button>
+</div>
+
+<!-- ═══ MODAL: PAINEL DO ANFITRIÃO (só quem está na lista de admins vê) ═══ -->
+<div class="modal-overlay" id="hostpanel-modal" style="display:none">
+  <div class="modal-box" style="max-width:440px">
+    <div class="modal-title">🏠 Painel do Anfitrião</div>
+    <button class="modal-close" onclick="closeHostPanel()">✕</button>
+    <p style="font-size:.68rem;color:rgba(255,255,255,.6);line-height:1.5;margin:0 0 16px">
+      Só quem está na lista de anfitriões (abaixo) consegue abrir este painel — não basta mais saber a senha do site.
+    </p>
+
+    <div style="margin-bottom:18px">
+      <div style="font-size:.7rem;color:rgba(255,255,255,.85);margin-bottom:8px;font-weight:600">🔑 Trocar a senha de acesso do site</div>
+      <input id="hp-newpass" type="password" placeholder="nova senha (mín. 6 caracteres)" autocomplete="off"
+        style="width:100%;margin-bottom:8px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:9px 12px;color:#fff;font-family:'Share Tech Mono',monospace;font-size:.75rem;box-sizing:border-box">
+      <input id="hp-newpass2" type="password" placeholder="confirme a nova senha" autocomplete="off"
+        style="width:100%;margin-bottom:8px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:9px 12px;color:#fff;font-family:'Share Tech Mono',monospace;font-size:.75rem;box-sizing:border-box">
+      <button class="btn btn-primary" style="width:100%" onclick="hostPanelChangePassword()">💾 Trocar senha do site</button>
+    </div>
+
+    <div style="margin-bottom:10px">
+      <div style="font-size:.7rem;color:rgba(255,255,255,.85);margin-bottom:8px;font-weight:600">👥 Quem pode acessar este painel</div>
+      <div id="hp-admins-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px"></div>
+      <div style="display:flex;gap:6px">
+        <input id="hp-newadmin-email" type="email" placeholder="e-mail do Google da pessoa"
+          style="flex:1;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:9px 12px;color:#fff;font-family:'Share Tech Mono',monospace;font-size:.72rem;box-sizing:border-box">
+        <button class="btn btn-small" onclick="hostPanelAddAdmin()">+ Adicionar</button>
+      </div>
+      <p style="font-size:.58rem;color:rgba(255,255,255,.4);margin-top:8px">A pessoa precisa logar no site com esse e-mail do Google pra esse acesso valer.</p>
+    </div>
+
+    <div class="site-gate-err" id="hp-err" style="text-align:left"></div>
+  </div>
 </div>
 
 <!-- Painel de troca de papel (flutua abaixo do user bar) -->
@@ -14041,6 +14159,7 @@ var callState = {
   screenOn: false,
   micStream: null,
   _rawMicStream: null, // v202608302330 — stream ORIGINAL do getUserMedia, sem processamento; usado só internamente pelo pipeline de áudio e pela detecção de dispositivo caído. callState.micStream passa a ser o stream JÁ PROCESSADO (com o ganho de "Sensibilidade do Mic" de verdade aplicado) que é o que realmente sai pela WebRTC — ver _setupAudioPipeline.
+  _micWantsMuted: false, // v202609021200 — "vontade" do usuário de estar mutado, independente de qual objeto MediaStreamTrack está em uso no momento. CAUSA RAIZ de "mutei e mesmo assim me ouvem": toda vez que a trilha do mic era recriada (boost de áudio ligando, replaceTrack, ou reaplicar configurações em callApplyConstraints), a trilha NOVA nascia sempre com enabled=true (o padrão do navegador), e o estado de mudo do usuário se perdia — mesmo a UI mostrando mutado, a trilha de verdade que saía pela WebRTC continuava ligada. Pior: se o replaceTrack falhasse silenciosamente pra algum peer específico (só logava um warning), a trilha ANTIGA (nunca mais tocada pelo botão de mutar depois disso) ficava presa enviando áudio pra sempre só pra esse peer — exatamente o padrão de "sempre as mesmas pessoas continuam me ouvindo mutado". Agora toda vez que uma trilha de mic (nova ou antiga, inclusive como rede de segurança se o replaceTrack falhar) é conectada a um peer ou recriada, ela é forçada a refletir _micWantsMuted.
   camStream: null,
   screenStream: null,
   audioCtx: null,
@@ -15013,6 +15132,7 @@ function endCall() {
   callState.micState='idle'; callState.camState='idle'; callState.screenState='idle';
   callState.micOn=false; callState.camOn=false; callState.screenOn=false;
   callState.deafened=false;
+  callState._micWantsMuted=false; // v202609021200 — cada call nova começa "quer estar ligado" por padrão
 
   // Reset UI
   var timer=document.getElementById('call-timer'); if(timer) timer.textContent='00:00';
@@ -15089,7 +15209,14 @@ function _doRequestMic() {
     })
     .then(function(stream){
       callState.micStream=stream;
-      callState.micState='active'; callState.micOn=true;
+      // v202609021200 — antes isso sempre forçava micOn=true, mesmo se o
+      // usuário tivesse escolhido ficar mutado (ex.: callApplyConstraints
+      // pedindo o mic de novo depois de mudar um toggle de eco/ruído). O
+      // mic reaparecia ligado sem o usuário ter feito nada. Agora respeita
+      // a última vontade do usuário (_micWantsMuted).
+      stream.getAudioTracks().forEach(function(t){ t.enabled = !callState._micWantsMuted; });
+      callState.micState = callState._micWantsMuted ? 'muted' : 'active';
+      callState.micOn = !callState._micWantsMuted;
       _syncMicBtn();
       _setupAudioPipeline(stream);
       // Popula os selects agora que os labels de dispositivo já estão disponíveis
@@ -15186,11 +15313,47 @@ function callToggleMic() {
   }
   // Se tem stream viva: alterna mudo/ativo
   callState.micOn = !callState.micOn;
+  callState._micWantsMuted = !callState.micOn; // v202609021200 — grava a intenção, sobrevive a troca/recriação de trilha
   liveTracks.forEach(function(t){ t.enabled=callState.micOn; });
   callState.micState = callState.micOn ? 'active' : 'muted';
   console.log('[MIC] Alternado para:', callState.micState, '— track.enabled agora é', liveTracks.map(function(t){return t.enabled;}));
+  // v202609021200 — rede de segurança: se por algum motivo (replaceTrack
+  // que falhou silenciosamente antes) algum peer ainda estiver mandando uma
+  // trilha de mic DIFERENTE da atual (uma trilha "órfã"), o toggle de mudo
+  // não alcançava ela — a pessoa continuava te ouvindo pra sempre. Agora o
+  // próprio botão de mutar varre os senders de todos os peers e força
+  // qualquer trilha de mic órfã a refletir o mesmo estado, além de tentar
+  // corrigir a trilha errada com replaceTrack de novo.
+  _forceMicMuteStateOnAllPeers();
   _syncMicBtn();
   showToast(callState.micOn?'🎙 Mic ligado':'🔇 Mic mutado','ok');
+}
+
+// v202609021200 — garante que TODOS os peers, mesmo os que ficaram presos
+// numa trilha de mic órfã (replaceTrack anterior que falhou), respeitem o
+// estado atual de mudo. Ver comentário em callState._micWantsMuted.
+function _forceMicMuteStateOnAllPeers() {
+  try {
+    if (typeof _peers !== 'object' || !_peers) return;
+    var correta = callState.micStream ? callState.micStream.getAudioTracks()[0] : null;
+    var desiredEnabled = !callState._micWantsMuted;
+    Object.keys(_peers).forEach(function(uid){
+      var pc = _peers[uid];
+      if (!pc || pc.signalingState === 'closed') return;
+      pc.getSenders().forEach(function(s){
+        if (s._kind !== 'micaudio' || !s.track) return;
+        // Trilha órfã (diferente da atual): força o estado de mudo nela
+        // mesmo sem trocar (rede de segurança), e tenta corrigir de vez.
+        if (correta && s.track.id !== correta.id) {
+          console.warn('[MIC] Peer', uid, 'com trilha de mic órfã — forçando estado de mudo e tentando corrigir.');
+          s.track.enabled = desiredEnabled;
+          s.replaceTrack(correta).catch(function(e){ console.warn('[MIC] Correção de trilha órfã falhou pra', uid, ':', e); });
+        } else {
+          s.track.enabled = desiredEnabled;
+        }
+      });
+    });
+  } catch(e) { console.warn('[MIC] _forceMicMuteStateOnAllPeers falhou (não crítico):', e); }
 }
 
 // ═══════════════════════════════════════
@@ -15524,20 +15687,39 @@ function _setupAudioPipeline(rawStream) {
         gain.connect(dest);       // NOVO: alimenta a trilha de verdade que sai pela WebRTC, já amplificada
         // A trilha processada substitui a crua como "a" callState.micStream —
         // é ela que _createOffer/_handleSignal/_rtcAddMediaTrack pegam pra
-        // mandar aos peers. Mantém o mesmo readyState/enabled de partida.
+        // mandar aos peers. v202609021200 — CORRIGIDO: "Mantém o mesmo
+        // readyState/enabled de partida" era só um comentário, o código
+        // nunca fazia isso de verdade — toda trilha nova de
+        // createMediaStreamDestination() nasce com enabled=true (padrão do
+        // navegador), então se o usuário estivesse mutado (_micWantsMuted)
+        // quando o pipeline (re)inicializava, o mudo se perdia silenciosamente.
+        // Agora a trilha nova nasce já respeitando o mudo atual.
+        var newTrack = dest.stream.getAudioTracks()[0];
+        if (newTrack) newTrack.enabled = !callState._micWantsMuted;
         callState.micStream = dest.stream;
         _startSpeakingDetector();
         // Se o mic já estava sendo enviado a algum peer com a trilha CRUA
         // (ex.: pipeline demorou um pouco mais que a entrada na call),
         // substitui a trilha em voo por replaceTrack — sem precisar
         // renegociar a conexão inteira.
-        if (typeof _peers === 'object') {
-          var newTrack = dest.stream.getAudioTracks()[0];
+        if (typeof _peers === 'object' && newTrack) {
           Object.values(_peers).forEach(function(pc){
             try {
               pc.getSenders().forEach(function(s){
                 if (s.track && s._kind === 'micaudio' && s.track.id !== newTrack.id) {
-                  s.replaceTrack(newTrack).catch(function(e){ console.warn('[Call] replaceTrack (boost do mic) falhou:', e); });
+                  s.replaceTrack(newTrack).catch(function(e){
+                    // v202609021200 — CAUSA RAIZ de "sempre as mesmas pessoas
+                    // continuam me ouvindo mesmo mutado": se essa troca
+                    // falhasse aqui, a trilha ANTIGA (crua, sem boost) ficava
+                    // presa pra sempre nesse sender específico, e o botão de
+                    // mutar (que só mexe em callState.micStream, já apontando
+                    // pra dest.stream) nunca mais alcançava ela — só esse peer
+                    // continuava recebendo áudio, mudo ou não. Como rede de
+                    // segurança, se a troca falhar, pelo menos força o mudo
+                    // atual na trilha antiga que ficou presa.
+                    console.warn('[Call] replaceTrack (boost do mic) falhou — aplicando mudo na trilha antiga como rede de segurança:', e);
+                    if (s.track) s.track.enabled = !callState._micWantsMuted;
+                  });
                 }
               });
             } catch(e){}
@@ -15588,6 +15770,10 @@ function _startSpeakingDetector() {
 // ── Reaplicar constraints do settings ──
 function callApplyConstraints() {
   if(!callState.active||!callState.micStream) return;
+  // v202609021200 — isso reiniciava o mic do zero SEM lembrar se o usuário
+  // estava mutado, então mudar um toggle de eco/ruído/ganho no meio da call
+  // reativava o mic sozinho. _micWantsMuted (gravado no clique do botão de
+  // mutar) agora é respeitado por _doRequestMic ao pedir o stream de novo.
   _stopMicStream();
   callState.micState='idle'; callState.micOn=false; _syncMicBtn();
   _doRequestMic();
@@ -19318,6 +19504,304 @@ gProvider.addScope('profile');
 gProvider.setCustomParameters({ prompt: 'select_account' });
 
 // ════════════════════════════════════════════════════════════════════════
+//  PORTÃO DE ACESSO DO SITE (senha do anfitrião) — v202609021400
+//  ------------------------------------------------------------------------
+//  O QUE ISSO FAZ: antes de qualquer coisa do site aparecer pra quem
+//  chegou (login com Google, login local, "entrar sem conta", tudo),
+//  mostra uma tela pedindo a "senha do anfitrião". Só depois de acertar
+//  ela é que o resto do site (login, campanhas, personagens, calls,
+//  tudo) fica visível/usável.
+//
+//  COMO A SENHA É GUARDADA: em NENHUM lugar (nem aqui no código, nem no
+//  Firebase) fica salva a senha em texto puro. Só o HASH SHA-256 dela
+//  fica salvo em `siteGate/hash` no Firebase (via Web Crypto,
+//  crypto.subtle.digest — nativo do navegador, sem biblioteca externa).
+//  Quem digita a senha: o navegador calcula o hash do que foi digitado
+//  e compara com o hash salvo. Se bater, libera. A senha original nunca
+//  trafega nem fica gravada em lugar nenhum.
+//
+//  TROCA DE SENHA: NÃO é mais possível trocar a senha só sabendo a senha
+//  atual (esse era um furo — qualquer um que soubesse a senha do site
+//  virava "anfitrião" e podia trocar ela). Agora a troca de senha só
+//  aparece pra quem está numa lista de e-mails autorizados
+//  (`siteGate/admins`, no Firebase), verificada contra o e-mail da conta
+//  Google JÁ LOGADA da pessoa (não dá pra fingir: precisa ter feito
+//  login de verdade com aquele e-mail). Ver Painel do Anfitrião
+//  (openHostPanel), mais abaixo no módulo, fora deste bloco de comentário.
+//
+//  LIMITAÇÃO REAL DE SEGURANÇA (importante ser honesto sobre isso): este
+//  é um site 100% estático, sem servidor próprio — só Firebase. Então
+//  essa checagem roda no NAVEGADOR de quem está tentando entrar. Isso
+//  bloqueia visitantes casuais, bots simples que só tentam abrir a URL
+//  e crawlers — mas um invasor técnico que abra o Console (F12) e leia
+//  o JavaScript da página consegue, em teoria, contornar a checagem
+//  local (ex.: rodando `_siteGateUnlockRaw()` manualmente no console) OU
+//  ler o hash público em `siteGate/hash` no Firebase e tentar quebrá-lo
+//  por força bruta offline (SHA-256 sem "sal" é rápido de atacar com
+//  hardware dedicado, embora uma senha longa e aleatória continue
+//  levando muito tempo). Ou seja: isso é uma TRANCA DE PORTA boa contra
+//  gente aleatória e bots, não um cofre à prova de hacker dedicado. Uma
+//  segurança "de verdade" exigiria um backend próprio (ex.: Firebase
+//  Cloud Functions) validando a senha do lado do servidor, o que é bem
+//  mais trabalho — se um dia isso virar prioridade, é só pedir.
+// ════════════════════════════════════════════════════════════════════════
+
+var SITE_GATE_REF = ref(db, 'siteGate');
+// Hash de fallback (só usado se `siteGate` ainda não existir no Firebase —
+// ou seja, na primeríssima vez que o site roda depois de instalar isso).
+// Corresponde a uma senha inicial forte gerada aleatoriamente, que foi
+// entregue ao anfitrião fora do código-fonte (nunca escrita aqui em texto
+// puro). Assim que alguém entra com ela, o hash passa a viver de verdade
+// no Firebase e essa constante deixa de importar.
+var SITE_GATE_FALLBACK_HASH = '505de9f07b6dde887b17d54be777da85afa24159ceb89eb0975e167355df6c7a';
+var _siteGateCurrentHash = null;
+var _siteGateCurrentVersion = 0;
+var _siteGateAttempts = 0;
+var _siteGateLockUntil = 0;
+
+async function _sha256Hex(text) {
+  var enc = new TextEncoder().encode(text);
+  var buf = await crypto.subtle.digest('SHA-256', enc);
+  return Array.from(new Uint8Array(buf)).map(function(b){ return b.toString(16).padStart(2,'0'); }).join('');
+}
+
+// Observa o Firebase em tempo real: se o anfitrião trocar a senha em
+// OUTRA aba/dispositivo enquanto alguém já está com o site aberto, essa
+// pessoa é trancada de novo automaticamente na próxima ação de página
+// (não expulsamos ninguém no meio do uso, só na próxima carga).
+onValue(SITE_GATE_REF, function(snap) {
+  var v = snap.val();
+  if (v && v.hash) {
+    _siteGateCurrentHash = v.hash;
+    _siteGateCurrentVersion = v.version || 1;
+  } else {
+    // Primeira vez rodando: usa o hash de fallback e já grava no Firebase
+    // pra próxima vez ler direto de lá.
+    _siteGateCurrentHash = SITE_GATE_FALLBACK_HASH;
+    _siteGateCurrentVersion = 1;
+    set(SITE_GATE_REF, { hash: SITE_GATE_FALLBACK_HASH, version: 1 }).catch(function(e){
+      console.warn('[SiteGate] Não consegui semear a senha inicial no Firebase (não crítico, o fallback local continua funcionando):', e);
+    });
+  }
+  _siteGateCheckUnlockedLocally();
+}, function(err){
+  console.warn('[SiteGate] Falha ao ler siteGate do Firebase — usando fallback local:', err);
+  _siteGateCurrentHash = SITE_GATE_FALLBACK_HASH;
+  _siteGateCurrentVersion = 1;
+  _siteGateCheckUnlockedLocally();
+});
+
+function _siteGateCheckUnlockedLocally() {
+  try {
+    var savedVersion = parseInt(localStorage.getItem('siteGateUnlockedVersion') || '0', 10);
+    if (savedVersion > 0 && savedVersion === _siteGateCurrentVersion) {
+      _siteGateUnlockRaw();
+    }
+  } catch(e) {}
+}
+
+function _siteGateUnlockRaw() {
+  var gate = document.getElementById('site-gate');
+  if (gate) gate.classList.add('gate-unlocked');
+  document.documentElement.style.overflow = '';
+}
+
+window._siteGateTry = async function() {
+  var now = Date.now();
+  var errEl = document.getElementById('site-gate-err');
+  var btn = document.getElementById('site-gate-btn');
+  if (now < _siteGateLockUntil) {
+    var waitS = Math.ceil((_siteGateLockUntil - now) / 1000);
+    if (errEl) errEl.textContent = '⏳ Muitas tentativas erradas — espera ' + waitS + 's e tenta de novo.';
+    return;
+  }
+  var input = document.getElementById('site-gate-pass');
+  var pass = input ? input.value : '';
+  if (!pass) { if (errEl) errEl.textContent = '✕ Digite a senha.'; return; }
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Verificando...'; }
+  try {
+    var hash = await _sha256Hex(pass);
+    var correta = hash === (_siteGateCurrentHash || SITE_GATE_FALLBACK_HASH);
+    if (correta) {
+      if (errEl) errEl.textContent = '';
+      try { localStorage.setItem('siteGateUnlockedVersion', String(_siteGateCurrentVersion)); } catch(e){}
+      _siteGateAttempts = 0;
+      _siteGateUnlockRaw();
+    } else {
+      _siteGateAttempts++;
+      if (errEl) errEl.textContent = '✕ Senha incorreta.';
+      // v202609021400 — DETERRENTE CONTRA BOTS/FORÇA BRUTA: cada erro
+      // aumenta o tempo de espera até a próxima tentativa (backoff
+      // exponencial simples), só client-side — não impede um atacante
+      // técnico que rode o hash diretamente, mas atrapalha bastante
+      // tentativa automatizada ingênua de adivinhar a senha.
+      if (_siteGateAttempts >= 3) {
+        var delaySec = Math.min(60, Math.pow(2, _siteGateAttempts - 2));
+        _siteGateLockUntil = Date.now() + delaySec * 1000;
+        if (errEl) errEl.textContent = '✕ Senha incorreta. Espera ' + delaySec + 's pra tentar de novo.';
+      }
+    }
+  } catch(e) {
+    console.error('[SiteGate] Erro ao verificar senha:', e);
+    if (errEl) errEl.textContent = '✕ Erro ao verificar — tenta de novo.';
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '🔑 ENTRAR'; }
+  }
+};
+
+// (Painel de troca de senha agora vive só no Painel do Anfitrião pós-login, ver mais abaixo — _siteGateToggleAdmin e _siteGateChangePassword antigos, presos aqui no gate pré-login, foram removidos de propósito por serem um furo de segurança.)
+
+// ════════════════════════════════════════════════════════════════════════
+//  PAINEL DO ANFITRIÃO — v202609022000
+//  ------------------------------------------------------------------------
+//  Corrige o furo do modelo anterior: antes, qualquer pessoa que soubesse
+//  a senha de acesso do site também conseguia trocar essa senha (bastava
+//  digitar a senha atual). Agora troca de senha só é possível por quem
+//  está numa lista de e-mails autorizados (`siteGate/admins` no Firebase),
+//  conferida contra o e-mail da conta Google JÁ AUTENTICADA da pessoa
+//  (via Firebase Auth — não dá pra forjar isso digitando um e-mail
+//  qualquer num campo, precisa ter feito login de verdade com aquele
+//  e-mail do Google). O botão "🏠 ANFITRIÃO" na barra de usuário só
+//  aparece pra quem está nessa lista; e mesmo que alguém force o botão a
+//  aparecer via Console, as funções abaixo conferem a lista de novo antes
+//  de deixar fazer qualquer coisa.
+// ════════════════════════════════════════════════════════════════════════
+
+var SITE_ADMINS_REF = ref(db, 'siteGate/admins');
+// E-mail inicial autorizado — combinado diretamente com o anfitrião,
+// nunca herdado de um campo de texto que qualquer visitante possa editar.
+var SITE_GATE_INITIAL_ADMIN_EMAIL = 'gatinhodochukymiale@gmail.com';
+var _siteAdminsMap = {}; // { emailChaveSanitizada: emailOriginal }
+var _siteCurrentUserEmail = null;
+
+// Firebase (Realtime Database) não aceita '.', '#', '$', '[', ']' em chaves
+// — então usamos o e-mail em minúsculas com esses caracteres trocados como
+// CHAVE, e guardamos o e-mail original como VALOR (pra mostrar na lista).
+function _emailToFbKey(email) {
+  return String(email).trim().toLowerCase().replace(/[.#$\[\]]/g, '_');
+}
+
+onValue(SITE_ADMINS_REF, function(snap) {
+  var v = snap.val();
+  if (v && Object.keys(v).length) {
+    _siteAdminsMap = v;
+  } else {
+    // Primeira vez rodando: semeia o e-mail inicial autorizado.
+    var seed = {};
+    seed[_emailToFbKey(SITE_GATE_INITIAL_ADMIN_EMAIL)] = SITE_GATE_INITIAL_ADMIN_EMAIL;
+    _siteAdminsMap = seed;
+    set(SITE_ADMINS_REF, seed).catch(function(e){
+      console.warn('[HostPanel] Não consegui semear a lista de anfitriões (não crítico):', e);
+    });
+  }
+  _refreshHostPanelBtn();
+});
+
+function _isCurrentUserHostAdmin() {
+  if (!_siteCurrentUserEmail) return false;
+  var key = _emailToFbKey(_siteCurrentUserEmail);
+  return !!(_siteAdminsMap && _siteAdminsMap[key]);
+}
+
+function _refreshHostPanelBtn() {
+  var btn = document.getElementById('ub-hostpanel-btn');
+  if (btn) btn.style.display = _isCurrentUserHostAdmin() ? '' : 'none';
+}
+
+// Escuta autenticação de forma independente do fluxo principal de login
+// (só pra saber o e-mail de quem está logado agora e comparar com a
+// lista de anfitriões — não interfere em nada do fluxo de perfil/conta).
+onAuthStateChanged(auth, function(fbUser) {
+  _siteCurrentUserEmail = fbUser ? (fbUser.email || null) : null;
+  _refreshHostPanelBtn();
+});
+
+window.openHostPanel = function() {
+  if (!_isCurrentUserHostAdmin()) {
+    showToast('✕ Só quem está na lista de anfitriões pode abrir este painel.', 'err');
+    return;
+  }
+  _renderHostAdminsList();
+  var modal = document.getElementById('hostpanel-modal');
+  if (modal) modal.style.display = 'flex';
+};
+
+window.closeHostPanel = function() {
+  var modal = document.getElementById('hostpanel-modal');
+  if (modal) modal.style.display = 'none';
+  var e1 = document.getElementById('hp-newpass'); if (e1) e1.value = '';
+  var e2 = document.getElementById('hp-newpass2'); if (e2) e2.value = '';
+  var e3 = document.getElementById('hp-newadmin-email'); if (e3) e3.value = '';
+  var err = document.getElementById('hp-err'); if (err) err.textContent = '';
+};
+
+function _renderHostAdminsList() {
+  var box = document.getElementById('hp-admins-list');
+  if (!box) return;
+  var keys = Object.keys(_siteAdminsMap || {});
+  box.innerHTML = keys.map(function(k){
+    var email = _siteAdminsMap[k];
+    var isMe = _siteCurrentUserEmail && email.toLowerCase() === _siteCurrentUserEmail.toLowerCase();
+    return '<div style="display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:6px 10px;font-size:.68rem">' +
+      '<span>' + (isMe ? '👑 ' : '👤 ') + email + (isMe ? ' <span style="opacity:.5">(você)</span>' : '') + '</span>' +
+      (keys.length > 1 ? '<button onclick="hostPanelRemoveAdmin(\'' + k + '\')" style="background:none;border:none;color:rgba(255,100,100,.8);cursor:pointer;font-size:.7rem" title="Remover acesso">✕</button>' : '') +
+    '</div>';
+  }).join('') || '<p style="font-size:.65rem;color:rgba(255,255,255,.4)">Ninguém na lista (isso não devia acontecer).</p>';
+}
+
+window.hostPanelChangePassword = async function() {
+  if (!_isCurrentUserHostAdmin()) { showToast('✕ Sem permissão.', 'err'); return; }
+  var errEl = document.getElementById('hp-err');
+  var newPass = (document.getElementById('hp-newpass') || {}).value || '';
+  var newPass2 = (document.getElementById('hp-newpass2') || {}).value || '';
+  if (newPass.length < 6) { if (errEl) errEl.textContent = '✕ A nova senha precisa ter pelo menos 6 caracteres.'; return; }
+  if (newPass !== newPass2) { if (errEl) errEl.textContent = '✕ As duas senhas não são iguais.'; return; }
+  try {
+    var newHash = await _sha256Hex(newPass);
+    var newVersion = (_siteGateCurrentVersion || 1) + 1;
+    await set(SITE_GATE_REF, { hash: newHash, version: newVersion });
+    try { localStorage.setItem('siteGateUnlockedVersion', String(newVersion)); } catch(e){}
+    document.getElementById('hp-newpass').value = '';
+    document.getElementById('hp-newpass2').value = '';
+    if (errEl) { errEl.style.color = '#7dff9c'; errEl.textContent = '✓ Senha do site trocada! Quem já tinha entrado antes vai precisar digitar a nova senha na próxima vez que abrir o site.'; }
+    showToast('✓ Senha do site trocada com sucesso', 'ok');
+  } catch(e) {
+    console.error('[HostPanel] Erro ao trocar senha:', e);
+    if (errEl) errEl.textContent = '✕ Erro ao trocar a senha — tenta de novo.';
+  }
+};
+
+window.hostPanelAddAdmin = async function() {
+  if (!_isCurrentUserHostAdmin()) { showToast('✕ Sem permissão.', 'err'); return; }
+  var errEl = document.getElementById('hp-err');
+  var input = document.getElementById('hp-newadmin-email');
+  var email = (input ? input.value : '').trim().toLowerCase();
+  if (!email || email.indexOf('@') === -1) { if (errEl) errEl.textContent = '✕ Digite um e-mail válido.'; return; }
+  try {
+    await set(ref(db, 'siteGate/admins/' + _emailToFbKey(email)), email);
+    if (input) input.value = '';
+    if (errEl) { errEl.style.color = '#7dff9c'; errEl.textContent = '✓ ' + email + ' agora pode abrir o Painel do Anfitrião (depois de logar no site com esse e-mail do Google).'; }
+    showToast('✓ Anfitrião adicionado', 'ok');
+  } catch(e) {
+    console.error('[HostPanel] Erro ao adicionar anfitrião:', e);
+    if (errEl) errEl.textContent = '✕ Erro ao adicionar — tenta de novo.';
+  }
+};
+
+window.hostPanelRemoveAdmin = async function(key) {
+  if (!_isCurrentUserHostAdmin()) { showToast('✕ Sem permissão.', 'err'); return; }
+  if (Object.keys(_siteAdminsMap || {}).length <= 1) { showToast('✕ Não dá pra remover o último anfitrião.', 'err'); return; }
+  if (!confirm('Remover o acesso de ' + (_siteAdminsMap[key] || key) + ' ao Painel do Anfitrião?')) return;
+  try {
+    await set(ref(db, 'siteGate/admins/' + key), null);
+    showToast('✓ Acesso removido', 'ok');
+  } catch(e) {
+    console.error('[HostPanel] Erro ao remover anfitrião:', e);
+    showToast('✕ Erro ao remover — tenta de novo', 'err');
+  }
+};
+
+// ════════════════════════════════════════════════════════════════════════
 //  SOBRESCRITAS CRÍTICAS DO CHAT — de propósito, o MAIS CEDO possível
 //  ------------------------------------------------------------------------
 //  pushChatMsg / toggleLive / _setActiveCampanha nascem como funções 100%
@@ -22617,9 +23101,11 @@ function _subscribeCallRoomExtras(roomId) {
     var forced = !!snap.val();
     callState.forceMuted = forced;
     if (forced && callState.micState === 'active') {
+      callState._micWantsMuted = true; // v202609021200 — mesma proteção do mute manual: sobrevive a recriação de trilha
       if (callState.micStream) callState.micStream.getAudioTracks().forEach(function(t){ t.enabled = false; });
       callState.micState = 'muted';
       if (typeof window._syncMicBtn === 'function') window._syncMicBtn();
+      if (typeof _forceMicMuteStateOnAllPeers === 'function') _forceMicMuteStateOnAllPeers();
       showToast('🔇 Você foi silenciado pelo Mestre', 'warn');
     }
     var btn = document.getElementById('ctrl-mic');
