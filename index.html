@@ -5738,8 +5738,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 </div>
 
 <!-- ═══ MODAL: PAINEL DO ANFITRIÃO (só quem está na lista de admins vê) ═══ -->
-<div class="modal-overlay" id="hostpanel-modal" style="display:none">
-  <div class="modal-box" style="max-width:440px">
+<div class="modal-overlay" id="hostpanel-modal" style="display:none" onclick="if(event.target===this)closeHostPanel()">
+  <div class="modal" style="max-width:440px">
     <div class="modal-title">🏠 Painel do Anfitrião</div>
     <button class="modal-close" onclick="closeHostPanel()">✕</button>
     <p style="font-size:.68rem;color:rgba(255,255,255,.6);line-height:1.5;margin:0 0 16px">
