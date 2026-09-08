@@ -3964,4 +3964,19 @@ Object.keys(s.tokens||{}).forEach(function(id){var t=s.tokens[id],x=r.x+(t.x==nu
   setInterval(setup,700);
 })();
 </script>
+<script>
+(function(){
+  function setup(){
+    var s=window._tt2dState,tools=document.getElementById("tt2d-drawing-tools"),overlay=document.getElementById("tt2d-overlay");
+    if(!s||!tools||!overlay||document.getElementById("tt2d-palette"))return;
+    var palette=document.createElement("div");palette.id="tt2d-palette";palette.style.cssText="display:flex;align-items:center;gap:3px;padding:3px 5px;border:1px solid rgba(255,255,255,.14);border-radius:6px;background:rgba(255,255,255,.04)";
+    ["#ffe066","#ff6b6b","#7ee0ff","#73e69a","#c79cff","#ffffff"].forEach(function(color){var b=document.createElement("button");b.type="button";b.title="Cor "+color;b.style.cssText="width:17px;height:17px;padding:0;border-radius:50%;border:2px solid rgba(255,255,255,.35);background:"+color+";cursor:pointer";b.onclick=function(){s.drawColor=color;var input=document.getElementById("tt2d-color");if(input)input.value=color};palette.appendChild(b)});
+    tools.insertBefore(palette,tools.firstChild);
+    var undo=document.getElementById("tt2d-undo"),redo=document.getElementById("tt2d-redo");function update(){if(undo)undo.disabled=!s.drawUndo||!s.drawUndo.length;if(redo)redo.disabled=!s.drawRedo||!s.drawRedo.length;[undo,redo].forEach(function(b){if(b)b.style.opacity=b.disabled?.4:"1"})}var oldUndo=undo&&undo.onclick,oldRedo=redo&&redo.onclick;if(undo)undo.onclick=function(){oldUndo&&oldUndo();setTimeout(update,0)};if(redo)redo.onclick=function(){oldRedo&&oldRedo();setTimeout(update,0)};update();
+    document.addEventListener("keydown",function(ev){if(!s.open)return;var key=ev.key.toLowerCase();if((ev.ctrlKey||ev.metaKey)&&key==="z"){ev.preventDefault();if(ev.shiftKey&&redo)redo.click();else if(undo)undo.click()}else if((ev.ctrlKey||ev.metaKey)&&key==="y"){ev.preventDefault();redo&&redo.click()}else if(key==="escape"){s.mode="select";var hud=overlay.querySelector(".tt2d-hud");hud&&(hud.textContent="MOVER / arraste tokens / roda: zoom / duplo clique: editar")}});
+  }
+  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",setup);else setup();
+  setInterval(setup,700);
+})();
+</script>
 </html>
