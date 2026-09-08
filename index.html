@@ -3894,7 +3894,7 @@ Object.keys(s.tokens||{}).forEach(function(id){var t=s.tokens[id],x=r.x+(t.x==nu
 (function(){
   function setup(){
     var bar=document.querySelector("#tt2d-overlay .tt2d-bar");
-    if(!bar||document.getElementById("tt2d-tools-more"))return;
+    if(!bar||document.getElementById("tt2d-tools-moreDesenhar"))return;
     ["Desenhar","Medir"].forEach(function(label){var b=document.createElement("button");b.id="tt2d-tools-more"+label;b.className="tt2d-btn";b.textContent=label;b.onclick=function(){var s=window._tt2dState;if(!s)return;s.mode=label==="Desenhar"?"draw":s.mode==="measure"?"select":"measure";b.classList.toggle("active",s.mode!=="select");var other=document.getElementById("tt2d-tools-more"+(label==="Desenhar"?"Medir":"Desenhar"));other&&other.classList.remove("active");var h=document.querySelector("#tt2d-overlay .tt2d-hud");h&&(h.textContent=s.mode==="draw"?"Desenhar: arraste no mapa para criar uma linha":"Medir: arraste entre dois pontos");};bar.insertBefore(b,document.getElementById("tt2d-3d"))});
     var c=document.getElementById("tt2d-canvas");if(!c||c.dataset.toolsBound)return;c.dataset.toolsBound="1";
     c.addEventListener("pointerdown",function(ev){var s=window._tt2dState;if(!s||s.mode==="select")return;ev.stopImmediatePropagation();var p=window._tt2dApi.point(ev);s.stroke=[p];s.drag={id:null,x:p.x,y:p.y,panX:s.panX,panY:s.panY};c.setPointerCapture(ev.pointerId)},true);
@@ -3916,6 +3916,52 @@ Object.keys(s.tokens||{}).forEach(function(id){var t=s.tokens[id],x=r.x+(t.x==nu
     remove.forEach(function(text){text.parentNode&&text.parentNode.removeChild(text)});
   }
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",removeOrphanedTabletopText);else removeOrphanedTabletopText();
+})();
+</script>
+<script>
+(function(){
+  function polish(){
+    var overlay=document.getElementById("tt2d-overlay"),bar=overlay&&overlay.querySelector(".tt2d-bar");
+    if(!overlay||!bar||document.getElementById("tt2d-pro-style"))return;
+    var style=document.createElement("style");style.id="tt2d-pro-style";style.textContent=''+
+      '#tt2d-overlay .tt2d-bar{gap:10px;padding:10px 16px;background:linear-gradient(180deg,rgba(12,17,25,.99),rgba(7,10,16,.98));border-bottom:1px solid rgba(126,224,255,.28)}'+
+      '#tt2d-overlay .tt2d-title{display:flex;align-items:center;gap:8px;font-size:.78rem;letter-spacing:.14em}'+
+      '#tt2d-overlay .tt2d-title::before{content:"";width:8px;height:8px;border-radius:50%;background:#57d7ff;box-shadow:0 0 12px #57d7ff}'+
+      '#tt2d-overlay .tt2d-btn{min-height:32px;border-radius:6px;background:rgba(255,255,255,.055);border-color:rgba(255,255,255,.13);transition:background .15s,border-color .15s,transform .15s}'+
+      '#tt2d-overlay .tt2d-btn:hover{transform:translateY(-1px);background:rgba(126,224,255,.14);border-color:rgba(126,224,255,.48)}'+
+      '#tt2d-overlay .tt2d-btn.active{color:#07131b;background:linear-gradient(135deg,#7ee0ff,#3d8fb4);border-color:#b9efff;box-shadow:0 0 18px rgba(126,224,255,.2)}'+
+      '#tt2d-overlay .tt2d-stage{background:radial-gradient(circle at 50% 30%,#2b3947,#111820 72%)}'+
+      '#tt2d-overlay .tt2d-hud{left:16px;bottom:16px;color:rgba(220,240,255,.86);background:rgba(5,9,14,.86);border-color:rgba(126,224,255,.2);box-shadow:0 8px 25px rgba(0,0,0,.3)}'+
+      '#tt2d-overlay .tt2d-help{right:16px;bottom:16px;padding:4px;border:1px solid rgba(255,255,255,.12);border-radius:9px;background:rgba(5,9,14,.78);box-shadow:0 8px 25px rgba(0,0,0,.3)}'+
+      '#tt2d-overlay .tt2d-token-editor{top:76px;border-color:rgba(126,224,255,.38);backdrop-filter:blur(18px)}'+
+      '#tt2d-overlay .tt2d-canvas{background-image:radial-gradient(rgba(255,255,255,.08) 1px,transparent 1px);background-size:24px 24px}';
+    document.head.appendChild(style);
+    var status=document.createElement("span");status.id="tt2d-status";status.textContent="ONLINE / SINCRONIZADA";status.style.cssText="font:600 .52rem Share Tech Mono,monospace;letter-spacing:.08em;color:#67e69a;border:1px solid rgba(87,230,154,.28);background:rgba(87,230,154,.08);border-radius:20px;padding:5px 9px;white-space:nowrap";var close=document.getElementById("tt2d-close");bar.insertBefore(status,close);
+    var hud=overlay.querySelector(".tt2d-hud");if(hud)hud.textContent="MOVER / arraste tokens / roda: zoom / duplo clique: editar";
+  }
+  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",polish);else polish();
+  setInterval(polish,500);
+})();
+</script>
+<script>
+(function(){
+  function setup(){
+    var s=window._tt2dState,api=window._tt2dApi,bar=document.querySelector("#tt2d-overlay .tt2d-bar");
+    if(!s||!api||!bar||document.getElementById("tt2d-drawing-tools"))return;
+    s.drawColor=s.drawColor||"#ffe066";s.brush=s.brush||"pencil";s.drawUndo=s.drawUndo||[];s.drawRedo=s.drawRedo||[];s._lastDrawings=s._lastDrawings||null;
+    var box=document.createElement("div");box.id="tt2d-drawing-tools";box.style.cssText="display:flex;align-items:center;gap:5px";
+    box.innerHTML='<label title="Cor do desenho" style="display:flex;align-items:center;gap:4px;padding:3px 6px;border:1px solid rgba(255,255,255,.14);border-radius:6px;background:rgba(255,255,255,.05)"><input id="tt2d-color" type="color" value="#ffe066" style="width:22px;height:22px;border:0;padding:0;background:none;cursor:pointer"><span style="font-size:.5rem">COR</span></label><select id="tt2d-brush" class="tt2d-btn" title="Tipo de pincel"><option value="pencil">Lapis</option><option value="marker">Marcador</option><option value="line">Linha</option><option value="dots">Pontos</option></select><button class="tt2d-btn" id="tt2d-undo" title="Desfazer desenho">↶</button><button class="tt2d-btn" id="tt2d-redo" title="Refazer desenho">↷</button>';
+    var before=document.getElementById("tt2d-3d");bar.insertBefore(box,before);
+    var color=document.getElementById("tt2d-color"),brush=document.getElementById("tt2d-brush");color.oninput=function(){s.drawColor=this.value};brush.onchange=function(){s.brush=this.value};
+    function clone(v){return JSON.parse(JSON.stringify(v||{}))}s._lastDrawings=s._lastDrawings||clone((api.scene()||{}).drawings);
+    var originalWrite=api.write;api.write=function(path,value){if(path.indexOf("/drawings/")!==-1&&value&&value.points){s.drawUndo.push({before:clone(s._lastDrawings),after:clone((api.scene()||{}).drawings)});if(s.drawUndo.length>40)s.drawUndo.shift();s.drawRedo=[];s._lastDrawings=clone((api.scene()||{}).drawings);value.color=s.drawColor;if(s.brush==="line"&&value.points.length>1)value.points=[value.points[0],value.points[value.points.length-1]];if(s.brush==="dots")value.points=value.points.filter(function(_,i){return i%3===0});if(s.brush==="marker")value.width=8}return originalWrite(path,value)};
+    function restore(snapshot){var scene=api.scene();if(!scene)return;scene.drawings=clone(snapshot);originalWrite("scenes/"+s.sceneId+"/drawings",scene.drawings);api.draw()}
+    document.getElementById("tt2d-undo").onclick=function(){var item=s.drawUndo.pop();if(!item)return;s.drawRedo.push({before:clone(item.before),after:clone(item.after)});s._lastDrawings=clone(item.before);restore(item.before)};
+    document.getElementById("tt2d-redo").onclick=function(){var item=s.drawRedo.pop();if(!item)return;s.drawUndo.push({before:clone(item.before),after:clone(item.after)});s._lastDrawings=clone(item.after);restore(item.after)};
+    var originalDraw=api.draw;api.draw=function(){originalDraw();if(!s.stroke||!s.stroke.length||!s.view)return;var c=s.canvas,ctx=s.ctx;ctx.save();ctx.strokeStyle=s.drawColor||"#ffe066";ctx.lineWidth=s.mode==="measure"?3:s.brush==="marker"?8:3;ctx.lineCap="round";ctx.lineJoin="round";ctx.beginPath();s.stroke.forEach(function(p,i){i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y)});ctx.stroke();if(s.mode==="measure"&&s.stroke.length>1){var a=s.stroke[0],b=s.stroke[s.stroke.length-1],distance=Math.round(Math.hypot(b.x-a.x,b.y-a.y)/10);ctx.fillStyle="rgba(5,9,14,.92)";ctx.fillRect(b.x+10,b.y-28,120,24);ctx.fillStyle="#fff";ctx.font="600 12px Rajdhani";ctx.fillText(distance+" quadrados",b.x+18,b.y-12)}ctx.restore()};
+  }
+  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",setup);else setup();
+  setInterval(setup,700);
 })();
 </script>
 </html>
