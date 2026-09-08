@@ -3905,4 +3905,17 @@ Object.keys(s.tokens||{}).forEach(function(id){var t=s.tokens[id],x=r.x+(t.x==nu
   setInterval(setup,700);
 })();
 </script>
+<script>
+(function(){
+  function removeOrphanedTabletopText(){
+    var walker=document.createTreeWalker(document,NodeFilter.SHOW_TEXT),node;
+    var remove=[];
+    while(node=walker.nextNode()){
+      if(node.parentElement&&node.parentElement.tagName!=="SCRIPT"&&node.nodeValue.indexOf("Object.keys(s.tokens||{})")!==-1)remove.push(node);
+    }
+    remove.forEach(function(text){text.parentNode&&text.parentNode.removeChild(text)});
+  }
+  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",removeOrphanedTabletopText);else removeOrphanedTabletopText();
+})();
+</script>
 </html>
