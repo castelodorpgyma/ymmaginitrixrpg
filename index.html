@@ -3960,5 +3960,167 @@ var o=window.renderFichaView;if(typeof o==="function"){window.renderFichaView=fu
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",mount);else mount();
 })();
 </script>
+<style id="ymm-game-ui">
+#view-equipamentos .tabs,#view-referencia .tabs{gap:6px;padding:7px;background:rgba(7,8,18,.72);border:1px solid rgba(126,224,255,.16);box-shadow:0 8px 26px rgba(0,0,0,.2)}
+#view-equipamentos .tab,#view-referencia .tab{padding:10px 13px;border:1px solid transparent;color:rgba(213,220,239,.72);white-space:nowrap;transition:background .16s,border-color .16s,color .16s}
+#view-equipamentos .tab:hover,#view-referencia .tab:hover{background:rgba(126,224,255,.08);color:#eafaff}
+#view-equipamentos .tab.active,#view-referencia .tab.active{color:#ffe66d!important;background:linear-gradient(135deg,rgba(126,224,255,.13),rgba(174,109,255,.12));border:1px solid rgba(255,230,109,.42);box-shadow:inset 0 -2px #ffe66d,0 4px 14px rgba(0,0,0,.2)}
+#view-equipamentos .card,#view-referencia .card,#view-sessao .card{border:1px solid rgba(126,224,255,.2);background:linear-gradient(145deg,rgba(15,18,33,.96),rgba(8,10,20,.96));box-shadow:0 12px 30px rgba(0,0,0,.2),inset 0 1px rgba(255,255,255,.035)}
+#view-equipamentos .card-title,#view-referencia .card-title,#view-sessao .card-title{display:flex;align-items:center;gap:8px;color:#eff8ff;text-shadow:0 0 14px rgba(126,224,255,.18)}
+#view-equipamentos .equip-table{border-collapse:separate;border-spacing:0 5px}
+#view-equipamentos .equip-table th{padding:11px 12px;background:rgba(126,224,255,.09);border:0;border-bottom:1px solid rgba(126,224,255,.28);color:#9feaff}
+#view-equipamentos .equip-table th:first-child{border-radius:4px 0 0 4px}
+#view-equipamentos .equip-table th:last-child{border-radius:0 4px 4px 0}
+#view-equipamentos .equip-table td{padding:11px 12px;background:rgba(255,255,255,.025);border-top:1px solid rgba(255,255,255,.025);border-bottom:1px solid rgba(255,255,255,.025)}
+#view-equipamentos .equip-table tr td:first-child{border-left:2px solid rgba(126,224,255,.22);color:#f0f3ff;font-weight:600}
+#view-equipamentos .equip-table tr td:last-child{border-right:1px solid rgba(255,255,255,.025)}
+#view-equipamentos .equip-table tr:hover td{background:rgba(126,224,255,.075);border-color:rgba(126,224,255,.14)}
+#view-equipamentos .equip-table .price{color:#9fe6aa}
+#view-equipamentos .equip-table .dmg{color:#ffb36b}
+#view-referencia .combat-ref{line-height:1.75}
+#view-referencia .combat-ref strong{display:block;margin-top:12px;color:#ffe66d;letter-spacing:.08em}
+#view-referencia .combat-ref strong:first-child{margin-top:0}
+#view-referencia .combat-ref .formula{border-left:3px solid #8a75ff;border-radius:0;background:linear-gradient(90deg,rgba(138,117,255,.1),rgba(255,255,255,.025));color:#d9def3;padding:8px 12px}
+#view-sessao .grid2{gap:18px!important}
+#view-sessao #live-display{min-height:250px;border:1px solid rgba(126,224,255,.28);background-color:#080b17;background-image:linear-gradient(rgba(126,224,255,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(126,224,255,.045) 1px,transparent 1px),radial-gradient(ellipse at 50% 40%,rgba(75,82,150,.22),transparent 72%);background-size:16px 16px,16px 16px,auto;box-shadow:inset 0 0 38px rgba(0,0,0,.3)}
+#view-sessao #live-placeholder{color:#aab8d5!important}
+#view-sessao .dice-quick-grid{gap:7px}
+#view-sessao .dice-quick-grid .dq-btn{min-height:38px;border:1px solid rgba(126,224,255,.2);background:rgba(126,224,255,.055);color:#dcecff;transition:transform .14s,background .14s,border-color .14s,box-shadow .14s}
+#view-sessao .dice-quick-grid .dq-btn:hover{transform:translateY(-2px);background:rgba(126,224,255,.14);border-color:rgba(126,224,255,.55);box-shadow:0 5px 16px rgba(0,0,0,.2)}
+#view-sessao .roll-feed{border:1px solid rgba(126,224,255,.16);background:rgba(4,7,15,.55)}
+#view-sessao .call-card-banner{border:1px solid rgba(126,224,255,.2);background:linear-gradient(120deg,rgba(126,224,255,.09),rgba(152,111,255,.07))}
+#view-sessao .card>div[style*="font-size:.58rem"]{color:#9eaccb!important}
+#call-character-hud{position:fixed;z-index:10020;left:16px;bottom:94px;width:min(280px,calc(100vw - 32px));display:flex;align-items:center;gap:10px;padding:9px 11px;background:linear-gradient(135deg,rgba(8,10,25,.96),rgba(18,13,39,.94));border:2px solid rgba(126,224,255,.65);box-shadow:4px 4px 0 rgba(138,92,255,.35),0 0 22px rgba(56,225,255,.13);color:#f2f5ff;font-family:"Share Tech Mono",monospace;image-rendering:pixelated;backdrop-filter:blur(10px)}
+#call-character-hud[hidden]{display:none}
+#call-character-hud .cch-avatar{width:48px;height:48px;flex:0 0 48px;object-fit:cover;border:2px solid #fff;background:#111;image-rendering:auto}
+#call-character-hud .cch-copy{min-width:0;flex:1}
+#call-character-hud .cch-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#fff;font-size:.67rem;font-weight:bold;letter-spacing:.04em}
+#call-character-hud .cch-label{color:#8f9aba;font-size:.43rem;letter-spacing:.1em;margin:2px 0 5px}
+#call-character-hud .cch-stat{display:grid;grid-template-columns:15px 1fr 44px;align-items:center;gap:5px;margin-top:4px}
+#call-character-hud .cch-icon{font-size:.55rem}
+#call-character-hud .cch-track{height:8px;background:#080912;border:1px solid rgba(255,255,255,.45);padding:1px}
+#call-character-hud .cch-fill{height:100%;width:0;background:#ff5577;transition:width .2s steps(8)}
+#call-character-hud .cch-fill.sanity{background:#b18cff}
+#call-character-hud .cch-fill.effort{background:#ffd45e}
+#call-character-hud .cch-value{font-size:.43rem;color:#cbd2e8;text-align:right}
+#call-part-local.call-frame-enabled{outline:3px solid var(--call-frame-color,#38e1ff)!important;outline-offset:3px;border-color:var(--call-frame-color,#38e1ff)!important;box-shadow:5px 5px 0 var(--call-frame-color,#38e1ff),0 0 18px color-mix(in srgb,var(--call-frame-color,#38e1ff) 45%,transparent)!important}
+#call-part-local.call-frame-gold{outline-style:double!important;outline-width:5px!important}
+#call-part-local.call-frame-arcade{outline-offset:5px!important;box-shadow:5px 5px 0 #111,8px 8px 0 var(--call-frame-color,#38e1ff)!important}
+#call-character-options{display:grid;gap:8px;padding:10px;margin:8px 0;border:1px solid rgba(126,224,255,.22);background:rgba(126,224,255,.045)}
+#call-character-options .cch-option-row{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:.62rem;color:#e5e9f8}
+#call-character-options input[type=color]{width:34px;height:27px;padding:2px;border:1px solid rgba(255,255,255,.28);background:#101322;cursor:pointer}
+#call-character-options select{max-width:130px;padding:5px 7px;background:#101322;color:#edf2ff;border:1px solid rgba(126,224,255,.25)}
+#call-controls .call-game-tool{width:auto;min-width:38px;padding:0 9px;font-size:.66rem;color:#ffe66d;border-color:rgba(255,230,109,.4);background:rgba(255,230,109,.08)}
+#call-controls .call-game-tool:hover{background:rgba(255,230,109,.17);box-shadow:0 0 14px rgba(255,230,109,.14)}
+@media(max-width:600px){
+  #view-equipamentos .equip-table{font-size:.68rem}
+  #view-equipamentos .equip-table th,#view-equipamentos .equip-table td{padding:8px 7px}
+  #view-sessao #live-display{min-height:190px}
+  #call-character-hud{left:8px;bottom:84px;width:min(240px,calc(100vw - 16px));padding:7px 8px;gap:8px}
+  #call-character-hud .cch-avatar{width:40px;height:40px;flex-basis:40px}
+  #call-controls .call-game-tool{min-width:34px;padding:0 6px}
+}
+</style>
+<script id="ymm-game-call-tools">
+(function(){
+  var hudKey=function(){return"ymm_call_hud_"+((typeof currentUser!=="undefined"&&currentUser&&(currentUser.id||currentUser.username))||"anon")};
+  var frameKey=function(){return"ymm_call_frame_"+((typeof currentUser!=="undefined"&&currentUser&&(currentUser.id||currentUser.username))||"anon")};
+  function read(key,fallback){try{var value=localStorage.getItem(key);return value===null?fallback:JSON.parse(value)}catch(error){console.warn("[Call HUD] Não foi possível ler preferências:",error);return fallback}}
+  function write(key,value){try{localStorage.setItem(key,JSON.stringify(value));return true}catch(error){console.warn("[Call HUD] Não foi possível salvar preferências:",error);if(typeof showToast==="function")showToast("⚠ Preferência não salva neste navegador","warn");return false}}
+  function getSheet(){
+    try{
+      var user=typeof currentUser!=="undefined"&&currentUser||{},players=typeof data!=="undefined"&&data&&data.players||[];
+      var username=(user.username||"").toLowerCase(),id=user.id||"";
+      return players.find(function(player){return player&&player.player&&(player.player.toLowerCase()===username||player.player===id)})||{};
+    }catch(error){console.warn("[Call HUD] Não foi possível ler ficha vinculada:",error);return{}}
+  }
+  function getChar(){
+    try{
+      var custom=typeof callGetCustomChar==="function"&&callGetCustomChar()||{};
+      return custom.nome||custom.vidaMax||custom.sanidadeMax||custom.estaminaMax?custom:getSheet();
+    }catch(error){console.warn("[Call HUD] Não foi possível ler personagem:",error);return getSheet()}
+  }
+  function getAvatar(){
+    try{return typeof callGetCustomAvatar==="function"&&callGetCustomAvatar()||getSheet().avatar||null}
+    catch(error){console.warn("[Call HUD] Não foi possível ler imagem do personagem:",error);return getSheet().avatar||null}
+  }
+  function clamp(value,max){value=Math.max(0,Number(value)||0);max=Math.max(0,Number(max)||0);return{value:value,max:max,percent:max?Math.max(0,Math.min(100,value/max*100)):0}}
+  function applyFrame(){
+    var pref=read(frameKey(),{enabled:true,color:"#38e1ff",style:"neon"}),card=document.getElementById("call-part-local");
+    if(!card)return;
+    card.classList.toggle("call-frame-enabled",!!pref.enabled);
+    card.classList.remove("call-frame-gold","call-frame-arcade");
+    if(pref.enabled&&pref.style==="gold")card.classList.add("call-frame-gold");
+    if(pref.enabled&&pref.style==="arcade")card.classList.add("call-frame-arcade");
+    card.style.setProperty("--call-frame-color",/^#[0-9a-f]{6}$/i.test(pref.color||"")?pref.color:"#38e1ff");
+  }
+  function renderHud(){
+    var root=document.getElementById("call-character-hud");
+    if(!root)return;
+    var active=typeof callState!=="undefined"&&callState&&callState.active;
+    root.hidden=!active||!read(hudKey(),true);
+    var c=getChar(),name=(c.nome||((typeof currentUser!=="undefined"&&currentUser&&currentUser.username)||"Personagem")).trim();
+    var avatar=getAvatar()||((typeof currentUser!=="undefined"&&currentUser&&currentUser.avatar)||"");
+    var stats=[{key:"vida",icon:"❤",cls:"",label:"VIDA"},{key:"sanidade",icon:"🧠",cls:"sanity",label:"SAN"},{key:"estamina",icon:"⚡",cls:"effort",label:"ESFORÇO"}];
+    var img=root.querySelector(".cch-avatar"),nameEl=root.querySelector(".cch-name");
+    if(img&&img.getAttribute("src")!==(avatar||"")){img.src=avatar||"";img.style.display=avatar?"block":"none"}
+    var fallback=root.querySelector(".cch-avatar-fallback");if(fallback)fallback.style.display=avatar?"none":"flex";
+    if(nameEl&&nameEl.textContent!==name)nameEl.textContent=name;
+    stats.forEach(function(stat){
+      var current=clamp(c[stat.key],c[stat.key+"Max"]),track=root.querySelector('[data-stat="'+stat.key+'"]');
+      if(!track)return;
+      var fill=track.querySelector(".cch-fill"),value=track.querySelector(".cch-value");
+      if(fill)fill.style.width=current.percent+"%";
+      if(value)value.textContent=current.value+"/"+(current.max||"—");
+    });
+    applyFrame();
+  }
+  function setHud(enabled){
+    write(hudKey(),!!enabled);
+    var toggle=document.getElementById("call-character-hud-toggle");if(toggle)toggle.checked=!!enabled;
+    renderHud();
+  }
+  function saveFrame(){
+    var pref={enabled:!!document.getElementById("call-frame-toggle").checked,color:document.getElementById("call-frame-color").value,style:document.getElementById("call-frame-style").value};
+    write(frameKey(),pref);applyFrame();
+  }
+  function init(){
+    var overlay=document.getElementById("call-overlay"),controls=document.getElementById("call-controls"),settings=document.getElementById("call-panel-settings");
+    if(!overlay||!controls||!settings)return;
+    if(!document.getElementById("call-character-hud")){
+      var hud=document.createElement("aside");hud.id="call-character-hud";hud.setAttribute("aria-label","Painel do personagem na call");
+      hud.innerHTML='<img class="cch-avatar" alt="Imagem do personagem" style="display:none"><div class="cch-avatar-fallback" aria-hidden="true" style="display:flex;width:48px;height:48px;flex:0 0 48px;align-items:center;justify-content:center;border:2px solid #fff;background:#111;font-size:1.3rem">⚔</div><div class="cch-copy"><div class="cch-name">Personagem</div><div class="cch-label">STATUS DA MESA</div><div class="cch-stat" data-stat="vida"><span class="cch-icon">❤</span><div class="cch-track"><div class="cch-fill"></div></div><span class="cch-value">0/—</span></div><div class="cch-stat" data-stat="sanidade"><span class="cch-icon">🧠</span><div class="cch-track"><div class="cch-fill sanity"></div></div><span class="cch-value">0/—</span></div><div class="cch-stat" data-stat="estamina"><span class="cch-icon">⚡</span><div class="cch-track"><div class="cch-fill effort"></div></div><span class="cch-value">0/—</span></div></div>';
+      overlay.appendChild(hud);
+    }
+    if(!document.getElementById("call-character-options")){
+      var options=document.createElement("div");options.id="call-character-options";
+      options.innerHTML='<div class="cch-option-row"><span>HUD do personagem</span><label><input id="call-character-hud-toggle" type="checkbox" checked> mostrar na call</label></div><div class="cch-option-row"><span>Borda do perfil na call</span><label><input id="call-frame-toggle" type="checkbox" checked> ativada</label></div><div class="cch-option-row"><label for="call-frame-style">Estilo</label><select id="call-frame-style"><option value="neon">Neon</option><option value="gold">Metal duplo</option><option value="arcade">Arcade</option></select><label for="call-frame-color">Cor</label><input id="call-frame-color" type="color" value="#38e1ff" aria-label="Cor da borda do perfil"></div>';
+      var deviceSep=Array.prototype.find.call(settings.querySelectorAll(".call-music-sep"),function(el){return el.textContent.indexOf("DISPOSITIVOS")>=0});
+      if(deviceSep)deviceSep.parentNode.insertBefore(options,deviceSep);else settings.appendChild(options);
+      options.querySelector("#call-character-hud-toggle").addEventListener("change",function(){setHud(this.checked)});
+      options.querySelector("#call-frame-toggle").addEventListener("change",saveFrame);
+      options.querySelector("#call-frame-style").addEventListener("change",saveFrame);
+      options.querySelector("#call-frame-color").addEventListener("input",saveFrame);
+    }
+    var frame=read(frameKey(),{enabled:true,color:"#38e1ff",style:"neon"});
+    document.getElementById("call-frame-toggle").checked=!!frame.enabled;
+    document.getElementById("call-frame-color").value=/^#[0-9a-f]{6}$/i.test(frame.color||"")?frame.color:"#38e1ff";
+    document.getElementById("call-frame-style").value=["neon","gold","arcade"].indexOf(frame.style)>=0?frame.style:"neon";
+    document.getElementById("call-character-hud-toggle").checked=!!read(hudKey(),true);
+    if(!controls.querySelector(".call-game-tool")){
+      var roulette=document.createElement("button");roulette.type="button";roulette.className="call-ctrl-btn call-game-tool";roulette.title="Abrir roleta da mesa";roulette.setAttribute("aria-label","Abrir roleta");roulette.textContent="🎰";
+      roulette.addEventListener("click",function(){if(typeof openModal==="function")openModal("modal-roleta")});
+      var badLuck=document.createElement("button");badLuck.type="button";badLuck.className="call-ctrl-btn call-game-tool";badLuck.title="Rolar tabela de azar";badLuck.setAttribute("aria-label","Rolar azar");badLuck.textContent="☠";
+      badLuck.addEventListener("click",function(){if(typeof rollTabelaAzar==="function")rollTabelaAzar();else if(typeof openTabelaDestino==="function")openTabelaDestino("azar")});
+      var more=controls.querySelector(".call-more-wrap");controls.insertBefore(roulette,more||controls.querySelector(".call-end-btn"));controls.insertBefore(badLuck,more||controls.querySelector(".call-end-btn"));
+    }
+    renderHud();
+    window.setInterval(renderHud,900);
+    var participants=document.getElementById("call-participants-area");
+    if(participants)new MutationObserver(renderHud).observe(participants,{childList:true,subtree:true});
+  }
+  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();
+})();
+</script>
 </body>
 </html>
