@@ -104,6 +104,50 @@
     #call-character-options .cph-option input[type=color]{width:100%;height:28px}
     #call-character-hud{display:none!important}
     #call-participants-area .call-part-stats{display:none!important}
+    #ymm-appearance-controls{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:14px;padding:13px;border:1px solid #ffffff16;border-radius:12px;background:linear-gradient(135deg,#ffffff08,#ffffff03)}
+    #ymm-appearance-controls .ymm-appearance-title{grid-column:1/-1;color:#f2f3f6;font:700 .88rem Rajdhani,sans-serif;letter-spacing:.06em}
+    #ymm-appearance-controls .ymm-appearance-help{grid-column:1/-1;margin-top:-6px;color:#969eaf;font:.64rem/1.5 "Share Tech Mono",monospace}
+    #ymm-appearance-controls label{display:grid;gap:5px;min-width:0;color:#b9c0cf;font:.67rem Rajdhani,sans-serif}
+    #ymm-appearance-controls label.wide{grid-column:1/-1}
+    #ymm-appearance-controls input[type=color],#ymm-appearance-controls select{width:100%;min-width:0;height:34px;padding:5px 8px;border:1px solid #ffffff1a;border-radius:8px;background:#11141c;color:#f1f3f8}
+    #ymm-appearance-controls input[type=range]{width:100%;accent-color:var(--c-accent)}
+    #ymm-appearance-controls button{grid-column:1/-1;min-height:34px;border:1px solid #ffffff1a;border-radius:8px;background:#ffffff08;color:#dfe3ec;font:600 .72rem Rajdhani,sans-serif;cursor:pointer}
+    #ymm-appearance-controls button:hover{background:#ffffff13}
+    #call-theme-owner-tools{margin:10px 0;padding:12px;border:1px solid rgba(126,224,255,.2);border-radius:11px;background:linear-gradient(135deg,rgba(126,224,255,.055),rgba(138,92,255,.035))}
+    #call-theme-owner-tools .ymm-call-theme-title{margin-bottom:4px;color:#f1f4fb;font:700 .85rem Rajdhani,sans-serif;letter-spacing:.06em}
+    #call-theme-owner-tools .ymm-call-theme-note{margin-bottom:10px;color:#9da7bb;font:.59rem/1.5 "Share Tech Mono",monospace}
+    #call-theme-owner-tools .ymm-call-theme-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    #call-theme-owner-tools label{display:grid;gap:4px;color:#c5ccda;font-size:.62rem}
+    #call-theme-owner-tools label.wide{grid-column:1/-1}
+    #call-theme-owner-tools select,#call-theme-owner-tools input[type=color],#call-theme-owner-tools input[type=range]{width:100%;min-width:0}
+    #call-theme-owner-tools select{height:30px;padding:4px 6px;border:1px solid rgba(126,224,255,.2);border-radius:6px;background:#101322;color:#edf2ff}
+    #call-theme-owner-tools input[type=color]{height:28px;padding:2px;border:1px solid rgba(126,224,255,.2);border-radius:6px;background:#101322}
+    #call-theme-owner-tools input[type=range]{accent-color:#7ee0d1}
+    #call-theme-owner-tools .ymm-call-theme-save{grid-column:1/-1;min-height:33px;border:1px solid rgba(126,224,255,.3);border-radius:7px;background:rgba(126,224,255,.1);color:#eafaff;font:700 .68rem Rajdhani,sans-serif;cursor:pointer}
+    #call-theme-owner-tools .ymm-call-theme-save:hover{background:rgba(126,224,255,.19)}
+    #call-overlay[data-ymm-theme="true"]{background:radial-gradient(ellipse 90% 64% at 50% 0%,var(--ymm-call-glow),transparent 74%),linear-gradient(155deg,var(--ymm-call-bg-top),var(--ymm-call-bg))!important;border:var(--ymm-call-border-width) solid var(--ymm-call-border)!important;border-radius:var(--ymm-call-radius)!important;box-shadow:0 24px 80px #000b,0 0 42px color-mix(in srgb,var(--ymm-call-accent) 15%,transparent)!important}
+    #call-overlay[data-ymm-theme="true"]::before{background:var(--ymm-call-texture)!important;background-size:var(--ymm-call-texture-size)!important;opacity:.5}
+    #call-overlay[data-ymm-theme="true"] .call-header{background:linear-gradient(100deg,color-mix(in srgb,var(--ymm-call-accent) 9%,transparent),transparent 60%),color-mix(in srgb,var(--ymm-call-bg) 88%,#171923)!important;border-bottom-color:color-mix(in srgb,var(--ymm-call-border) 65%,transparent)!important}
+    #call-overlay[data-ymm-theme="true"] .call-controls{border-top-color:color-mix(in srgb,var(--ymm-call-border) 75%,transparent)!important;background:color-mix(in srgb,var(--ymm-call-bg) 88%,#11141c)!important;box-shadow:0 -10px 36px #0005}
+    #call-overlay[data-ymm-theme="true"] .call-participant{background:color-mix(in srgb,var(--ymm-call-bg) 78%,#171923)!important;border:var(--ymm-call-border-width) var(--ymm-call-border-style) color-mix(in srgb,var(--ymm-call-border) 78%,transparent)!important;border-radius:var(--ymm-call-radius)!important;box-shadow:0 8px 26px #0006,0 0 18px color-mix(in srgb,var(--ymm-call-accent) 9%,transparent)!important}
+    #call-overlay[data-ymm-theme="true"] .call-participant.is-speaking{border-color:var(--ymm-call-accent)!important;box-shadow:0 0 0 1px var(--ymm-call-accent),0 0 24px color-mix(in srgb,var(--ymm-call-accent) 42%,transparent)!important}
+    #call-overlay[data-ymm-theme="true"] .call-part-av{border-color:color-mix(in srgb,var(--ymm-call-accent) 35%,#ffffff22)!important}
+    #call-overlay[data-ymm-theme="true"] .call-panel{border-color:color-mix(in srgb,var(--ymm-call-border) 72%,transparent)!important;border-radius:var(--ymm-call-radius)!important;box-shadow:0 18px 48px #0009,0 0 22px color-mix(in srgb,var(--ymm-call-accent) 12%,transparent)!important}
+    #call-overlay[data-ymm-style="arcade"] .call-participant{border-style:double!important;box-shadow:5px 5px 0 color-mix(in srgb,var(--ymm-call-accent) 24%,transparent)!important}
+    #call-overlay[data-ymm-style="soft"] .call-participant{border-style:solid!important;box-shadow:0 8px 30px #0007!important}
+    #call-overlay[data-ymm-style="neon"] .call-participant{box-shadow:0 0 0 1px color-mix(in srgb,var(--ymm-call-accent) 22%,transparent),0 0 20px color-mix(in srgb,var(--ymm-call-accent) 20%,transparent)!important}
+    body.ymm-site-custom .card,body.ymm-site-custom .modal,body.ymm-site-custom .call-panel,body.ymm-site-custom .campaign-card,body.ymm-site-custom .player-card,body.ymm-site-custom .mine-card{border-radius:var(--ymm-site-radius)!important}
+    body.ymm-site-custom{font-family:var(--ymm-site-font,inherit)}
+    body.ymm-site-custom .card,body.ymm-site-custom .campaign-card,body.ymm-site-custom .player-card,body.ymm-site-custom .mine-card{border-color:color-mix(in srgb,var(--c-accent) 24%,var(--c-border))!important}
+    body.ymm-site-custom .btn-primary,body.ymm-site-custom .nav-item.active,body.ymm-site-custom .tab.active{border-color:color-mix(in srgb,var(--c-accent) 56%,transparent)!important}
+    body.ymm-site-custom.ymm-site-sharp .card,body.ymm-site-custom.ymm-site-sharp .modal,body.ymm-site-custom.ymm-site-sharp .btn,body.ymm-site-custom.ymm-site-sharp .campaign-card,body.ymm-site-custom.ymm-site-sharp .player-card{border-radius:4px!important}
+    body.ymm-site-custom.ymm-site-sharp .card,body.ymm-site-custom.ymm-site-sharp .campaign-card,body.ymm-site-custom.ymm-site-sharp .player-card{box-shadow:3px 3px 0 color-mix(in srgb,var(--c-accent) 22%,transparent)!important}
+    body.ymm-site-custom.ymm-site-soft .card,body.ymm-site-custom.ymm-site-soft .modal,body.ymm-site-custom.ymm-site-soft .campaign-card,body.ymm-site-custom.ymm-site-soft .player-card{box-shadow:0 12px 32px #0005,0 0 22px color-mix(in srgb,var(--c-accent) 7%,transparent)!important}
+    body.ymm-site-custom.ymm-site-aurora{--t-grad1:radial-gradient(ellipse 85% 55% at 12% 0%,color-mix(in srgb,var(--c-accent) 16%,transparent),transparent 62%);--t-grad2:radial-gradient(ellipse 70% 50% at 86% 100%,color-mix(in srgb,var(--c-accent) 9%,transparent),transparent 60%)}
+    body.ymm-site-custom.ymm-site-calm{--t-grad1:radial-gradient(ellipse 70% 45% at 50% 0%,color-mix(in srgb,var(--c-accent) 7%,transparent),transparent 66%);--t-grad2:none}
+    body.ymm-site-density-compact .grid2,body.ymm-site-density-compact .grid3,body.ymm-site-density-compact .grid4{gap:8px!important}
+    body.ymm-site-density-spacious .grid2,body.ymm-site-density-spacious .grid3,body.ymm-site-density-spacious .grid4{gap:20px!important}
+    body.ymm-motion-reduced *,body.ymm-motion-reduced *::before,body.ymm-motion-reduced *::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}
     #view-sessao .grid2{grid-template-columns:minmax(0,.92fr) minmax(0,1.08fr)!important;align-items:start}
     #view-sessao .grid2>div,#view-sessao .card{min-width:0;max-width:100%}
     #view-sessao #chat-box{height:min(720px,76vh);min-height:340px;max-height:82vh;min-width:0;resize:vertical}
@@ -137,6 +181,10 @@
   var statusCampaign = null, statusWasOnline = false, lastStatusSignature = "", statusErrorShown = false;
   var lastStatusVisible = null, statusRemovalPending = false;
   var statusHudSignature = "";
+  var appearanceUnsub=null,appearanceCampaign=null,appearanceOnline=false,appearanceLoaded=false,appearanceSaveTimer=null,appearanceErrorShown=false;
+  var siteAppearanceKey=null;
+  var defaultCallAppearance={background:"ember",backgroundColor:"#100b12",accent:"#7ee0d1",border:"#60716f",style:"neon",texture:"ambient",borderWidth:2,radius:16};
+  var callAppearance=Object.assign({},defaultCallAppearance);
   var chessState = null, chessMoves = [], audioCtx = null, lastClickCell = null;
   var tetris = { board: [], piece: null, next: null, score: 0, lines: 0, timer: null, ended: true, paused: false };
   var blocks = { board: [], pieces: [], selected: -1, score: 0, ended: true };
@@ -1096,6 +1144,107 @@
       });
     });
   }
+  function siteAppearanceStorageKey(){return "ymm_site_appearance_v1_"+identity().id;}
+  function siteAppearanceDefaults(){return{enabled:false,accent:"#ff4444",background:"#07070f",surface:"#111122",radius:14,shape:"soft",ambience:"aurora",font:"Rajdhani",density:"comfortable",reduceMotion:false};}
+  function readSiteAppearance(){
+    var prefs=siteAppearanceDefaults();
+    try{prefs=Object.assign(prefs,JSON.parse(localStorage.getItem(siteAppearanceStorageKey())||"{}"));}
+    catch(error){console.warn("[Appearance] Não foi possível ler as preferências visuais:",error);}
+    if(!/^#[0-9a-f]{6}$/i.test(prefs.accent))prefs.accent="#ff4444";
+    if(!/^#[0-9a-f]{6}$/i.test(prefs.background))prefs.background="#07070f";
+    if(!/^#[0-9a-f]{6}$/i.test(prefs.surface))prefs.surface="#111122";
+    if([8,12,14,16,20,24].indexOf(Number(prefs.radius))<0)prefs.radius=14;
+    if(["soft","sharp","clean"].indexOf(prefs.shape)<0)prefs.shape="soft";
+    if(["aurora","calm","none"].indexOf(prefs.ambience)<0)prefs.ambience="aurora";
+    if(["Rajdhani","Share Tech Mono","Cinzel","system-ui"].indexOf(prefs.font)<0)prefs.font="Rajdhani";
+    if(["compact","comfortable","spacious"].indexOf(prefs.density)<0)prefs.density="comfortable";
+    prefs.enabled=!!prefs.enabled;prefs.reduceMotion=!!prefs.reduceMotion;
+    return prefs;
+  }
+  function saveSiteAppearance(prefs){
+    try{localStorage.setItem(siteAppearanceStorageKey(),JSON.stringify(prefs));}
+    catch(error){console.error("[Appearance] Falha ao salvar as preferências visuais:",error);toast("Não foi possível salvar suas preferências visuais neste dispositivo.");}
+  }
+  function applySiteAppearance(prefs){
+    var body=document.body,classes=["ymm-site-custom","ymm-site-sharp","ymm-site-soft","ymm-site-clean","ymm-site-aurora","ymm-site-calm","ymm-site-density-compact","ymm-site-density-spacious","ymm-motion-reduced"];
+    classes.forEach(function(name){body.classList.remove(name);});
+    ["--c-accent","--accent","--c-red","--red","--c-red2","--red2","--c-bg","--c-bg2","--c-bg3","--bg","--bg2","--bg3","--c-panel","--c-border-r","--border","--t-grad1","--t-grad2","--ymm-site-radius","--ymm-site-font"].forEach(function(name){body.style.removeProperty(name);});
+    if(!prefs.enabled)return;
+    body.classList.add("ymm-site-custom");
+    body.classList.add("ymm-site-"+prefs.shape);
+    if(prefs.ambience!=="none")body.classList.add("ymm-site-"+prefs.ambience);
+    if(prefs.density!=="comfortable")body.classList.add("ymm-site-density-"+prefs.density);
+    if(prefs.reduceMotion)body.classList.add("ymm-motion-reduced");
+    body.style.setProperty("--c-accent",prefs.accent);
+    body.style.setProperty("--accent",prefs.accent);
+    body.style.setProperty("--c-red",prefs.accent);
+    body.style.setProperty("--red",prefs.accent);
+    body.style.setProperty("--c-red2",prefs.accent);
+    body.style.setProperty("--red2",prefs.accent);
+    body.style.setProperty("--c-bg",prefs.background);
+    body.style.setProperty("--c-bg2",prefs.surface);
+    body.style.setProperty("--c-bg3",prefs.surface);
+    body.style.setProperty("--bg",prefs.background);
+    body.style.setProperty("--bg2",prefs.surface);
+    body.style.setProperty("--bg3",prefs.surface);
+    body.style.setProperty("--c-panel","color-mix(in srgb,"+prefs.surface+" 84%,transparent)");
+    body.style.setProperty("--c-border-r","color-mix(in srgb,"+prefs.accent+" 38%,transparent)");
+    body.style.setProperty("--border","color-mix(in srgb,"+prefs.accent+" 22%,rgba(255,255,255,.08))");
+    var strength=prefs.ambience==="aurora"?16:prefs.ambience==="calm"?7:0;
+    body.style.setProperty("--t-grad1",strength?"radial-gradient(ellipse 85% 55% at 12% 0%,color-mix(in srgb,"+prefs.accent+" "+strength+"%,transparent),transparent 62%)":"none");
+    body.style.setProperty("--t-grad2",prefs.ambience==="aurora"?"radial-gradient(ellipse 70% 50% at 86% 100%,color-mix(in srgb,"+prefs.accent+" 9%,transparent),transparent 60%)":"none");
+    body.style.setProperty("--ymm-site-radius",Number(prefs.radius)+"px");
+    body.style.setProperty("--ymm-site-font",{"Rajdhani":"Rajdhani,system-ui,sans-serif","Share Tech Mono":'"Share Tech Mono",monospace',"Cinzel":"Cinzel,serif","system-ui":"system-ui,sans-serif"}[prefs.font]);
+  }
+  function syncSiteAppearanceControls(prefs){
+    var panel=document.getElementById("ymm-appearance-controls");if(!panel)return;
+    ["enabled","accent","background","surface","radius","shape","ambience","font","density","reduceMotion"].forEach(function(key){
+      var input=panel.querySelector("#ymm-site-"+key);if(!input)return;
+      input.type==="checkbox"?input.checked=!!prefs[key]:input.value=String(prefs[key]);
+    });
+  }
+  function ensureSiteAppearanceControls(){
+    var modal=document.querySelector("#modal-themes .modal"),grid=document.getElementById("theme-grid");
+    if(!modal||!grid||document.getElementById("ymm-appearance-controls"))return;
+    modal.style.maxWidth="700px";modal.style.width="min(700px,94vw)";
+    var panel=document.createElement("section");panel.id="ymm-appearance-controls";
+    panel.innerHTML='<div class="ymm-appearance-title">✨ Personalização avançada</div><div class="ymm-appearance-help">Essas escolhas ficam só na sua conta/dispositivo; o tema da call da campanha é configurado pelo dono.</div><label class="wide"><span>Ativar personalização avançada</span><input id="ymm-site-enabled" type="checkbox"></label><label>Cor principal<input id="ymm-site-accent" type="color"></label><label>Cor de fundo<input id="ymm-site-background" type="color"></label><label>Cor dos painéis<input id="ymm-site-surface" type="color"></label><label>Arredondamento<select id="ymm-site-radius"><option value="8">Discreto</option><option value="12">Suave</option><option value="14">Elegante</option><option value="16">Arredondado</option><option value="20">Bem arredondado</option><option value="24">Extra arredondado</option></select></label><label>Estilo dos cartões<select id="ymm-site-shape"><option value="soft">Elegante</option><option value="clean">Limpo</option><option value="sharp">Arcade</option></select></label><label>Fundo ambiente<select id="ymm-site-ambience"><option value="aurora">Aurora</option><option value="calm">Brilho sutil</option><option value="none">Sem brilho</option></select></label><label>Fonte principal<select id="ymm-site-font"><option value="Rajdhani">Rajdhani</option><option value="Share Tech Mono">Share Tech Mono</option><option value="Cinzel">Cinzel</option><option value="system-ui">Padrão do sistema</option></select></label><label>Densidade da interface<select id="ymm-site-density"><option value="compact">Compacta</option><option value="comfortable">Confortável</option><option value="spacious">Espaçosa</option></select></label><label class="wide"><span><input id="ymm-site-reduceMotion" type="checkbox"> Reduzir animações</span></label><button type="button" id="ymm-site-reset">Restaurar aparência padrão</button>';
+    grid.insertAdjacentElement("afterend",panel);
+    var prefs=readSiteAppearance();syncSiteAppearanceControls(prefs);
+    panel.addEventListener("input",function(event){if(event.target&&event.target.id!=="ymm-site-enabled")updateSiteAppearanceFromControls(true);});
+    panel.addEventListener("change",function(event){if(event.target&&event.target.id==="ymm-site-enabled")updateSiteAppearanceFromControls(false);});
+    var reset=panel.querySelector("#ymm-site-reset");
+    reset.addEventListener("click",function(){
+      var defaults=siteAppearanceDefaults();
+      defaults.enabled=false;
+      saveSiteAppearance(defaults);applySiteAppearance(defaults);syncSiteAppearanceControls(defaults);
+      toast("Aparência pessoal restaurada. Seu tema escolhido continua salvo.");
+    });
+  }
+  function updateSiteAppearanceFromControls(enableOnChange){
+    var panel=document.getElementById("ymm-appearance-controls");if(!panel)return;
+    var old=readSiteAppearance(),enabled=panel.querySelector("#ymm-site-enabled");
+    var prefs={
+      enabled:enableOnChange?true:!!enabled.checked,
+      accent:panel.querySelector("#ymm-site-accent").value,
+      background:panel.querySelector("#ymm-site-background").value,
+      surface:panel.querySelector("#ymm-site-surface").value,
+      radius:Number(panel.querySelector("#ymm-site-radius").value),
+      shape:panel.querySelector("#ymm-site-shape").value,
+      ambience:panel.querySelector("#ymm-site-ambience").value,
+      font:panel.querySelector("#ymm-site-font").value,
+      density:panel.querySelector("#ymm-site-density").value,
+      reduceMotion:panel.querySelector("#ymm-site-reduceMotion").checked
+    };
+    if(enableOnChange&&!old.enabled)enabled.checked=true;
+    saveSiteAppearance(prefs);applySiteAppearance(prefs);
+  }
+  function refreshSiteAppearance(){
+    var key=siteAppearanceStorageKey();
+    if(key===siteAppearanceKey)return;
+    siteAppearanceKey=key;
+    var prefs=readSiteAppearance();applySiteAppearance(prefs);syncSiteAppearanceControls(prefs);
+  }
   function ensureStatusHud(){
     var root=document.getElementById("call-party-status-hud");
     if(root)return root;
@@ -1141,6 +1290,123 @@
       list.appendChild(card);
     });
   }
+  function getActiveCampaign(){
+    var appData=window.data||{},campaigns=Array.isArray(appData.campanhas)?appData.campanhas:[];
+    return campaigns.find(function(item){return item&&String(item.id)===String(window._activeCampanhaId||"");})||null;
+  }
+  function canManageCallAppearance(){
+    var campaign=getActiveCampaign();
+    return !!(campaign&&typeof window._souDonoDeVerdade==="function"&&window._souDonoDeVerdade(campaign));
+  }
+  function callAppearancePath(campaign){return "sharedData/callActivities/v1/"+safeKey(campaign)+"/appearance";}
+  function normalizeCallAppearance(value){
+    var config=Object.assign({},defaultCallAppearance,value||{});
+    if(["ember","violet","ocean","forest","obsidian"].indexOf(config.background)<0)config.background=defaultCallAppearance.background;
+    ["backgroundColor","accent","border"].forEach(function(key){if(!/^#[0-9a-f]{6}$/i.test(config[key]||""))config[key]=defaultCallAppearance[key];});
+    if(["neon","soft","arcade"].indexOf(config.style)<0)config.style="neon";
+    if(["ambient","grid","clean"].indexOf(config.texture)<0)config.texture="ambient";
+    config.borderWidth=Math.max(1,Math.min(4,Math.round(Number(config.borderWidth)||2)));
+    config.radius=Math.max(8,Math.min(28,Math.round(Number(config.radius)||16)));
+    return config;
+  }
+  function applyCallAppearance(value){
+    callAppearance=normalizeCallAppearance(value);
+    var root=document.getElementById("call-overlay");if(!root)return;
+    var glows={ember:"#e45b66",violet:"#9a72ff",ocean:"#46b9ed",forest:"#4ac48a",obsidian:"#a9bacb"};
+    var textures={ambient:"radial-gradient(circle at 20% 20%,#ffffff12 1px,transparent 1.5px)",grid:"linear-gradient(#ffffff08 1px,transparent 1px),linear-gradient(90deg,#ffffff08 1px,transparent 1px)",clean:"none"};
+    root.dataset.ymmTheme="true";root.dataset.ymmStyle=callAppearance.style;
+    root.style.setProperty("--ymm-call-bg",callAppearance.backgroundColor);
+    root.style.setProperty("--ymm-call-bg-top","color-mix(in srgb,"+callAppearance.backgroundColor+" 82%,"+glows[callAppearance.background]+")");
+    root.style.setProperty("--ymm-call-glow",glows[callAppearance.background]);
+    root.style.setProperty("--ymm-call-accent",callAppearance.accent);
+    root.style.setProperty("--ymm-call-border",callAppearance.border);
+    root.style.setProperty("--ymm-call-border-width",callAppearance.borderWidth+"px");
+    root.style.setProperty("--ymm-call-radius",callAppearance.radius+"px");
+    root.style.setProperty("--ymm-call-border-style",callAppearance.style==="arcade"?"double":"solid");
+    root.style.setProperty("--ymm-call-texture",textures[callAppearance.texture]);
+    root.style.setProperty("--ymm-call-texture-size",callAppearance.texture==="grid"?"18px 18px":"26px 26px");
+  }
+  function callAppearanceForm(){
+    var box=document.getElementById("call-theme-owner-tools"),form={};
+    if(!box)return null;
+    ["background","backgroundColor","accent","border","style","texture","borderWidth","radius"].forEach(function(key){
+      var input=box.querySelector("#ymm-call-"+key);if(input)form[key]=input.type==="range"?Number(input.value):input.value;
+    });
+    return normalizeCallAppearance(form);
+  }
+  function fillCallAppearanceForm(value){
+    var box=document.getElementById("call-theme-owner-tools");if(!box)return;
+    var config=normalizeCallAppearance(value);
+    Object.keys(config).forEach(function(key){var input=box.querySelector("#ymm-call-"+key);if(input)input.value=String(config[key]);});
+    var width=box.querySelector("#ymm-call-width-value");if(width)width.textContent=config.borderWidth+"px";
+    var radius=box.querySelector("#ymm-call-radius-value");if(radius)radius.textContent=config.radius+"px";
+  }
+  function setCallAppearanceFormEnabled(enabled){
+    var box=document.getElementById("call-theme-owner-tools");if(!box)return;
+    box.querySelectorAll("input,select,button").forEach(function(input){input.disabled=!enabled;});
+  }
+  function addCallAppearanceTools(){
+    var settings=document.getElementById("call-panel-settings");
+    if(!settings)return;
+    var box=document.getElementById("call-theme-owner-tools");
+    if(!box){
+      box=document.createElement("section");box.id="call-theme-owner-tools";
+      box.innerHTML='<div class="ymm-call-theme-title">🎨 Tema compartilhado da call</div><div class="ymm-call-theme-note" id="ymm-call-theme-note"></div><div class="ymm-call-theme-grid"><label>Atmosfera<select id="ymm-call-background"><option value="ember">Brasas</option><option value="violet">Nebulosa violeta</option><option value="ocean">Oceano</option><option value="forest">Floresta</option><option value="obsidian">Obsidiana</option></select></label><label>Textura<select id="ymm-call-texture"><option value="ambient">Partículas sutis</option><option value="grid">Grade</option><option value="clean">Limpa</option></select></label><label>Fundo<input id="ymm-call-backgroundColor" type="color" aria-label="Cor de fundo da call"></label><label>Cor de destaque<input id="ymm-call-accent" type="color" aria-label="Cor de destaque da call"></label><label>Cor da borda<input id="ymm-call-border" type="color" aria-label="Cor da borda da call"></label><label>Estilo da borda<select id="ymm-call-style"><option value="neon">Brilho</option><option value="soft">Suave</option><option value="arcade">Dupla arcade</option></select></label><label class="wide">Espessura da borda <span id="ymm-call-width-value"></span><input id="ymm-call-borderWidth" type="range" min="1" max="4" step="1"></label><label class="wide">Arredondamento <span id="ymm-call-radius-value"></span><input id="ymm-call-radius" type="range" min="8" max="28" step="2"></label><button class="ymm-call-theme-save" id="ymm-call-theme-save" type="button">Salvar e compartilhar com a campanha</button></div>';
+      var options=document.getElementById("call-character-options");
+      if(options&&options.parentNode)options.insertAdjacentElement("afterend",box);else settings.appendChild(box);
+      box.addEventListener("input",function(event){
+        if(!event.target||!event.target.matches("input,select"))return;
+        var preview=callAppearanceForm();applyCallAppearance(preview);
+        var width=box.querySelector("#ymm-call-width-value"),radius=box.querySelector("#ymm-call-radius-value");
+        if(width)width.textContent=preview.borderWidth+"px";if(radius)radius.textContent=preview.radius+"px";
+      });
+      box.addEventListener("change",function(event){
+        if(!event.target||!event.target.matches("input,select"))return;
+        applyCallAppearance(callAppearanceForm());
+      });
+      box.querySelector("#ymm-call-theme-save").addEventListener("click",saveCallAppearance);
+    }
+    updateCallAppearanceAccess();
+    setCallAppearanceFormEnabled(appearanceLoaded&&canManageCallAppearance());
+  }
+  function updateCallAppearanceAccess(){
+    var box=document.getElementById("call-theme-owner-tools");if(!box)return;
+    var owner=canManageCallAppearance(),note=box.querySelector("#ymm-call-theme-note");
+    box.style.display=owner?"":"none";
+    if(note)note.textContent=!window._activeCampanhaId?"Selecione uma campanha para configurar a aparência da call.":owner?"Só você, como dono desta campanha, controla o visual que todos verão.":"O dono da campanha escolhe o visual compartilhado da call.";
+    setCallAppearanceFormEnabled(owner&&appearanceLoaded);
+  }
+  function saveCallAppearance(){
+    if(!canManageCallAppearance()){toast("Somente o dono da campanha pode alterar o tema compartilhado da call.");return;}
+    if(!onlineReady()||!window._activeCampanhaId){toast("Conecte-se ao Firebase e selecione a campanha para compartilhar o tema.");return;}
+    if(!appearanceLoaded){toast("Aguarde o tema atual da campanha carregar antes de salvar.");return;}
+    var config=callAppearanceForm();if(!config)return;
+    window._set(window._ref(window.db,callAppearancePath(window._activeCampanhaId)),config).then(function(){
+      applyCallAppearance(config);toast("Tema da call salvo e compartilhado com a campanha.");
+    }).catch(function(error){
+      console.error("[Call appearance] Falha ao salvar o tema da call:",error);
+      toast("Não foi possível compartilhar o tema da call. Verifique a conexão e as regras do Firebase.");
+    });
+  }
+  function watchCallAppearance(){
+    var campaign=window._activeCampanhaId||null,connected=onlineReady();
+    if(campaign===appearanceCampaign&&connected===appearanceOnline)return;
+    if(appearanceUnsub){appearanceUnsub();appearanceUnsub=null;}
+    appearanceCampaign=campaign;appearanceOnline=connected;appearanceLoaded=false;
+    if(!campaign||!connected){
+      applyCallAppearance(defaultCallAppearance);addCallAppearanceTools();return;
+    }
+    appearanceUnsub=window._onValue(window._ref(window.db,callAppearancePath(campaign)),function(snapshot){
+      callAppearance=normalizeCallAppearance(snapshot&&snapshot.val()||defaultCallAppearance);
+      appearanceLoaded=true;appearanceErrorShown=false;applyCallAppearance(callAppearance);
+      fillCallAppearanceForm(callAppearance);addCallAppearanceTools();
+    },function(error){
+      console.error("[Call appearance] Falha ao receber o tema compartilhado:",error);
+      appearanceLoaded=false;setCallAppearanceFormEnabled(false);
+      if(!appearanceErrorShown){appearanceErrorShown=true;toast("O tema da call não carregou. Verifique as permissões e a conexão do Firebase.");}
+    });
+    addCallAppearanceTools();
+  }
   function addCallButton() {
     var controls=document.getElementById("call-controls");
     if(!controls||controls.querySelector(".call-activity-open"))return;
@@ -1152,7 +1418,9 @@
     controls.insertBefore(button,more||controls.querySelector(".call-end-btn"));
   }
   function updateUI() {
+    ensureSiteAppearanceControls();refreshSiteAppearance();
     addCallButton();addStatusVisibility();wrapCallStatusSharing();addStatusHudOptions();renderCallStatusHud();
+    addCallAppearanceTools();watchCallAppearance();
     var visible=readStatusVisibility();
     if(lastStatusVisible===null){if(!visible)removePublishedStatuses();}
     else if(lastStatusVisible!==visible){if(visible)publishCampaignStatus();else removePublishedStatuses();}
@@ -1165,5 +1433,5 @@
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",updateUI);
   else updateUI();
   setInterval(updateUI,1400);
-  window.addEventListener("beforeunload",function(){clearInterval(tetris.timer);});
+  window.addEventListener("beforeunload",function(){clearInterval(tetris.timer);if(appearanceUnsub)appearanceUnsub();if(appearanceSaveTimer)clearTimeout(appearanceSaveTimer);});
 })();
