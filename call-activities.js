@@ -71,6 +71,63 @@
     .ca-public-stat{display:grid;grid-template-columns:24px 1fr 54px;gap:6px;align-items:center;margin-top:5px;color:#b6bdca;font:.62rem "Share Tech Mono",monospace}
     .ca-public-track{height:6px;overflow:hidden;border-radius:10px;background:#ffffff13}
     .ca-public-fill{height:100%;border-radius:inherit;background:linear-gradient(90deg,#c83232,#ff7474)}
+    .ca-window{border-color:#ffffff20;background:radial-gradient(ellipse at 82% 0%,#8d394329,transparent 34%),linear-gradient(145deg,#171923,#0c0e14 65%);box-shadow:0 28px 100px #000c,0 0 0 1px #ffffff08 inset}
+    .ca-head{min-height:72px}.ca-main{scrollbar-color:#454c5d #11141b;scrollbar-width:thin}
+    .ca-panel{border-color:#ffffff17;background:linear-gradient(145deg,#ffffff0b,#ffffff04);box-shadow:0 10px 24px #0003}
+    .ca-game-top{align-items:center;padding:0 0 13px;border-bottom:1px solid #ffffff12}
+    .ca-game-top h3{font-size:1.55rem}.ca-primary{box-shadow:0 6px 18px #9e202b44}
+    .ca-rank-row,.ca-game-item{border:1px solid #ffffff0d;background:linear-gradient(110deg,#ffffff0a,#ffffff04)}
+    .ca-chess-board{border-color:#343b49;box-shadow:0 16px 38px #0009,0 0 0 1px #ffffff12}
+    .ca-block-board{box-shadow:inset 0 2px 12px #0008}
+    .ca-canvas,.ca-calc-display{box-shadow:inset 0 2px 12px #0008,0 8px 20px #0004}
+    #call-party-status-hud{--cph-accent:#7ee0d1;position:fixed;z-index:10021;left:16px;bottom:94px;width:min(380px,calc(100vw - 32px));max-height:42vh;overflow:auto;padding:12px;border:1px solid color-mix(in srgb,var(--cph-accent) 48%,transparent);border-radius:15px;background:linear-gradient(145deg,#111827f2,#090d15f2);box-shadow:0 16px 44px #0009,0 0 26px color-mix(in srgb,var(--cph-accent) 14%,transparent);color:#f3f5fa;backdrop-filter:blur(14px);scrollbar-width:thin;scrollbar-color:#495164 #10141d}
+    #call-party-status-hud[hidden]{display:none}
+    #call-party-status-hud[data-position="top-left"]{top:14px;bottom:auto;left:16px}
+    #call-party-status-hud[data-position="top-right"]{top:14px;right:16px;bottom:auto;left:auto}
+    #call-party-status-hud[data-position="bottom-right"]{right:16px;bottom:94px;left:auto}
+    #call-party-status-hud[data-style="minimal"]{background:#090d15eF;box-shadow:0 8px 26px #0007}
+    #call-party-status-hud[data-style="arcade"]{border:2px solid var(--cph-accent);border-radius:8px;box-shadow:4px 4px 0 color-mix(in srgb,var(--cph-accent) 35%,transparent),0 0 20px color-mix(in srgb,var(--cph-accent) 16%,transparent)}
+    .cph-title{display:flex;align-items:center;gap:8px;margin:0 0 10px;font-size:.78rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase}
+    .cph-title:before{content:"";width:7px;height:7px;border-radius:50%;background:var(--cph-accent);box-shadow:0 0 10px var(--cph-accent)}
+    .cph-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px}
+    .cph-person{min-width:0;padding:9px;border:1px solid #ffffff12;border-radius:11px;background:linear-gradient(135deg,#ffffff0a,#ffffff04)}
+    .cph-person-head{display:flex;align-items:center;gap:7px;margin-bottom:7px}
+    .cph-avatar{display:grid;width:25px;height:25px;flex:0 0 25px;place-items:center;border:1px solid color-mix(in srgb,var(--cph-accent) 54%,transparent);border-radius:9px;background:color-mix(in srgb,var(--cph-accent) 14%,transparent);font-size:.65rem}
+    .cph-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.78rem;font-weight:700}
+    .cph-owner{margin-left:auto;color:#929aaa;font-size:.6rem;white-space:nowrap}
+    .cph-stat{display:grid;grid-template-columns:18px minmax(32px,1fr) 42px;gap:6px;align-items:center;margin-top:5px;color:#c0c6d2;font-size:.64rem}
+    .cph-track{height:6px;overflow:hidden;border-radius:8px;background:#ffffff14}
+    .cph-fill{height:100%;border-radius:inherit;background:var(--cph-accent);transition:width .25s ease}
+    #call-character-options .cph-options{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0;padding:10px;border:1px solid rgba(126,224,255,.15);border-radius:9px;background:rgba(126,224,255,.035)}
+    #call-character-options .cph-option{display:grid;gap:4px;color:#c9d1e4;font-size:.62rem}
+    #call-character-options .cph-option select{width:100%;max-width:none;padding:6px;border:1px solid rgba(126,224,255,.2);border-radius:6px;background:#101322;color:#edf2ff}
+    #call-character-options .cph-option input[type=color]{width:100%;height:28px}
+    #call-character-hud{display:none!important}
+    #call-participants-area .call-part-stats{display:none!important}
+    #view-sessao .grid2{grid-template-columns:minmax(0,.92fr) minmax(0,1.08fr)!important;align-items:start}
+    #view-sessao .grid2>div,#view-sessao .card{min-width:0;max-width:100%}
+    #view-sessao #chat-box{height:min(720px,76vh);min-height:340px;max-height:82vh;min-width:0;resize:vertical}
+    #view-sessao #live-display{min-height:clamp(190px,28vw,340px);aspect-ratio:16/9}
+    #dh-ov{align-items:center;padding:16px;background:rgba(3,5,10,.78);backdrop-filter:blur(10px)}
+    #dh-box{width:min(720px,96vw);max-height:calc(100vh - 32px);overflow:auto;padding:22px;border:1px solid #ffffff1b;border-radius:18px;background:radial-gradient(ellipse at 88% 0%,#8d394322,transparent 38%),linear-gradient(145deg,#171923,#0c0e14);box-shadow:0 24px 80px #000b}
+    #dh-sel{min-height:40px;border-color:#ffffff1a;border-radius:10px;background:#12151d;font-family:Rajdhani,system-ui,sans-serif;font-size:.9rem}
+    .dh-stats{gap:10px;padding:14px;border-color:#ffffff12;border-radius:12px;background:#ffffff06}
+    .dh-sv{font-family:Rajdhani,system-ui,sans-serif;font-weight:700;font-size:1.8rem}
+    .dh-sl{font-family:Rajdhani,system-ui,sans-serif;font-size:.68rem;letter-spacing:.1em}
+    .dh-row{gap:12px;padding:10px 12px;border-color:#ffffff0d;border-radius:10px;background:#ffffff06;font-family:Rajdhani,system-ui,sans-serif;font-size:.86rem}
+    .dh-expr,.dh-time{font-family:"Share Tech Mono",monospace;font-size:.68rem}
+    .dh-res{font-family:Rajdhani,system-ui,sans-serif;font-size:1.45rem;font-weight:700}
+    #modal-roleta{padding:16px!important;align-items:center!important}
+    #modal-roleta>.modal{width:min(980px,96vw)!important;max-width:980px!important;max-height:94vh!important;overflow:auto!important;border:1px solid #ffffff1b;background:linear-gradient(145deg,#171923,#0c0e14)!important;box-shadow:0 24px 80px #000b}
+    #modal-roleta .roleta-header{padding:16px 20px;border-bottom:1px solid #ffffff12;background:linear-gradient(100deg,#da34341c,transparent 60%)}
+    #modal-roleta .roleta-body{min-height:0;max-height:calc(94vh - 66px)}
+    #modal-roleta .roleta-left{flex:0 0 min(340px,38%);border-right-color:#ffffff12;background:#090b1080}
+    #modal-roleta .roleta-right{min-width:0;justify-content:center;gap:10px;padding:24px;background:radial-gradient(ellipse at center,#a5313118,transparent 67%)}
+    #modal-roleta #roleta-canvas{width:min(420px,100%);height:auto;max-height:52vh;box-shadow:0 14px 42px #0009,0 0 44px #d228282e}
+    #modal-roleta .roleta-spin-btn{max-width:420px;border-radius:12px}
+    #modal-roleta .roleta-result{max-width:420px}
+    @media(max-width:850px){#view-sessao .grid2{grid-template-columns:minmax(0,1fr)!important}#view-sessao #chat-box{height:min(620px,72vh)}#modal-roleta .roleta-body{flex-direction:column;max-height:calc(94vh - 66px);overflow:auto}#modal-roleta .roleta-left{flex:0 0 auto;border-right:0;border-bottom:1px solid #ffffff12;max-height:42vh}#modal-roleta .roleta-right{padding:16px}#modal-roleta #roleta-canvas{width:min(320px,74vw);max-height:36vh}}
+    @media(max-width:600px){#call-party-status-hud{left:8px!important;right:8px!important;bottom:80px!important;top:auto!important;width:auto;max-height:32vh;padding:9px}.cph-list{grid-template-columns:1fr 1fr}.cph-person{padding:7px}.cph-stat{grid-template-columns:16px minmax(25px,1fr) 38px;font-size:.58rem}#view-sessao #chat-box{min-height:300px}#dh-ov{padding:8px}#dh-box{padding:16px}.dh-stats{grid-template-columns:repeat(2,1fr)}#modal-roleta{padding:8px!important}#modal-roleta .roleta-left{padding:12px}#modal-roleta .roleta-right{padding:12px}}
     @media(max-width:700px){#call-activities-modal{padding:7px}.ca-window{width:100%;max-height:96vh;border-radius:13px}.ca-layout{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr)}.ca-nav{display:flex;gap:4px;padding:6px;overflow:auto;border-right:0;border-bottom:1px solid #ffffff12}.ca-tab{flex:0 0 auto;width:auto;margin:0;padding:8px 10px;font-size:.8rem}.ca-tab-icon{width:auto}.ca-nav-note{display:none}.ca-main{padding:12px}.ca-columns{grid-template-columns:minmax(0,1fr)}.ca-side{display:grid;grid-template-columns:1fr 1fr}.ca-rank{grid-column:1/-1}.ca-head{padding:12px}.ca-title h2{font-size:1.25rem}.ca-game-top{flex-wrap:wrap}}
   `;
 
@@ -79,6 +136,7 @@
   var scoreUnsub = null, gamesUnsub = null, statusUnsub = null, scoresLoaded = false, activeGameId = null, selectedSquare = null;
   var statusCampaign = null, statusWasOnline = false, lastStatusSignature = "", statusErrorShown = false;
   var lastStatusVisible = null, statusRemovalPending = false;
+  var statusHudSignature = "";
   var chessState = null, chessMoves = [], audioCtx = null, lastClickCell = null;
   var tetris = { board: [], piece: null, next: null, score: 0, lines: 0, timer: null, ended: true, paused: false };
   var blocks = { board: [], pieces: [], selected: -1, score: 0, ended: true };
@@ -877,21 +935,21 @@
   }
   function statusRoot(campaign) { return "sharedData/callActivities/v1/" + safeKey(campaign) + "/publicStatuses"; }
   function currentCharacterStatus() {
-    var user=window.currentUser||{}, custom=typeof window.callGetCustomChar==="function"&&window.callGetCustomChar()||{};
-    var hasCustom=!!(custom.nome||custom.vidaMax||custom.sanidadeMax||custom.estaminaMax), sheet=null;
-    if(!hasCustom&&window.data&&Array.isArray(window.data.players)) {
-      var username=String(user.username||"").toLowerCase(),id=user.id||"";
-      sheet=window.data.players.find(function(item){return item&&item.player&&(String(item.player).toLowerCase()===username||item.player===id);})||null;
-    }
-    var source=hasCustom?custom:(sheet||{});
+    var user=window.currentUser||{}, source=typeof window.callGetCustomChar==="function"&&window.callGetCustomChar()||{};
+    var character=String(source.nome||"").trim();
+    if(!character)return null;
     return {
       username:String(user.username||user.nome||"Jogador").slice(0,40),
-      character:String(source.nome||user.username||"Personagem").slice(0,40),
+      character:character.slice(0,40),
       vida:Number(source.vida)||0,vidaMax:Number(source.vidaMax)||0,
       sanidade:Number(source.sanidade)||0,sanidadeMax:Number(source.sanidadeMax)||0,
       estamina:Number(source.estamina)||0,estaminaMax:Number(source.estaminaMax)||0,
       updatedAt:Date.now()
     };
+  }
+  function hasVisibleStats(item) {
+    return !!item && !!String(item.character||item.nome||"").trim() &&
+      ["vidaMax","sanidadeMax","estaminaMax"].some(function(key){return Number(item[key])>0;});
   }
   function renderPublicStatuses(items) {
     var anchor=document.getElementById("live-players-status");
@@ -903,13 +961,14 @@
       anchor.insertAdjacentElement("afterend",section);
     }
     var list=section.querySelector(".ca-public-status-list");
-    if(items===null||items===undefined||!Object.keys(items).length) {
+    var visibleItems=items&&Object.keys(items).filter(function(id){return hasVisibleStats(items[id]);});
+    if(items===null||items===undefined||!visibleItems.length) {
       list.textContent=!statusCampaign?"Selecione uma campanha para ver os status públicos.":!onlineReady()?"Entre na conta para ver os status públicos desta campanha.":items==null?"Não foi possível carregar os status desta campanha.":"Ninguém está compartilhando status nesta campanha.";
       list.className="ca-public-status-list ca-muted";
       return;
     }
     list.className="ca-public-status-list";list.textContent="";
-    Object.keys(items).sort(function(a,b){return String(items[a].username||"").localeCompare(String(items[b].username||""));}).forEach(function(id){
+    visibleItems.sort(function(a,b){return String(items[a].username||"").localeCompare(String(items[b].username||""));}).forEach(function(id){
       var item=items[id]||{},card=document.createElement("div"),head=document.createElement("div"),avatar=document.createElement("span"),name=document.createElement("span"),owner=document.createElement("span");
       card.className="ca-public-person";head.className="ca-public-person-head";avatar.className="ca-public-avatar";name.className="ca-public-name";owner.className="ca-public-owner";
       avatar.textContent=String(item.character||"?").trim().charAt(0).toUpperCase()||"?";
@@ -941,10 +1000,13 @@
     lastStatusSignature="";
   }
   function publishCampaignStatus() {
+    var me=identity();
+    if(!readStatusVisibility()){removePublishedStatuses();return;}
+    var record=currentCharacterStatus();
+    if(!hasVisibleStats(record)){removePublishedStatuses();return;}
     if(!onlineReady()||!window._activeCampanhaId)return;
-    var me=identity(),path=statusRoot(window._activeCampanhaId)+"/"+me.id;
-    if(!readStatusVisibility())return;
-    var record=currentCharacterStatus(),signature=JSON.stringify({username:record.username,character:record.character,vida:record.vida,vidaMax:record.vidaMax,sanidade:record.sanidade,sanidadeMax:record.sanidadeMax,estamina:record.estamina,estaminaMax:record.estaminaMax});
+    var path=statusRoot(window._activeCampanhaId)+"/"+me.id;
+    var signature=JSON.stringify({username:record.username,character:record.character,vida:record.vida,vidaMax:record.vidaMax,sanidade:record.sanidade,sanidadeMax:record.sanidadeMax,estamina:record.estamina,estaminaMax:record.estaminaMax});
     if(signature===lastStatusSignature)return;
     lastStatusSignature=signature;
     record.updatedAt=Date.now();
@@ -997,14 +1059,87 @@
       var oldBuild=window.buildParticipantCard;
       window.buildParticipantCard=function(member,isLocal) {
         var html=oldBuild.apply(this,arguments);
-        var visible=isLocal?readStatusVisibility():!(member&&member.customChar&&member.customChar.showStatus===false);
+        var custom=member&&member.customChar;
+        var visible=isLocal?hasVisibleStats(currentCharacterStatus())&&readStatusVisibility():hasVisibleStats({character:custom&&custom.nome,vidaMax:custom&&custom.vidaMax,sanidadeMax:custom&&custom.sanidadeMax,estaminaMax:custom&&custom.estaminaMax})&&custom.showStatus!==false;
         return html.replace('<div class="call-participant" ','<div class="call-participant" data-status-visible="'+(visible?"true":"false")+'" ');
       };
       window._ymmStatusCardWrapped=true;
       var css=document.createElement("style");
-      css.textContent='.call-participant[data-status-visible="false"] .call-part-stats{display:none!important}';
+      css.textContent='#call-participants-area .call-part-stats{display:none!important}';
       document.head.appendChild(css);
     }
+  }
+  function statusHudKey(){return "ymm_call_status_hud_"+identity().id;}
+  function readStatusHudPrefs(){
+    var defaults={enabled:true,color:"#7ee0d1",style:"glass",font:"Rajdhani",position:"bottom-left"};
+    try{return Object.assign(defaults,JSON.parse(localStorage.getItem(statusHudKey())||"{}"));}
+    catch(error){console.warn("[Call activities] Não foi possível ler a personalização do painel:",error);return defaults;}
+  }
+  function writeStatusHudPrefs(prefs){
+    try{localStorage.setItem(statusHudKey(),JSON.stringify(prefs));}
+    catch(error){console.warn("[Call activities] Não foi possível salvar a personalização do painel:",error);}
+  }
+  function addStatusHudOptions(){
+    var options=document.getElementById("call-character-options");
+    if(!options||document.getElementById("cph-options"))return;
+    var prefs=readStatusHudPrefs(),row=document.createElement("div");
+    row.className="cph-options";row.id="cph-options";
+    row.innerHTML='<label class="cph-option">Painel dos status<select id="cph-enabled"><option value="true">Mostrar na call</option><option value="false">Ocultar na call</option></select></label><label class="cph-option">Fonte<select id="cph-font"><option value="Rajdhani">Rajdhani</option><option value="Share Tech Mono">Share Tech Mono</option><option value="Cinzel">Cinzel</option><option value="system-ui">Padrão</option></select></label><label class="cph-option">Visual<select id="cph-style"><option value="glass">Vidro</option><option value="minimal">Minimalista</option><option value="arcade">Arcade</option></select></label><label class="cph-option">Posição<select id="cph-position"><option value="bottom-left">Inferior esquerdo</option><option value="bottom-right">Inferior direito</option><option value="top-left">Superior esquerdo</option><option value="top-right">Superior direito</option></select></label><label class="cph-option">Cor de destaque<input id="cph-color" type="color" aria-label="Cor de destaque dos status"></label>';
+    options.appendChild(row);
+    ["enabled","font","style","position","color"].forEach(function(key){
+      var input=row.querySelector("#cph-"+key);
+      if(!input)return;
+      input.value=key==="enabled"?String(prefs.enabled):prefs[key];
+      input.addEventListener(key==="color"?"input":"change",function(){
+        var next=readStatusHudPrefs();next[key]=key==="enabled"?input.value==="true":input.value;
+        writeStatusHudPrefs(next);renderCallStatusHud();
+      });
+    });
+  }
+  function ensureStatusHud(){
+    var root=document.getElementById("call-party-status-hud");
+    if(root)return root;
+    root=document.createElement("aside");root.id="call-party-status-hud";
+    root.setAttribute("aria-label","Status dos personagens escolhidos na call");
+    root.innerHTML='<div class="cph-title">Status dos personagens</div><div class="cph-list"></div>';
+    (document.getElementById("call-overlay")||document.body).appendChild(root);
+    return root;
+  }
+  function renderCallStatusHud(){
+    var root=ensureStatusHud(),prefs=readStatusHudPrefs(),active=!!(window.callState&&window.callState.active);
+    root.dataset.style=["glass","minimal","arcade"].indexOf(prefs.style)>=0?prefs.style:"glass";
+    root.dataset.position=["bottom-left","bottom-right","top-left","top-right"].indexOf(prefs.position)>=0?prefs.position:"bottom-left";
+    root.style.setProperty("--cph-accent",/^#[0-9a-f]{6}$/i.test(prefs.color||"")?prefs.color:"#7ee0d1");
+    var fonts={"Rajdhani":"Rajdhani,system-ui,sans-serif","Share Tech Mono":'"Share Tech Mono",monospace',"Cinzel":"Cinzel,serif","system-ui":"system-ui,sans-serif"};
+    root.style.fontFamily=fonts[prefs.font]||fonts.Rajdhani;
+    var members=window._callMembersCache||{},entries=[],localId=String(window._myCallId||"");
+    Object.keys(members).forEach(function(id){
+      if(id===localId)return;
+      var member=members[id]||{},custom=member.customChar||{};
+      if(member.customChar&&custom.showStatus!==false&&hasVisibleStats({character:custom.nome,vidaMax:custom.vidaMax,sanidadeMax:custom.sanidadeMax,estaminaMax:custom.estaminaMax}))entries.push({id:id,owner:member.username||"jogador",character:custom});
+    });
+    var local=typeof window.callGetCustomChar==="function"&&window.callGetCustomChar()||{};
+    if(localId&&readStatusVisibility()&&hasVisibleStats({character:local.nome,vidaMax:local.vidaMax,sanidadeMax:local.sanidadeMax,estaminaMax:local.estaminaMax}))
+      entries.push({id:localId,owner:(window.currentUser||{}).username||"Você",character:local});
+    var signature=JSON.stringify({active:active,enabled:prefs.enabled,entries:entries,prefs:prefs});
+    root.hidden=!active||!prefs.enabled||!entries.length;
+    if(signature===statusHudSignature)return;
+    statusHudSignature=signature;
+    var list=root.querySelector(".cph-list");list.textContent="";
+    entries.forEach(function(entry){
+      var card=document.createElement("article"),head=document.createElement("div"),avatar=document.createElement("span"),name=document.createElement("span"),owner=document.createElement("span");
+      card.className="cph-person";head.className="cph-person-head";avatar.className="cph-avatar";name.className="cph-name";owner.className="cph-owner";
+      avatar.textContent=String(entry.character.nome||"?").trim().charAt(0).toUpperCase()||"?";
+      name.textContent=String(entry.character.nome||"Personagem").trim();owner.textContent="@"+entry.owner;
+      head.appendChild(avatar);head.appendChild(name);head.appendChild(owner);card.appendChild(head);
+      [{key:"vida",label:"❤",color:"#ff687d"},{key:"sanidade",label:"🧠",color:"#a78bfa"},{key:"estamina",label:"⚡",color:"#f5c451"}].forEach(function(stat){
+        var max=Number(entry.character[stat.key+"Max"])||0;if(max<=0)return;
+        var current=Math.max(0,Number(entry.character[stat.key])||0),row=document.createElement("div"),icon=document.createElement("span"),track=document.createElement("div"),fill=document.createElement("div"),value=document.createElement("span");
+        row.className="cph-stat";icon.textContent=stat.label;track.className="cph-track";fill.className="cph-fill";fill.style.width=Math.max(0,Math.min(100,current/max*100))+"%";fill.style.background=stat.color;value.textContent=Math.min(current,max)+"/"+max;
+        track.appendChild(fill);row.appendChild(icon);row.appendChild(track);row.appendChild(value);card.appendChild(row);
+      });
+      list.appendChild(card);
+    });
   }
   function addCallButton() {
     var controls=document.getElementById("call-controls");
@@ -1017,7 +1152,7 @@
     controls.insertBefore(button,more||controls.querySelector(".call-end-btn"));
   }
   function updateUI() {
-    addCallButton();addStatusVisibility();wrapCallStatusSharing();
+    addCallButton();addStatusVisibility();wrapCallStatusSharing();addStatusHudOptions();renderCallStatusHud();
     var visible=readStatusVisibility();
     if(lastStatusVisible===null){if(!visible)removePublishedStatuses();}
     else if(lastStatusVisible!==visible){if(visible)publishCampaignStatus();else removePublishedStatuses();}
