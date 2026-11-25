@@ -136,6 +136,14 @@
     #call-overlay[data-ymm-style="arcade"] .call-participant{border-style:double!important;box-shadow:5px 5px 0 color-mix(in srgb,var(--ymm-call-accent) 24%,transparent)!important}
     #call-overlay[data-ymm-style="soft"] .call-participant{border-style:solid!important;box-shadow:0 8px 30px #0007!important}
     #call-overlay[data-ymm-style="neon"] .call-participant{box-shadow:0 0 0 1px color-mix(in srgb,var(--ymm-call-accent) 22%,transparent),0 0 20px color-mix(in srgb,var(--ymm-call-accent) 20%,transparent)!important}
+    html.px #call-overlay[data-ymm-theme="true"]{border-width:var(--ymm-pixel-border-width,.35px)!important;border-style:solid!important;border-color:rgba(244,242,255,.35)!important;box-shadow:none!important;background:var(--ymm-call-bg,#100b12)!important}
+    html.px #call-overlay[data-ymm-theme="true"]::before{background-image:none!important;opacity:0!important}
+    html.px #call-overlay[data-ymm-theme="true"] .call-participant{border-width:var(--ymm-pixel-border-width,.35px)!important;border-style:solid!important;border-color:rgba(244,242,255,.35)!important;box-shadow:none!important}
+    html.px #call-overlay[data-ymm-theme="true"] .call-participant.is-speaking{box-shadow:none!important}
+    html.px #call-overlay[data-ymm-theme="true"] .call-controls{border-top-width:var(--ymm-pixel-border-width,.35px)!important;box-shadow:none!important}
+    html.px #call-overlay[data-ymm-theme="true"] .call-panel{border-width:var(--ymm-pixel-border-width,.35px)!important;border-color:rgba(244,242,255,.35)!important;box-shadow:none!important}
+    html.px #call-overlay[data-ymm-theme="true"] .call-controls{border-top-color:rgba(244,242,255,.35)!important}
+    html.px #call-party-status-hud,html.px #call-activities-modal{backdrop-filter:none!important;box-shadow:none!important}
     body.ymm-site-custom .card,body.ymm-site-custom .modal,body.ymm-site-custom .call-panel,body.ymm-site-custom .campaign-card,body.ymm-site-custom .player-card,body.ymm-site-custom .mine-card{border-radius:var(--ymm-site-radius)!important}
     body.ymm-site-font-custom,body.ymm-site-font-custom :not(i):not(svg):not([class*="icon"]):not(.lucide):not(.fa),html.px body.ymm-site-font-custom :not(i):not(svg):not([class*="icon"]):not(.lucide):not(.fa){font-family:var(--ymm-site-font,inherit)!important}
     body.ymm-site-custom .card,body.ymm-site-custom .campaign-card,body.ymm-site-custom .player-card,body.ymm-site-custom .mine-card{border-color:color-mix(in srgb,var(--c-accent) 24%,var(--c-border))!important}
@@ -148,34 +156,35 @@
     body.ymm-site-density-compact .grid2,body.ymm-site-density-compact .grid3,body.ymm-site-density-compact .grid4{gap:8px!important}
     body.ymm-site-density-spacious .grid2,body.ymm-site-density-spacious .grid3,body.ymm-site-density-spacious .grid4{gap:20px!important}
     body.ymm-motion-reduced *,body.ymm-motion-reduced *::before,body.ymm-motion-reduced *::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}
-    html.px .card,html.px .mine-card,html.px .player-card,html.px .campaign-card,html.px .live-player-row,html.px .hab-card,html.px .custom-item-row,html.px .stat-box,html.px .prof-stat-card,html.px .vp-stat{border-width:var(--ymm-pixel-border-width,1px)!important;border-color:rgba(244,242,255,.55)!important;box-shadow:2px 2px 0 rgba(139,92,255,.2)!important}
-    html.px .nav-btn.active{outline-width:1px!important;outline-offset:-1px!important;box-shadow:2px 2px 0 rgba(255,216,0,.14)!important}
-    html.px .nav-btn:hover,html.px .bnav-btn.active .bn-icon-wrap{box-shadow:2px 2px 0 rgba(56,225,255,.16)!important}
+    html.px .card,html.px .mine-card,html.px .player-card,html.px .campaign-card,html.px .live-player-row,html.px .hab-card,html.px .custom-item-row,html.px .stat-box,html.px .prof-stat-card,html.px .vp-stat{border-width:var(--ymm-pixel-border-width,.35px)!important;border-color:rgba(244,242,255,.42)!important;box-shadow:none!important;background-image:none!important}
+    html.px .nav-btn.active{outline-width:1px!important;outline-offset:-1px!important;box-shadow:none!important}
+    html.px .nav-btn:hover,html.px .bnav-btn.active .bn-icon-wrap{box-shadow:none!important}
     html.px .bnav-btn .bn-icon-wrap{border-width:var(--ymm-pixel-border-width,1px)!important}
-    html.px .modal,html.px .profile-modal,html.px .chat-box,html.px .ai-box,html.px .dm-panel,html.px .call-panel,html.px .usr-popout,html.px .usr-ctxmenu,html.px .hab-fs-card,html.px .tt3d-token-editor,html.px .auth-card,html.px .site-gate-card{border-width:var(--ymm-pixel-border-width,1px)!important;border-color:rgba(244,242,255,.58)!important;box-shadow:3px 3px 0 rgba(56,225,255,.2)!important}
+    html.px .modal,html.px .profile-modal,html.px .chat-box,html.px .ai-box,html.px .dm-panel,html.px .call-panel,html.px .usr-popout,html.px .usr-ctxmenu,html.px .hab-fs-card,html.px .tt3d-token-editor,html.px .auth-card,html.px .site-gate-card{border-width:var(--ymm-pixel-border-width,.35px)!important;border-color:rgba(244,242,255,.46)!important;box-shadow:none!important;background-image:none!important}
     html.px .role-card,html.px .chat-tab-pill.active,html.px .cm-bub,html.px .dm-bub,html.px .toast,#notif,html.px .dc-die-front,html.px .theme-dot,html.px .theme-swatch,html.px .font-option{border-width:var(--ymm-pixel-border-width,1px)!important}
-    html.px .call-overlay{border-width:var(--ymm-pixel-border-width,1px)!important;border-color:rgba(244,242,255,.58)!important;box-shadow:inset 3px 0 0 rgba(56,225,255,.1),inset -3px 0 0 rgba(255,79,216,.08)!important}
-    html.px .call-participant{border-width:var(--ymm-pixel-border-width,1px)!important;border-color:rgba(244,242,255,.58)!important;box-shadow:2px 2px 0 rgba(56,225,255,.18)!important}
-    html.px .call-participant.is-speaking{box-shadow:2px 2px 0 rgba(77,255,124,.2)!important}
+    html.px .call-overlay{border-width:var(--ymm-pixel-border-width,.35px)!important;border-color:rgba(244,242,255,.46)!important;box-shadow:none!important}
+    html.px .call-participant{border-width:var(--ymm-pixel-border-width,.35px)!important;border-color:rgba(244,242,255,.46)!important;box-shadow:none!important}
+    html.px .call-participant.is-speaking{box-shadow:none!important}
     html.px .call-controls{border-top-width:var(--ymm-pixel-border-width,1px)!important}
     html.px .chat-tab-pill.active,html.px .cm-bub,html.px .dm-bub,html.px .toast,#notif,html.px .dice-card,html.px .dice-arena,html.px .dc-die-front{border-color:rgba(244,242,255,.58)!important}
-    html.px .dice-card,html.px .dice-arena{border-width:var(--ymm-pixel-border-width,1px)!important;box-shadow:3px 3px 0 rgba(255,79,216,.18)!important}
+    html.px .dice-card,html.px .dice-arena{border-width:var(--ymm-pixel-border-width,.35px)!important;box-shadow:none!important}
     html.px .progress,html.px .stat-bar,html.px .fstat-bar,html.px .lpr-track,html.px .vital-bar,html.px .creature-hp-bar,html.px .px-meter-pixel,html.px .call-range,html.px .call-range::-webkit-slider-thumb,html.px .theme-dot,html.px .theme-swatch,html.px .font-option,html.px #call-mic-test-meter-wrap{border-width:var(--ymm-pixel-border-width,1px)!important}
     html.px ::-webkit-scrollbar-track,html.px ::-webkit-scrollbar-thumb{border-width:var(--ymm-pixel-border-width,1px)!important}
-    html.px body.ymm-pixel-border-tune *{border-width:var(--ymm-pixel-border-width,1px)!important}
+    html.px body.ymm-pixel-border-tune *{border-width:var(--ymm-pixel-border-width,.35px)!important}
+    html.px body.ymm-pixel-border-tune.ymm-pixel-border-tune *{border-width:var(--ymm-pixel-border-width,.35px)!important}
     html.px body.ymm-pixel-border-tune #sidebar,html.px body.ymm-pixel-border-tune #bottom-nav,html.px body.ymm-pixel-border-tune #user-bar,html.px body.ymm-pixel-border-tune #notif,html.px body.ymm-pixel-border-tune #call-mic-test-meter-wrap,html.px body.ymm-pixel-border-tune #chat-fab,html.px body.ymm-pixel-border-tune #ai-fab,html.px body.ymm-pixel-border-tune #_mfab,html.px body.ymm-pixel-border-tune #quick-dice-tray,html.px body.ymm-pixel-border-tune #ydp-fab,html.px body.ymm-pixel-border-tune #ficha-detail[data-pixel] *{border-width:var(--ymm-pixel-border-width,1px)!important}
     html.px body.ymm-pixel-border-tune input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]),html.px body.ymm-pixel-border-tune select,html.px body.ymm-pixel-border-tune textarea{border-width:var(--ymm-pixel-border-width,1px)!important}
-    html.px body.ymm-pixel-border-tune .card,html.px body.ymm-pixel-border-tune .mine-card,html.px body.ymm-pixel-border-tune .player-card,html.px body.ymm-pixel-border-tune .campaign-card,html.px body.ymm-pixel-border-tune .live-player-row,html.px body.ymm-pixel-border-tune .hab-card,html.px body.ymm-pixel-border-tune .custom-item-row,html.px body.ymm-pixel-border-tune .stat-box,html.px body.ymm-pixel-border-tune .prof-stat-card,html.px body.ymm-pixel-border-tune .vp-stat{border-color:rgba(244,242,255,.4)!important;box-shadow:1px 1px 0 rgba(139,92,255,.14)!important}
-    html.px body.ymm-pixel-border-tune .modal,html.px body.ymm-pixel-border-tune .profile-modal,html.px body.ymm-pixel-border-tune .chat-box,html.px body.ymm-pixel-border-tune .ai-box,html.px body.ymm-pixel-border-tune .dm-panel,html.px body.ymm-pixel-border-tune .call-panel,html.px body.ymm-pixel-border-tune .usr-popout,html.px body.ymm-pixel-border-tune .usr-ctxmenu,html.px body.ymm-pixel-border-tune .hab-fs-card,html.px body.ymm-pixel-border-tune .tt3d-token-editor,html.px body.ymm-pixel-border-tune .auth-card,html.px body.ymm-pixel-border-tune .site-gate-card{border-color:rgba(244,242,255,.42)!important;box-shadow:2px 2px 0 rgba(56,225,255,.14)!important}
-    html.px body.ymm-pixel-border-tune .btn:not(.btn-primary):not(.btn-danger):not(.btn-blue),html.px body.ymm-pixel-border-tune .fstat-btn,html.px body.ymm-pixel-border-tune .call-ctrl-btn,html.px body.ymm-pixel-border-tune .call-end-btn{border-color:rgba(244,242,255,.45)!important;box-shadow:1px 1px 0 rgba(244,242,255,.12)!important}
-    html.px body.ymm-pixel-border-tune .nav-btn.active{outline-width:var(--ymm-pixel-border-width,1px)!important;outline-offset:-1px!important;box-shadow:2px 2px 0 rgba(255,216,0,.14)!important}
-    html.px body.ymm-pixel-border-tune .bnav-btn .bn-icon-wrap{border-color:rgba(244,242,255,.58)!important}
-    html.px body.ymm-pixel-border-tune .call-overlay{border-color:rgba(244,242,255,.58)!important;box-shadow:inset 3px 0 0 rgba(56,225,255,.1),inset -3px 0 0 rgba(255,79,216,.08)!important}
-    html.px body.ymm-pixel-border-tune .call-participant{border-color:rgba(244,242,255,.58)!important;box-shadow:2px 2px 0 rgba(56,225,255,.18)!important}
-    html.px body.ymm-pixel-border-tune .call-participant.is-speaking{box-shadow:2px 2px 0 rgba(77,255,124,.2)!important}
+    html.px body.ymm-pixel-border-tune .card,html.px body.ymm-pixel-border-tune .mine-card,html.px body.ymm-pixel-border-tune .player-card,html.px body.ymm-pixel-border-tune .campaign-card,html.px body.ymm-pixel-border-tune .live-player-row,html.px body.ymm-pixel-border-tune .hab-card,html.px body.ymm-pixel-border-tune .custom-item-row,html.px body.ymm-pixel-border-tune .stat-box,html.px body.ymm-pixel-border-tune .prof-stat-card,html.px body.ymm-pixel-border-tune .vp-stat{border-color:rgba(244,242,255,.35)!important;box-shadow:none!important;background-image:none!important}
+    html.px body.ymm-pixel-border-tune .modal,html.px body.ymm-pixel-border-tune .profile-modal,html.px body.ymm-pixel-border-tune .chat-box,html.px body.ymm-pixel-border-tune .ai-box,html.px body.ymm-pixel-border-tune .dm-panel,html.px body.ymm-pixel-border-tune .call-panel,html.px body.ymm-pixel-border-tune .usr-popout,html.px body.ymm-pixel-border-tune .usr-ctxmenu,html.px body.ymm-pixel-border-tune .hab-fs-card,html.px body.ymm-pixel-border-tune .tt3d-token-editor,html.px body.ymm-pixel-border-tune .auth-card,html.px body.ymm-pixel-border-tune .site-gate-card{border-color:rgba(244,242,255,.4)!important;box-shadow:none!important;background-image:none!important}
+    html.px body.ymm-pixel-border-tune .btn:not(.btn-primary):not(.btn-danger):not(.btn-blue),html.px body.ymm-pixel-border-tune .fstat-btn,html.px body.ymm-pixel-border-tune .call-ctrl-btn,html.px body.ymm-pixel-border-tune .call-end-btn{border-color:rgba(244,242,255,.4)!important;box-shadow:none!important}
+    html.px body.ymm-pixel-border-tune .nav-btn.active{outline-width:var(--ymm-pixel-border-width,.35px)!important;outline-offset:-1px!important;box-shadow:none!important}
+    html.px body.ymm-pixel-border-tune .bnav-btn .bn-icon-wrap{border-color:rgba(244,242,255,.35)!important}
+    html.px body.ymm-pixel-border-tune .call-overlay{border-color:rgba(244,242,255,.4)!important;box-shadow:none!important}
+    html.px body.ymm-pixel-border-tune .call-participant{border-color:rgba(244,242,255,.4)!important;box-shadow:none!important}
+    html.px body.ymm-pixel-border-tune .call-participant.is-speaking{box-shadow:none!important}
     html.px body.ymm-pixel-border-tune .call-controls{border-top-width:var(--ymm-pixel-border-width,1px)!important}
-    html.px body.ymm-pixel-border-tune .dice-card,html.px body.ymm-pixel-border-tune .dice-arena{border-color:rgba(244,242,255,.58)!important;box-shadow:3px 3px 0 rgba(255,79,216,.18)!important}
-    html.px body.ymm-pixel-border-tune .chat-tab-pill.active,html.px body.ymm-pixel-border-tune .cm-bub,html.px body.ymm-pixel-border-tune .dm-bub,html.px body.ymm-pixel-border-tune .toast,html.px body #notif{border-color:rgba(244,242,255,.58)!important}
+    html.px body.ymm-pixel-border-tune .dice-card,html.px body.ymm-pixel-border-tune .dice-arena{border-color:rgba(244,242,255,.4)!important;box-shadow:none!important}
+    html.px body.ymm-pixel-border-tune .chat-tab-pill.active,html.px body.ymm-pixel-border-tune .cm-bub,html.px body.ymm-pixel-border-tune .dm-bub,html.px body.ymm-pixel-border-tune .toast,html.px body #notif{border-color:rgba(244,242,255,.35)!important}
     html.px body.ymm-site-font-custom .logo-text,html.px body.ymm-site-font-custom .ficha-nome,html.px body.ymm-site-font-custom .stat-val,html.px body.ymm-site-font-custom .fstat-val,html.px body.ymm-site-font-custom .fattr-val,html.px body.ymm-site-font-custom .fderiv-val,html.px body.ymm-site-font-custom .fskill-val{font-family:var(--ymm-site-font,inherit)!important}
     html.px body.ymm-site-font-custom #ficha-detail[data-pixel] .ficha-nome,html.px body.ymm-site-font-custom #ficha-detail[data-pixel] .fstat-val,html.px body.ymm-site-font-custom #ficha-detail[data-pixel] .fattr-val,html.px body.ymm-site-font-custom #ficha-detail[data-pixel] .fderiv-val,html.px body.ymm-site-font-custom #ficha-detail[data-pixel] .fskill-val{font-family:var(--ymm-site-font,inherit)!important}
     #campanhas-list .campaign-card .cc-banner{display:block!important;height:128px!important;min-height:128px!important;flex:0 0 128px!important;overflow:hidden!important;position:relative!important;background:radial-gradient(ellipse at 75% 20%,color-mix(in srgb,var(--c-accent,#9a72ff) 24%,transparent),transparent 58%),linear-gradient(130deg,#171927,#090b12)!important}
@@ -193,6 +202,28 @@
     #ymm-host-tech-panel .ymm-host-tech-value{color:#eafaff;font-family:"Share Tech Mono",monospace;text-align:right}
     #ymm-host-call-diagnostics{max-height:190px;margin-top:10px;overflow:auto}
     #ymm-host-call-diagnostics #call-live-health{max-height:100px;overflow:auto}
+    #view-sessao .grid2>div>.card{border:1px solid rgba(126,224,255,.26)!important;border-radius:12px;box-shadow:0 10px 28px rgba(0,0,0,.24)!important}
+    #view-sessao .grid2>div>.card>.card-title{padding-bottom:10px;border-bottom:1px solid rgba(126,224,255,.14)}
+    html.px #view-sessao .grid2>div>.card{border:1px solid rgba(126,224,255,.38)!important;border-radius:0;box-shadow:2px 2px 0 rgba(138,92,255,.16)!important}
+    #view-sessao #live-display{border:1px solid rgba(126,224,255,.38)!important;border-radius:10px;overflow:hidden}
+    #view-sessao #chat-box{border:1px solid rgba(126,224,255,.3)!important;border-radius:10px;background:linear-gradient(145deg,#080b14,#0b0e18)}
+    #view-sessao .roll-feed{border:1px solid rgba(126,224,255,.24)!important;border-radius:10px}
+    #view-sessao .call-card-banner{border:1px solid rgba(126,224,255,.22)!important;border-radius:10px}
+    html.px #view-sessao #live-display,html.px #view-sessao #chat-box,html.px #view-sessao .roll-feed,html.px #view-sessao .call-card-banner{border-width:1px!important;border-style:solid!important}
+    #session-cinema-overlay{position:fixed;inset:0;z-index:100050;display:grid;place-items:center;padding:clamp(10px,3vw,36px);background:rgba(2,4,10,.78);backdrop-filter:blur(8px) saturate(.72);animation:sessionCinemaFade .24s ease-out}
+    #session-cinema-overlay[hidden]{display:none!important}
+    #session-cinema-frame{display:grid;grid-template-rows:auto minmax(0,1fr) auto;width:min(1320px,94vw);max-height:92vh;overflow:hidden;border:1px solid rgba(126,224,255,.58);border-radius:16px;background:#05070c;box-shadow:0 30px 100px rgba(0,0,0,.82),0 0 50px rgba(126,224,255,.13)}
+    #session-cinema-head{display:flex;align-items:center;gap:12px;min-width:0;padding:12px 16px;border-bottom:1px solid rgba(126,224,255,.2);background:linear-gradient(100deg,rgba(126,224,255,.09),transparent 65%);color:#eafaff}
+    #session-cinema-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:700 .78rem "Share Tech Mono",monospace;letter-spacing:.1em}
+    #session-cinema-close{flex:0 0 auto;min-width:38px;min-height:36px;border:1px solid rgba(255,255,255,.22);border-radius:8px;background:rgba(255,255,255,.06);color:#fff;font-size:1.15rem;cursor:pointer}
+    #session-cinema-close:hover{border-color:rgba(126,224,255,.65);background:rgba(126,224,255,.12)}
+    #session-cinema-stage{display:grid;place-items:center;width:100%;height:min(72vh,720px);min-height:180px;overflow:hidden;background:radial-gradient(ellipse at center,rgba(40,52,78,.28),#020307 72%)}
+    #session-cinema-stage img,#session-cinema-stage video{display:block;width:100%;height:100%;max-width:100%;max-height:72vh;object-fit:contain}
+    #session-cinema-caption{min-height:0;padding:12px 18px;border-top:1px solid rgba(255,255,255,.08);color:#f4f6fb;text-align:center;font:500 clamp(.82rem,1.3vw,1.08rem)/1.5 Rajdhani,system-ui,sans-serif;overflow-wrap:anywhere}
+    #session-cinema-caption:empty{display:none}
+    @keyframes sessionCinemaFade{from{opacity:0}to{opacity:1}}
+    @media(prefers-reduced-motion:reduce){#session-cinema-overlay{animation:none}}
+    @media(max-width:600px){#session-cinema-overlay{padding:8px}#session-cinema-frame{width:100%;max-height:88vh;border-radius:10px}#session-cinema-head{padding:9px 11px}#session-cinema-stage{height:min(66vh,560px);min-height:150px}#session-cinema-stage img,#session-cinema-stage video{max-height:66vh}#session-cinema-caption{padding:9px 12px}}
     #view-sessao{width:100%;max-width:100%;min-width:0;overflow-x:clip}
     #view-sessao .topbar{min-width:0;max-width:100%;flex-wrap:wrap;gap:12px}
     #view-sessao .topbar>div{min-width:0;max-width:100%;flex-wrap:wrap}
@@ -245,7 +276,8 @@
   var statusHudSignature = "";
   var appearanceUnsub=null,appearanceCampaign=null,appearanceOnline=false,appearanceLoaded=false,appearanceSaveTimer=null,appearanceErrorShown=false;
   var siteAppearanceKey=null,technicalVersionLabel="";
-  var defaultCallAppearance={background:"ember",backgroundColor:"#100b12",accent:"#7ee0d1",border:"#60716f",style:"neon",texture:"ambient",borderWidth:1,radius:16};
+  var sessionCinemaOverlay=null,sessionCinemaStage=null,sessionCinemaCaption=null,sessionCinemaKey="",sessionCinemaDismissedKey="",sessionCinemaObserver=null;
+  var defaultCallAppearance={background:"ember",backgroundColor:"#100b12",accent:"#7ee0d1",border:"#60716f",style:"neon",texture:"ambient",borderWidth:.5,radius:16};
   var callAppearance=Object.assign({},defaultCallAppearance);
   var chessState = null, chessMoves = [], audioCtx = null, lastClickCell = null;
   var tetris = { board: [], piece: null, next: null, score: 0, lines: 0, timer: null, ended: true, paused: false };
@@ -1213,7 +1245,7 @@
     });
   }
   function siteAppearanceStorageKey(){return "ymm_site_appearance_v1_"+identity().id;}
-  function siteAppearanceDefaults(){return{enabled:false,accent:"#ff4444",background:"#07070f",surface:"#111122",radius:14,shape:"soft",ambience:"aurora",font:"",fontEnabled:false,density:"comfortable",reduceMotion:false,pixelBorder:.5,pixelBorderScale:"subpixel-v2"};}
+  function siteAppearanceDefaults(){return{enabled:false,accent:"#ff4444",background:"#07070f",surface:"#111122",radius:14,shape:"soft",ambience:"aurora",font:"",fontEnabled:false,density:"comfortable",reduceMotion:false,pixelBorder:.35,pixelBorderScale:"subpixel-v3"};}
   function readSiteAppearance(){
     var prefs=siteAppearanceDefaults(),stored={};
     try{stored=JSON.parse(localStorage.getItem(siteAppearanceStorageKey())||"{}");if(!stored||typeof stored!=="object")stored={};prefs=Object.assign(prefs,stored);}
@@ -1226,12 +1258,12 @@
     if(["aurora","calm","none"].indexOf(prefs.ambience)<0)prefs.ambience="aurora";
     if(["","Rajdhani","Share Tech Mono","Cinzel","Bebas Neue","Arial","Georgia","system-ui"].indexOf(prefs.font)<0)prefs.font="";
     if(["compact","comfortable","spacious"].indexOf(prefs.density)<0)prefs.density="comfortable";
-    if(stored.pixelBorderScale!=="subpixel-v2"&&Object.prototype.hasOwnProperty.call(stored,"pixelBorder")){
+    if(stored.pixelBorderScale!=="subpixel-v3"&&Object.prototype.hasOwnProperty.call(stored,"pixelBorder")){
       var previousBorder=Number(stored.pixelBorder);
-      prefs.pixelBorder=previousBorder>=3?1:previousBorder>=2?0.75:0.5;
+      prefs.pixelBorder=stored.pixelBorderScale==="subpixel-v2"?(previousBorder>=1?0.5:0.35):(previousBorder>=2?0.5:0.35);
     }
-    if([.5,.75,1].indexOf(Number(prefs.pixelBorder))<0)prefs.pixelBorder=.5;
-    prefs.pixelBorderScale="subpixel-v2";
+    if([.35,.5,.75].indexOf(Number(prefs.pixelBorder))<0)prefs.pixelBorder=.35;
+    prefs.pixelBorderScale="subpixel-v3";
     if(typeof stored.fontEnabled!=="boolean")prefs.fontEnabled=!!(prefs.enabled&&prefs.font);
     prefs.enabled=!!prefs.enabled;prefs.reduceMotion=!!prefs.reduceMotion;
     return prefs;
@@ -1286,7 +1318,7 @@
     if(!modal||!grid||document.getElementById("ymm-appearance-controls"))return;
     modal.style.maxWidth="700px";modal.style.width="min(700px,94vw)";
     var panel=document.createElement("section");panel.id="ymm-appearance-controls";
-    panel.innerHTML='<div class="ymm-appearance-title">✨ Personalização avançada</div><div class="ymm-appearance-help">A fonte e os contornos pixel podem ser alterados independentemente das cores. Preferências salvas só neste dispositivo.</div><label class="wide"><span>Ativar personalização de cores e cartões</span><input id="ymm-site-enabled" type="checkbox"></label><label>Cor principal<input id="ymm-site-accent" type="color"></label><label>Cor de fundo<input id="ymm-site-background" type="color"></label><label>Cor dos painéis<input id="ymm-site-surface" type="color"></label><label>Arredondamento<select id="ymm-site-radius"><option value="8">Discreto</option><option value="12">Suave</option><option value="14">Elegante</option><option value="16">Arredondado</option><option value="20">Bem arredondado</option><option value="24">Extra arredondado</option></select></label><label>Estilo dos cartões<select id="ymm-site-shape"><option value="soft">Elegante</option><option value="clean">Limpo</option><option value="sharp">Arcade</option></select></label><label>Fundo ambiente<select id="ymm-site-ambience"><option value="aurora">Aurora</option><option value="calm">Brilho sutil</option><option value="none">Sem brilho</option></select></label><label>Fonte do site<select id="ymm-site-font"><option value="">Padrão do tema</option><option value="Rajdhani">Rajdhani</option><option value="Share Tech Mono">Share Tech Mono</option><option value="Cinzel">Cinzel</option><option value="Bebas Neue">Bebas Neue</option><option value="Arial">Arial</option><option value="Georgia">Georgia</option><option value="system-ui">Padrão do sistema</option></select></label><label>Contornos Pixel<select id="ymm-site-pixelBorder"><option value="0.5">Extra fino</option><option value="0.75">Fino</option><option value="1">Suave</option></select></label><label>Densidade da interface<select id="ymm-site-density"><option value="compact">Compacta</option><option value="comfortable">Confortável</option><option value="spacious">Espaçosa</option></select></label><label class="wide"><span><input id="ymm-site-reduceMotion" type="checkbox"> Reduzir animações</span></label><button type="button" id="ymm-site-reset">Restaurar aparência padrão</button>';
+    panel.innerHTML='<div class="ymm-appearance-title">✨ Personalização avançada</div><div class="ymm-appearance-help">A fonte e os contornos pixel podem ser alterados independentemente das cores. Preferências salvas só neste dispositivo.</div><label class="wide"><span>Ativar personalização de cores e cartões</span><input id="ymm-site-enabled" type="checkbox"></label><label>Cor principal<input id="ymm-site-accent" type="color"></label><label>Cor de fundo<input id="ymm-site-background" type="color"></label><label>Cor dos painéis<input id="ymm-site-surface" type="color"></label><label>Arredondamento<select id="ymm-site-radius"><option value="8">Discreto</option><option value="12">Suave</option><option value="14">Elegante</option><option value="16">Arredondado</option><option value="20">Bem arredondado</option><option value="24">Extra arredondado</option></select></label><label>Estilo dos cartões<select id="ymm-site-shape"><option value="soft">Elegante</option><option value="clean">Limpo</option><option value="sharp">Arcade</option></select></label><label>Fundo ambiente<select id="ymm-site-ambience"><option value="aurora">Aurora</option><option value="calm">Brilho sutil</option><option value="none">Sem brilho</option></select></label><label>Fonte do site<select id="ymm-site-font"><option value="">Padrão do tema</option><option value="Rajdhani">Rajdhani</option><option value="Share Tech Mono">Share Tech Mono</option><option value="Cinzel">Cinzel</option><option value="Bebas Neue">Bebas Neue</option><option value="Arial">Arial</option><option value="Georgia">Georgia</option><option value="system-ui">Padrão do sistema</option></select></label><label>Contornos Pixel<select id="ymm-site-pixelBorder"><option value="0.35">Extra fino</option><option value="0.5">Fino</option><option value="0.75">Suave</option></select></label><label>Densidade da interface<select id="ymm-site-density"><option value="compact">Compacta</option><option value="comfortable">Confortável</option><option value="spacious">Espaçosa</option></select></label><label class="wide"><span><input id="ymm-site-reduceMotion" type="checkbox"> Reduzir animações</span></label><button type="button" id="ymm-site-reset">Restaurar aparência padrão</button>';
     grid.insertAdjacentElement("afterend",panel);
     var prefs=readSiteAppearance();syncSiteAppearanceControls(prefs);
     panel.addEventListener("input",function(event){
@@ -1322,7 +1354,7 @@
       density:panel.querySelector("#ymm-site-density").value,
       reduceMotion:panel.querySelector("#ymm-site-reduceMotion").checked,
       pixelBorder:Number(panel.querySelector("#ymm-site-pixelBorder").value),
-      pixelBorderScale:"subpixel-v2"
+      pixelBorderScale:"subpixel-v3"
     };
     if(enableOnChange&&!old.enabled)enabled.checked=true;
     saveSiteAppearance(prefs);applySiteAppearance(prefs);
@@ -1393,7 +1425,7 @@
     ["backgroundColor","accent","border"].forEach(function(key){if(!/^#[0-9a-f]{6}$/i.test(config[key]||""))config[key]=defaultCallAppearance[key];});
     if(["neon","soft","arcade"].indexOf(config.style)<0)config.style="neon";
     if(["ambient","grid","clean"].indexOf(config.texture)<0)config.texture="ambient";
-    config.borderWidth=Math.max(1,Math.min(4,Math.round(Number(config.borderWidth)||1)));
+    config.borderWidth=Math.max(.5,Math.min(2,Number(config.borderWidth)||.5));
     config.radius=Math.max(8,Math.min(28,Math.round(Number(config.radius)||16)));
     return config;
   }
@@ -1439,7 +1471,7 @@
     var box=document.getElementById("call-theme-owner-tools");
     if(!box){
       box=document.createElement("section");box.id="call-theme-owner-tools";
-      box.innerHTML='<div class="ymm-call-theme-title">🎨 Tema compartilhado da call</div><div class="ymm-call-theme-note" id="ymm-call-theme-note"></div><div class="ymm-call-theme-grid"><label>Atmosfera<select id="ymm-call-background"><option value="ember">Brasas</option><option value="violet">Nebulosa violeta</option><option value="ocean">Oceano</option><option value="forest">Floresta</option><option value="obsidian">Obsidiana</option></select></label><label>Textura<select id="ymm-call-texture"><option value="ambient">Partículas sutis</option><option value="grid">Grade</option><option value="clean">Limpa</option></select></label><label>Fundo<input id="ymm-call-backgroundColor" type="color" aria-label="Cor de fundo da call"></label><label>Cor de destaque<input id="ymm-call-accent" type="color" aria-label="Cor de destaque da call"></label><label>Cor da borda<input id="ymm-call-border" type="color" aria-label="Cor da borda da call"></label><label>Estilo da borda<select id="ymm-call-style"><option value="neon">Brilho</option><option value="soft">Suave</option><option value="arcade">Dupla arcade</option></select></label><label class="wide">Espessura da borda <span id="ymm-call-width-value"></span><input id="ymm-call-borderWidth" type="range" min="1" max="4" step="1"></label><label class="wide">Arredondamento <span id="ymm-call-radius-value"></span><input id="ymm-call-radius" type="range" min="8" max="28" step="2"></label><button class="ymm-call-theme-save" id="ymm-call-theme-save" type="button">Salvar e compartilhar com a campanha</button></div>';
+      box.innerHTML='<div class="ymm-call-theme-title">🎨 Tema compartilhado da call</div><div class="ymm-call-theme-note" id="ymm-call-theme-note"></div><div class="ymm-call-theme-grid"><label>Atmosfera<select id="ymm-call-background"><option value="ember">Brasas</option><option value="violet">Nebulosa violeta</option><option value="ocean">Oceano</option><option value="forest">Floresta</option><option value="obsidian">Obsidiana</option></select></label><label>Textura<select id="ymm-call-texture"><option value="ambient">Partículas sutis</option><option value="grid">Grade</option><option value="clean">Limpa</option></select></label><label>Fundo<input id="ymm-call-backgroundColor" type="color" aria-label="Cor de fundo da call"></label><label>Cor de destaque<input id="ymm-call-accent" type="color" aria-label="Cor de destaque da call"></label><label>Cor da borda<input id="ymm-call-border" type="color" aria-label="Cor da borda da call"></label><label>Estilo da borda<select id="ymm-call-style"><option value="neon">Brilho</option><option value="soft">Suave</option><option value="arcade">Dupla arcade</option></select></label><label class="wide">Espessura da borda <span id="ymm-call-width-value"></span><input id="ymm-call-borderWidth" type="range" min="0.5" max="2" step="0.5"></label><label class="wide">Arredondamento <span id="ymm-call-radius-value"></span><input id="ymm-call-radius" type="range" min="8" max="28" step="2"></label><button class="ymm-call-theme-save" id="ymm-call-theme-save" type="button">Salvar e compartilhar com a campanha</button></div>';
       var options=document.getElementById("call-character-options");
       if(options&&options.parentNode)options.insertAdjacentElement("afterend",box);else settings.appendChild(box);
       box.addEventListener("input",function(event){
@@ -1572,6 +1604,70 @@
       }else ensureFallback();
     });
   }
+  function ensureSessionCinema(){
+    if(sessionCinemaOverlay&&sessionCinemaOverlay.isConnected)return;
+    sessionCinemaOverlay=document.createElement("section");
+    sessionCinemaOverlay.id="session-cinema-overlay";sessionCinemaOverlay.hidden=true;
+    sessionCinemaOverlay.setAttribute("role","dialog");sessionCinemaOverlay.setAttribute("aria-modal","true");sessionCinemaOverlay.setAttribute("aria-label","Tela dos jogadores");
+    sessionCinemaOverlay.innerHTML='<div id="session-cinema-frame"><header id="session-cinema-head"><span id="session-cinema-title">TELA DOS JOGADORES · AO VIVO</span><button id="session-cinema-close" type="button" aria-label="Fechar projeção">×</button></header><div id="session-cinema-stage"></div><div id="session-cinema-caption"></div></div>';
+    sessionCinemaStage=sessionCinemaOverlay.querySelector("#session-cinema-stage");
+    sessionCinemaCaption=sessionCinemaOverlay.querySelector("#session-cinema-caption");
+    sessionCinemaOverlay.querySelector("#session-cinema-close").addEventListener("click",function(){
+      sessionCinemaDismissedKey=sessionCinemaKey;sessionCinemaOverlay.hidden=true;
+    });
+    document.body.appendChild(sessionCinemaOverlay);
+    var liveDisplay=document.getElementById("live-display");
+    if(liveDisplay&&typeof MutationObserver==="function"){
+      sessionCinemaObserver=new MutationObserver(updateSessionCinema);
+      sessionCinemaObserver.observe(liveDisplay,{attributes:true,childList:true,characterData:true,subtree:true});
+    }
+  }
+  function updateSessionCinema(){
+    ensureSessionCinema();
+    var call=window.callState||{};
+    if(!call.active){
+      sessionCinemaOverlay.hidden=true;sessionCinemaStage.textContent="";
+      sessionCinemaKey="";sessionCinemaDismissedKey="";
+      return;
+    }
+    var candidates=[
+      {type:"video",element:document.getElementById("live-video")},
+      {type:"image",element:document.getElementById("live-img")}
+    ],media=null;
+    for(var i=0;i<candidates.length;i++){
+      var candidate=candidates[i],element=candidate.element;
+      if(!element||element.hidden||getComputedStyle(element).display==="none")continue;
+      var source=element.currentSrc||element.getAttribute("src")||"";
+      if(source.trim()){media={type:candidate.type,source:source,element:element};break;}
+    }
+    if(!media){
+      sessionCinemaOverlay.hidden=true;sessionCinemaStage.textContent="";
+      sessionCinemaKey="";sessionCinemaDismissedKey="";
+      return;
+    }
+    var nextKey=media.type+"|"+media.source;
+    if(nextKey!==sessionCinemaKey){
+      sessionCinemaKey=nextKey;sessionCinemaStage.textContent="";
+      var presentation=document.createElement(media.type==="video"?"video":"img");
+      if(media.type==="video"){
+        presentation.src=media.source;presentation.muted=true;presentation.autoplay=true;presentation.loop=true;presentation.playsInline=true;
+        presentation.addEventListener("loadedmetadata",function(){
+          if(sessionCinemaKey!==nextKey||!Number.isFinite(media.element.currentTime))return;
+          try{presentation.currentTime=media.element.currentTime;}
+          catch(error){console.warn("[Session cinema] Não foi possível sincronizar o vídeo projetado:",error);}
+        },{once:true});
+      }else{
+        presentation.src=media.source;presentation.alt="Mídia transmitida pelo mestre";
+      }
+      presentation.addEventListener("error",function(){
+        if(sessionCinemaKey===nextKey)sessionCinemaStage.textContent="Não foi possível carregar a mídia desta transmissão.";
+      },{once:true});
+      sessionCinemaStage.appendChild(presentation);
+      if(sessionCinemaDismissedKey!==nextKey)sessionCinemaOverlay.hidden=false;
+    }
+    var caption=document.getElementById("live-caption-bar-inner");
+    sessionCinemaCaption.textContent=caption?String(caption.textContent||"").trim():"";
+  }
   function addCallButton() {
     var controls=document.getElementById("call-controls");
     if(!controls||controls.querySelector(".call-activity-open"))return;
@@ -1586,6 +1682,7 @@
     installStyles();
     hideTechnicalDetails();
     ensureHostTechnicalPanel();ensureCampaignBanners();
+    updateSessionCinema();
     ensureSiteAppearanceControls();refreshSiteAppearance();
     addCallButton();addStatusVisibility();wrapCallStatusSharing();addStatusHudOptions();renderCallStatusHud();
     addCallAppearanceTools();watchCallAppearance();
@@ -1600,6 +1697,7 @@
   }
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",updateUI);
   else updateUI();
-  setInterval(updateUI,1400);
-  window.addEventListener("beforeunload",function(){clearInterval(tetris.timer);if(appearanceUnsub)appearanceUnsub();if(appearanceSaveTimer)clearTimeout(appearanceSaveTimer);});
+  setInterval(function(){if(!document.hidden)updateUI();},3000);
+  document.addEventListener("visibilitychange",function(){if(!document.hidden)updateUI();});
+  window.addEventListener("beforeunload",function(){clearInterval(tetris.timer);if(appearanceUnsub)appearanceUnsub();if(appearanceSaveTimer)clearTimeout(appearanceSaveTimer);if(sessionCinemaObserver)sessionCinemaObserver.disconnect();});
 })();
